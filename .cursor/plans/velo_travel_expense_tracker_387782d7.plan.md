@@ -350,5 +350,3 @@ Using Vitest in `frontend/tests/`:
 3. **Fictional Members**: Nullable `user_id` in TripMembers table allows seamless claiming without data migration
 4. **Debt Settlement**: Greedy algorithm is O(n log n) and produces near-optimal results for typical group sizes
 5. **Mobile-First**: All components designed for touch, desktop is just a centered mobile view
-
-## Testing Strategy

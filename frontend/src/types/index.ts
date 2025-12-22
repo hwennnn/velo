@@ -11,7 +11,7 @@ export interface User {
 }
 
 export interface Trip {
-  id: string;
+  id: number;
   name: string;
   description?: string;
   base_currency: string;
@@ -20,16 +20,19 @@ export interface Trip {
   created_by: string;
   created_at: string;
   updated_at: string;
+  member_count?: number;
+  members?: TripMember[];
 }
 
 export interface TripMember {
-  id: string;
-  trip_id: string;
+  id: number;
+  trip_id?: number;
   user_id?: string;
   nickname: string;
   is_fictional: boolean;
+  is_admin: boolean;
   color?: string;
-  created_at: string;
+  created_at?: string;
 }
 
 export interface Expense {

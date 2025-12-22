@@ -31,13 +31,13 @@ def create_db_and_tables() -> None:
 def get_session() -> Generator[Session, None, None]:
     """
     Dependency function to get a database session.
-    
+
     Usage in FastAPI routes:
         @app.get("/items")
         def get_items(session: Session = Depends(get_session)):
             # Use session here
             pass
-    
+
     Yields:
         Session: SQLModel database session
     """
@@ -54,15 +54,27 @@ def get_session() -> Generator[Session, None, None]:
 def init_db() -> None:
     """
     Initialize database on application startup.
-    Creates tables if they don't exist (development only).
+
+    IMPORTANT: In production, use Alembic migrations instead of auto-creating tables.
+    The create_db_and_tables() approach is only for quick local SQLite development.
+
+    For Supabase PostgreSQL:
+    1. Generate migration: alembic revision --autogenerate -m "description"
+    2. Review the generated migration file
+    3. Apply migration: alembic upgrade head
     """
     # Import all models here to ensure they are registered with SQLModel
-    # This will be populated as we create models
-    # from app.models.user import User
-    # from app.models.trip import Trip
-    # from app.models.trip_member import TripMember
-    # from app.models.expense import Expense
-    # from app.models.split import Split
-    
-    if settings.is_development:
+    from app.models.user import User
+    from app.models.trip import Trip
+    from app.models.trip_member import TripMember
+    from app.models.expense import Expense
+    from app.models.split import Split
+
+    # Only auto-create tables for local SQLite development
+    if settings.is_development and settings.database_url.startswith("sqlite"):
+        print("⚠️  Auto-creating tables (SQLite development mode)")
         create_db_and_tables()
+    elif settings.is_development:
+        print("ℹ️  Using PostgreSQL - please run Alembic migrations")
+    else:
+        print("✓ Production mode - ensure Alembic migrations are up to date")

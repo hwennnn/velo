@@ -1,6 +1,7 @@
 """
 FastAPI application entry point for Velo Travel Expense Tracker.
 """
+from app.api import trips, users
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -20,9 +21,9 @@ async def lifespan(app: FastAPI):
     print(f"Environment: {settings.environment}")
     init_db()
     print("Database initialized")
-    
+
     yield
-    
+
     # Shutdown
     print("Shutting down application")
 
@@ -67,12 +68,12 @@ async def health_check():
     }
 
 
-# API routes will be added here
-# Example:
-# from app.api import trips, members, expenses
-# app.include_router(trips.router, prefix=f"{settings.api_prefix}/trips", tags=["trips"])
-# app.include_router(members.router, prefix=f"{settings.api_prefix}/members", tags=["members"])
-# app.include_router(expenses.router, prefix=f"{settings.api_prefix}/expenses", tags=["expenses"])
+# API routes
+
+app.include_router(
+    users.router, prefix=f"{settings.api_prefix}/users", tags=["users"])
+app.include_router(
+    trips.router, prefix=f"{settings.api_prefix}/trips", tags=["trips"])
 
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ import { AuthProvider } from './hooks/useAuth';
 import AuthCallback from './pages/AuthCallback';
 import Home from './pages/Home';
 import Login from './pages/Login';
+import TripDetail from './pages/TripDetail';
 
 function App() {
   return (
@@ -26,6 +27,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Home />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/trips/:tripId"
+              element={
+                <ProtectedRoute>
+                  <TripDetail />
                 </ProtectedRoute>
               }
             />

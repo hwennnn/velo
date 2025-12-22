@@ -2,11 +2,37 @@
  * Home Page - Trips List
  * Shows all user trips and allows creating new ones
  */
+import { format } from 'date-fns';
+import { Calendar, LogOut, MapPin, Plus, Users } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import CreateTripModal from '../components/CreateTripModal';
 import { useAuth } from '../hooks/useAuth';
-import { Plus, LogOut } from 'lucide-react';
+import { api } from '../services/api';
+import type { CreateTripInput, Trip } from '../types';
 
 export default function Home() {
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadTrips();
+  }, []);
+
+  const loadTrips = async () => {
+    try {
+      setIsLoading(true);
+      const response = await api.trips.getAll();
+      setTrips(response.data.trips || []);
+    } catch (error) {
+      console.error('Error loading trips:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSignOut = async () => {
     try {
@@ -16,10 +42,22 @@ export default function Home() {
     }
   };
 
+  const handleCreateTrip = async (tripData: CreateTripInput) => {
+    await api.trips.create(tripData);
+    await loadTrips();
+  };
+
+  const formatDateRange = (startDate?: string, endDate?: string) => {
+    if (!startDate && !endDate) return null;
+    if (startDate && !endDate) return `From ${format(new Date(startDate), 'MMM d, yyyy')}`;
+    if (!startDate && endDate) return `Until ${format(new Date(endDate), 'MMM d, yyyy')}`;
+    return `${format(new Date(startDate!), 'MMM d')} - ${format(new Date(endDate!), 'MMM d, yyyy')}`;
+  };
+
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
-      <header className="bg-primary-600 text-white px-6 py-4 safe-top">
+      <header className="bg-primary-600 text-white px-6 py-4 safe-top shadow-sm">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Velo</h1>
@@ -37,45 +75,120 @@ export default function Home() {
 
       {/* Content */}
       <main className="flex-1 p-6">
-        <div className="mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Your Trips</h2>
-          <p className="text-gray-600 text-sm">Manage your travel expenses</p>
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-1">Your Trips</h2>
+            <p className="text-gray-600 text-sm">Manage your travel expenses</p>
+          </div>
+          {trips.length > 0 && (
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="p-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors shadow-sm"
+              aria-label="Create trip"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
-        {/* Empty state */}
-        <div className="text-center py-16">
-          <div className="w-20 h-20 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
-            <Plus className="w-10 h-10 text-gray-400" />
+        {isLoading ? (
+          /* Loading State */
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-white rounded-2xl p-6 shadow-sm animate-pulse">
+                <div className="h-6 bg-gray-200 rounded w-3/4 mb-3"></div>
+                <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
+                <div className="flex gap-4">
+                  <div className="h-4 bg-gray-200 rounded w-20"></div>
+                  <div className="h-4 bg-gray-200 rounded w-24"></div>
+                </div>
+              </div>
+            ))}
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No trips yet</h3>
-          <p className="text-gray-500 mb-6">Create your first trip to start tracking expenses</p>
-          <button className="px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors shadow-sm">
-            Create Trip
-          </button>
-        </div>
+        ) : trips.length === 0 ? (
+          /* Empty State */
+          <div className="text-center py-16">
+            <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-primary-100 to-primary-200 rounded-full flex items-center justify-center">
+              <MapPin className="w-10 h-10 text-primary-600" />
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No trips yet</h3>
+            <p className="text-gray-500 mb-6">Create your first trip to start tracking expenses</p>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors shadow-sm hover:shadow-md"
+            >
+              Create Trip
+            </button>
+          </div>
+        ) : (
+          /* Trip List */
+          <div className="space-y-4">
+            {trips.map((trip) => (
+              <button
+                key={trip.id}
+                onClick={() => navigate(`/trips/${trip.id}`)}
+                className="w-full bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 text-left"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-1">{trip.name}</h3>
+                    {trip.description && (
+                      <p className="text-sm text-gray-600 line-clamp-2">{trip.description}</p>
+                    )}
+                  </div>
+                  <div className="ml-3 px-3 py-1 bg-primary-100 text-primary-700 text-xs font-medium rounded-full">
+                    {trip.base_currency}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 text-sm text-gray-500">
+                  {trip.member_count && (
+                    <div className="flex items-center gap-1.5">
+                      <Users className="w-4 h-4" />
+                      <span>{trip.member_count} {trip.member_count === 1 ? 'member' : 'members'}</span>
+                    </div>
+                  )}
+                  {formatDateRange(trip.start_date, trip.end_date) && (
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="w-4 h-4" />
+                      <span>{formatDateRange(trip.start_date, trip.end_date)}</span>
+                    </div>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </main>
 
       {/* Bottom Navigation (placeholder) */}
-      <nav className="border-t border-gray-200 safe-bottom">
+      <nav className="bg-white border-t border-gray-200 safe-bottom shadow-sm">
         <div className="grid grid-cols-4 gap-2 px-4 py-3">
           <button className="flex flex-col items-center gap-1 text-primary-600">
             <div className="w-6 h-6 bg-primary-100 rounded-lg"></div>
             <span className="text-xs font-medium">Trips</span>
           </button>
-          <button className="flex flex-col items-center gap-1 text-gray-400">
+          <button className="flex flex-col items-center gap-1 text-gray-400 hover:text-gray-600">
             <div className="w-6 h-6 bg-gray-100 rounded-lg"></div>
             <span className="text-xs font-medium">Expenses</span>
           </button>
-          <button className="flex flex-col items-center gap-1 text-gray-400">
+          <button className="flex flex-col items-center gap-1 text-gray-400 hover:text-gray-600">
             <div className="w-6 h-6 bg-gray-100 rounded-lg"></div>
             <span className="text-xs font-medium">Balances</span>
           </button>
-          <button className="flex flex-col items-center gap-1 text-gray-400">
+          <button className="flex flex-col items-center gap-1 text-gray-400 hover:text-gray-600">
             <div className="w-6 h-6 bg-gray-100 rounded-lg"></div>
             <span className="text-xs font-medium">Profile</span>
           </button>
         </div>
       </nav>
+
+      {/* Create Trip Modal */}
+      <CreateTripModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onCreate={handleCreateTrip}
+      />
     </div>
   );
 }

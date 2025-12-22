@@ -102,6 +102,7 @@ npm run dev
 ## 🏗️ Tech Stack
 
 ### Backend
+
 - **FastAPI** - Modern Python web framework
 - **SQLModel** - SQL ORM with Pydantic validation
 - **PostgreSQL / SQLite** - Database
@@ -109,6 +110,7 @@ npm run dev
 - **Pytest** - Testing framework
 
 ### Frontend
+
 - **React 19** - UI library
 - **TypeScript** - Type safety
 - **Vite** - Build tool
@@ -146,6 +148,7 @@ The app uses a **MobileContainer** component that:
 ## 🧪 Testing
 
 ### Backend Tests
+
 ```bash
 cd backend
 pytest
@@ -153,6 +156,7 @@ pytest --cov=app --cov-report=html
 ```
 
 ### Frontend Tests
+
 ```bash
 cd frontend
 npm run test  # Coming soon
@@ -167,18 +171,32 @@ docker-compose up -d
 
 ## 🗺️ Roadmap
 
+### ✅ Completed (Increment 1)
+
 - [x] Backend setup with FastAPI
 - [x] Frontend setup with React
 - [x] Supabase authentication (Google & GitHub)
 - [x] Mobile-first container layout
 - [x] API client and backend integration
-- [ ] Database models (Users, Trips, Members, Expenses, Splits)
-- [ ] Trip management UI & API
-- [ ] Member management with fictional users
-- [ ] Expense entry with multi-currency
+- [x] **Database models (Users, Trips, Members, Expenses, Splits)**
+- [x] **Trip management UI & API (Create, List, View)**
+- [x] **Beautiful animated trip creation modal**
+- [x] **Trip detail page with member display**
+
+### 🚧 In Progress (Increment 2)
+
+- [ ] Member management API (add/remove/claim fictional)
+- [ ] Add member modal UI
+- [ ] Expense entry API with multi-currency
+- [ ] Expense creation form UI
+- [ ] Expense list page with filters
+
+### 📋 Upcoming
+
 - [ ] Balance calculation engine
 - [ ] Optimal settlement algorithm
 - [ ] Settlement UI
+- [ ] Currency exchange rate integration
 - [ ] Testing suite
 - [ ] Docker deployment
 

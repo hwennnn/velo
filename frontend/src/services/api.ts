@@ -55,30 +55,36 @@ export const api = {
     create: (data: any) => apiClient.post('/trips', data),
     update: (id: string, data: any) => apiClient.put(`/trips/${id}`, data),
     delete: (id: string) => apiClient.delete(`/trips/${id}`),
+    generateInvite: (tripId: string) => apiClient.post(`/trips/${tripId}/invite`),
+    joinViaInvite: (tripId: string) => apiClient.post(`/trips/${tripId}/join`),
   },
 
   // Members
   members: {
     getAll: (tripId: string) => apiClient.get(`/trips/${tripId}/members`),
     add: (tripId: string, data: any) => apiClient.post(`/trips/${tripId}/members`, data),
-    claim: (tripId: string, memberId: string) => 
-      apiClient.post(`/trips/${tripId}/members/${memberId}/claim`),
+    update: (tripId: string, memberId: string, data: any) => apiClient.put(`/trips/${tripId}/members/${memberId}`, data),
+    claim: (tripId: string, memberId: string, data?: any) => 
+      apiClient.post(`/trips/${tripId}/members/${memberId}/claim`, data || {}),
     remove: (tripId: string, memberId: string) => 
       apiClient.delete(`/trips/${tripId}/members/${memberId}`),
+    leave: (tripId: string) => apiClient.post(`/trips/${tripId}/leave`),
   },
 
   // Expenses
   expenses: {
-    getAll: (tripId: string) => apiClient.get(`/trips/${tripId}/expenses`),
+    getAll: (tripId: string, params?: any) => apiClient.get(`/trips/${tripId}/expenses`, { params }),
+    getById: (tripId: string, expenseId: number) => apiClient.get(`/trips/${tripId}/expenses/${expenseId}`),
     create: (tripId: string, data: any) => apiClient.post(`/trips/${tripId}/expenses`, data),
-    update: (expenseId: string, data: any) => apiClient.put(`/expenses/${expenseId}`, data),
-    delete: (expenseId: string) => apiClient.delete(`/expenses/${expenseId}`),
+    update: (tripId: string, expenseId: number, data: any) => apiClient.put(`/trips/${tripId}/expenses/${expenseId}`, data),
+    delete: (tripId: string, expenseId: number) => apiClient.delete(`/trips/${tripId}/expenses/${expenseId}`),
   },
 
   // Balances & Settlements
   balances: {
     get: (tripId: string) => apiClient.get(`/trips/${tripId}/balances`),
     getSettlements: (tripId: string) => apiClient.get(`/trips/${tripId}/settlements`),
+    getMemberBalance: (tripId: string, memberId: number) => apiClient.get(`/trips/${tripId}/members/${memberId}/balance`),
   },
 
   // User

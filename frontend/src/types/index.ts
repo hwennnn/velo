@@ -31,37 +31,40 @@ export interface TripMember {
   nickname: string;
   is_fictional: boolean;
   is_admin: boolean;
+  email?: string;
+  avatar_url?: string;
   color?: string;
   created_at?: string;
 }
 
 export interface Expense {
-  id: string;
-  trip_id: string;
+  id: number;
+  trip_id: number;
   description: string;
   amount: number;
   currency: string;
   exchange_rate_to_base: number;
-  paid_by_member_id: string;
-  date: string;
+  amount_in_base_currency: number;
+  paid_by_member_id: number;
+  paid_by_nickname: string;
+  expense_date: string;
   category?: string;
   notes?: string;
-  created_at: string;
-  updated_at: string;
-  paid_by?: TripMember;
-  splits?: Split[];
+  receipt_url?: string;
+  created_by: string;
+  splits: Split[];
 }
 
 export interface Split {
-  id: string;
-  expense_id: string;
-  member_id: string;
+  id: number;
+  member_id: number;
+  member_nickname: string;
   amount: number;
-  member?: TripMember;
+  percentage?: number;
 }
 
 export interface Balance {
-  member_id: string;
+  member_id: number;
   member: TripMember;
   total_paid: number;
   total_owed: number;
@@ -69,8 +72,8 @@ export interface Balance {
 }
 
 export interface Settlement {
-  from_member_id: string;
-  to_member_id: string;
+  from_member_id: number;
+  to_member_id: number;
   amount: number;
   from_member?: TripMember;
   to_member?: TripMember;
@@ -84,14 +87,34 @@ export interface CreateTripInput {
   end_date?: string;
 }
 
+export interface AddMemberInput {
+  nickname: string;
+  is_fictional: boolean;
+  user_email?: string;
+  is_admin: boolean;
+}
+
 export interface CreateExpenseInput {
   description: string;
   amount: number;
   currency: string;
-  paid_by_member_id: string;
-  date: string;
+  paid_by_member_id: number;
+  expense_date: string;
   category?: string;
   notes?: string;
-  split_equally?: boolean;
-  custom_splits?: { member_id: string; amount: number }[];
+  receipt_url?: string;
+  split_type: 'equal' | 'percentage' | 'custom';
+  splits?: SplitInput[];
+}
+
+export interface SplitInput {
+  member_id: number;
+  amount?: number;
+  percentage?: number;
+}
+
+export interface InviteLink {
+  invite_code: string;
+  invite_url: string;
+  expires_at?: string;
 }

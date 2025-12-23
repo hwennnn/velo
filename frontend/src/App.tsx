@@ -8,6 +8,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider } from './hooks/useAuth';
 import AuthCallback from './pages/AuthCallback';
 import Home from './pages/Home';
+import JoinTrip from './pages/JoinTrip';
 import Login from './pages/Login';
 import TripDetail from './pages/TripDetail';
 
@@ -20,6 +21,7 @@ function App() {
             {/* Public routes */}
             <Route path="/auth/login" element={<Login />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/join" element={<JoinTrip />} />
             
             {/* Protected routes */}
             <Route

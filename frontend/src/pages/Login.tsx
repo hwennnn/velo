@@ -2,21 +2,23 @@
  * Login Page
  * Handles user authentication with Google and GitHub
  */
-import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
 import { Github } from 'lucide-react';
+import { useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
 
 export default function Login() {
   const { user, signInWithGoogle, signInWithGithub } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get('redirect');
 
   useEffect(() => {
     // Redirect if already logged in
     if (user) {
-      navigate('/trips');
+      navigate(redirectTo || '/trips');
     }
-  }, [user, navigate]);
+  }, [user, navigate, redirectTo]);
 
   const handleGoogleSignIn = async () => {
     try {

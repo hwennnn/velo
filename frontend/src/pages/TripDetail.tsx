@@ -287,6 +287,9 @@ export default function TripDetail() {
 
   const totalSpent = expenses.reduce((sum, exp) => sum + exp.amount_in_base_currency, 0);
 
+  // Check if current user is admin
+  const isCurrentUserAdmin = trip?.members?.find(m => m.user_id === user?.id)?.is_admin || false;
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
@@ -401,22 +404,24 @@ export default function TripDetail() {
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">Trip Members</h3>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={handleGenerateInvite}
-                    className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2"
-                  >
-                    <Link2 className="w-4 h-4" />
-                    Invite
-                  </button>
-                  <button 
-                    onClick={() => setShowAddMemberModal(true)}
-                    className="px-4 py-2 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm flex items-center gap-2"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add Member
-                  </button>
-                </div>
+                {isCurrentUserAdmin && (
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={handleGenerateInvite}
+                      className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2"
+                    >
+                      <Link2 className="w-4 h-4" />
+                      Invite
+                    </button>
+                    <button 
+                      onClick={() => setShowAddMemberModal(true)}
+                      className="px-4 py-2 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm flex items-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Member
+                    </button>
+                  </div>
+                )}
               </div>
 
               {trip.members && trip.members.length > 0 ? (
@@ -558,12 +563,14 @@ export default function TripDetail() {
                     <Users className="w-8 h-8 text-gray-400" />
                   </div>
                   <p className="text-gray-600 text-sm mb-4">No members yet</p>
-                  <button 
-                    onClick={() => setShowAddMemberModal(true)}
-                    className="px-4 py-2 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"
-                  >
-                    Add First Member
-                  </button>
+                  {isCurrentUserAdmin && (
+                    <button 
+                      onClick={() => setShowAddMemberModal(true)}
+                      className="px-4 py-2 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"
+                    >
+                      Add First Member
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -587,6 +594,8 @@ export default function TripDetail() {
                 expenses={expenses}
                 members={trip.members || []}
                 baseCurrency={trip.base_currency}
+                currentUserId={user?.id}
+                isCurrentUserAdmin={isCurrentUserAdmin}
                 onDelete={handleDeleteExpense}
                 onRefresh={loadData}
               />

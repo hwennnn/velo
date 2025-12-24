@@ -13,6 +13,8 @@ interface ExpenseListProps {
   expenses: Expense[];
   members: TripMember[];
   baseCurrency: string;
+  currentUserId?: string;
+  isCurrentUserAdmin?: boolean;
   onDelete: (expenseId: number) => Promise<void>;
   onRefresh: () => void;
 }
@@ -31,6 +33,8 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
   expenses,
   members,
   baseCurrency,
+  currentUserId,
+  isCurrentUserAdmin = false,
   onDelete,
   onRefresh,
 }) => {
@@ -244,19 +248,21 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
                   </div>
 
                   {/* Actions */}
-                  <div className="flex gap-2 pt-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(expense.id);
-                      }}
-                      disabled={deletingId === expense.id}
-                      className="flex-1 px-3 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      {deletingId === expense.id ? 'Deleting...' : 'Delete'}
-                    </button>
-                  </div>
+                  {currentUserId && (expense.created_by === currentUserId || isCurrentUserAdmin) && (
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(expense.id);
+                        }}
+                        disabled={deletingId === expense.id}
+                        className="flex-1 px-3 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        {deletingId === expense.id ? 'Deleting...' : 'Delete'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

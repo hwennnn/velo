@@ -380,10 +380,10 @@ async def delete_expense(
 ) -> None:
     """
     Delete an expense and all its splits.
-    Only the creator can delete an expense.
+    Only the creator or trip admins can delete an expense.
     """
-    # Check access
-    check_trip_access(trip_id, current_user, session)
+    # Check access and get member info
+    trip, member = check_trip_access(trip_id, current_user, session)
 
     # Get expense
     expense = session.get(Expense, expense_id)
@@ -393,11 +393,11 @@ async def delete_expense(
             detail="Expense not found",
         )
 
-    # Check if user is the creator
-    if expense.created_by != current_user.id:
+    # Check if user is the creator or an admin
+    if expense.created_by != current_user.id and not member.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the expense creator can delete it",
+            detail="Only the expense creator or trip admins can delete it",
         )
 
     # Delete all splits first

@@ -142,22 +142,38 @@ async def create_expense(
 
     # Create splits based on split_type
     if expense_data.split_type == "equal":
-        # Get all trip members
-        members_statement = select(TripMember).where(
-            TripMember.trip_id == trip_id)
-        members = session.exec(members_statement).all()
+        # If splits are provided, use only those members; otherwise use all trip members
+        if expense_data.splits and len(expense_data.splits) > 0:
+            # Use the selected members from splits
+            member_ids = [split.member_id for split in expense_data.splits]
+            split_amount = amount_in_base / len(member_ids)
+            split_percentage = Decimal("100.0") / len(member_ids)
 
-        split_amount = amount_in_base / len(members)
-        split_percentage = Decimal("100.0") / len(members)
+            for member_id in member_ids:
+                split = Split(
+                    expense_id=expense.id,
+                    member_id=member_id,
+                    amount=split_amount,
+                    percentage=split_percentage,
+                )
+                session.add(split)
+        else:
+            # Fallback: Get all trip members
+            members_statement = select(TripMember).where(
+                TripMember.trip_id == trip_id)
+            members = session.exec(members_statement).all()
 
-        for member in members:
-            split = Split(
-                expense_id=expense.id,
-                member_id=member.id,
-                amount=split_amount,
-                percentage=split_percentage,
-            )
-            session.add(split)
+            split_amount = amount_in_base / len(members)
+            split_percentage = Decimal("100.0") / len(members)
+
+            for member in members:
+                split = Split(
+                    expense_id=expense.id,
+                    member_id=member.id,
+                    amount=split_amount,
+                    percentage=split_percentage,
+                )
+                session.add(split)
 
     elif expense_data.split_type == "percentage":
         for split_data in expense_data.splits:

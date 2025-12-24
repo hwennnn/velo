@@ -285,8 +285,8 @@ export default function TripDetail() {
     return false;
   };
 
-  const totalSpent = expenses.reduce((sum, exp) => sum + exp.amount_in_base_currency, 0);
-
+  const totalSpent = expenses.reduce((sum, exp) => sum + (Number(exp.amount_in_base_currency) || 0), 0);
+  
   // Check if current user is admin
   const isCurrentUserAdmin = trip?.members?.find(m => m.user_id === user?.id)?.is_admin || false;
 

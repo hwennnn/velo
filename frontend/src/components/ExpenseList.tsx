@@ -86,7 +86,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
   };
 
   // Calculate total
-  const total = filteredExpenses.reduce((sum, expense) => sum + expense.amount_in_base_currency, 0);
+  const total = filteredExpenses.reduce((sum, expense) => sum + (Number(expense.amount_in_base_currency) || 0), 0);
 
   return (
     <div className="space-y-4">
@@ -139,7 +139,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
               Showing {filteredExpenses.length} of {expenses.length} expenses
             </span>
             <span className="font-semibold text-gray-900">
-              Total: {total.toFixed(2)} {baseCurrency}
+              Total: {Number(total).toFixed(2)} {baseCurrency}
             </span>
           </div>
         </div>
@@ -196,11 +196,11 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
                   <div className="flex items-center gap-3">
                     <div className="text-right">
                       <div className="text-sm font-bold text-gray-900">
-                        {expense.amount.toFixed(2)} {expense.currency}
+                        {Number(expense.amount).toFixed(2)} {expense.currency}
                       </div>
                       {expense.currency !== baseCurrency && (
                         <div className="text-xs text-gray-500">
-                          ≈ {expense.amount_in_base_currency.toFixed(2)} {baseCurrency}
+                          ≈ {Number(expense.amount_in_base_currency).toFixed(2)} {baseCurrency}
                         </div>
                       )}
                     </div>
@@ -235,10 +235,10 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
                         >
                           <span className="text-gray-700">{split.member_nickname}</span>
                           <span className="font-medium text-gray-900">
-                            {split.amount.toFixed(2)} {baseCurrency}
+                            {Number(split.amount).toFixed(2)} {baseCurrency}
                             {split.percentage && (
                               <span className="text-xs text-gray-500 ml-1">
-                                ({split.percentage.toFixed(1)}%)
+                                ({Number(split.percentage).toFixed(1)}%)
                               </span>
                             )}
                           </span>

@@ -4,9 +4,9 @@
  * Modal for creating new expenses with split management.
  * Supports equal, percentage, and custom splits.
  */
-import React, { useState, useEffect } from 'react';
-import { X, DollarSign, Calendar, Tag, FileText, Receipt, Users } from 'lucide-react';
-import type { CreateExpenseInput, TripMember, SplitInput } from '../types';
+import { Calendar, Check, DollarSign, FileText, Receipt, Users, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import type { CreateExpenseInput, SplitInput, TripMember } from '../types';
 
 interface CreateExpenseModalProps {
   isOpen: boolean;
@@ -56,6 +56,7 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
   const [category, setCategory] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [splitType, setSplitType] = useState<'equal' | 'percentage' | 'custom'>('equal');
+  const [selectedMembers, setSelectedMembers] = useState<Set<number>>(new Set());
   const [customSplits, setCustomSplits] = useState<Record<number, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,31 +73,41 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
       setCategory('');
       setNotes('');
       setSplitType('equal');
+      // Select all members by default
+      setSelectedMembers(new Set(members.map(m => m.id)));
       setCustomSplits({});
       setError(null);
     }
   }, [isOpen, baseCurrency, members]);
 
-  // Initialize custom splits when split type changes
+  // Initialize custom splits when split type or selected members change
   useEffect(() => {
+    const selectedMembersList = Array.from(selectedMembers);
+    const selectedCount = selectedMembersList.length;
+    
+    if (selectedCount === 0) {
+      setCustomSplits({});
+      return;
+    }
+
     if (splitType === 'equal') {
       setCustomSplits({});
     } else if (splitType === 'percentage') {
-      const perMember = 100 / members.length;
+      const perMember = 100 / selectedCount;
       const splits: Record<number, string> = {};
-      members.forEach((member) => {
-        splits[member.id] = perMember.toFixed(2);
+      selectedMembersList.forEach((memberId) => {
+        splits[memberId] = perMember.toFixed(2);
       });
       setCustomSplits(splits);
     } else if (splitType === 'custom' && amount) {
-      const perMember = parseFloat(amount) / members.length;
+      const perMember = parseFloat(amount) / selectedCount;
       const splits: Record<number, string> = {};
-      members.forEach((member) => {
-        splits[member.id] = perMember.toFixed(2);
+      selectedMembersList.forEach((memberId) => {
+        splits[memberId] = perMember.toFixed(2);
       });
       setCustomSplits(splits);
     }
-  }, [splitType, members, amount]);
+  }, [splitType, selectedMembers, amount]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,13 +135,24 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
       return;
     }
 
+    // Validate at least one member is selected
+    if (selectedMembers.size === 0) {
+      setError('Please select at least one member to split with');
+      return;
+    }
+
     // Validate splits
     let splits: SplitInput[] | undefined;
 
-    if (splitType === 'percentage') {
-      splits = Object.entries(customSplits).map(([memberId, percentage]) => ({
-        member_id: parseInt(memberId),
-        percentage: parseFloat(percentage),
+    if (splitType === 'equal') {
+      // For equal splits, only include selected members
+      splits = Array.from(selectedMembers).map(memberId => ({
+        member_id: memberId,
+      }));
+    } else if (splitType === 'percentage') {
+      splits = Array.from(selectedMembers).map((memberId) => ({
+        member_id: memberId,
+        percentage: parseFloat(customSplits[memberId] || '0'),
       }));
 
       const totalPercentage = splits.reduce((sum, s) => sum + (s.percentage || 0), 0);
@@ -139,9 +161,9 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
         return;
       }
     } else if (splitType === 'custom') {
-      splits = Object.entries(customSplits).map(([memberId, amt]) => ({
-        member_id: parseInt(memberId),
-        amount: parseFloat(amt),
+      splits = Array.from(selectedMembers).map((memberId) => ({
+        member_id: memberId,
+        amount: parseFloat(customSplits[memberId] || '0'),
       }));
 
       const totalAmount = splits.reduce((sum, s) => sum + (s.amount || 0), 0);
@@ -180,6 +202,30 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
     if (!isLoading) {
       onClose();
     }
+  };
+
+  // Helper function to get member color and initials
+  const getMemberColor = (index: number) => {
+    const colors = [
+      'bg-blue-500',
+      'bg-green-500',
+      'bg-purple-500',
+      'bg-pink-500',
+      'bg-yellow-500',
+      'bg-red-500',
+      'bg-indigo-500',
+      'bg-teal-500',
+    ];
+    return colors[index % colors.length];
+  };
+
+  const getMemberInitials = (nickname: string) => {
+    return nickname
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   if (!isOpen) return null;
@@ -287,23 +333,43 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
 
           {/* Paid By */}
           <div className="space-y-2">
-            <label htmlFor="paidBy" className="block text-sm font-medium text-gray-700">
-              Paid By *
+            <label className="block text-sm font-medium text-gray-700">
+              Who Paid? *
             </label>
-            <select
-              id="paidBy"
-              value={paidBy || ''}
-              onChange={(e) => setPaidBy(parseInt(e.target.value))}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              disabled={isLoading}
-            >
-              <option value="">Select member...</option>
-              {members.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.nickname} {member.is_fictional && '(Fictional)'}
-                </option>
+            <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+              {members.map((member, index) => (
+                <button
+                  key={member.id}
+                  type="button"
+                  onClick={() => setPaidBy(member.id)}
+                  className={`p-3 rounded-lg border-2 transition-all ${
+                    paidBy === member.id
+                      ? 'border-primary-500 bg-primary-50 shadow-sm'
+                      : 'border-gray-200 bg-white hover:border-gray-300'
+                  }`}
+                  disabled={isLoading}
+                >
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`w-8 h-8 ${getMemberColor(index)} rounded-full flex items-center justify-center text-white font-semibold text-xs flex-shrink-0`}
+                    >
+                      {getMemberInitials(member.nickname)}
+                    </div>
+                    <div className="flex-1 text-left min-w-0">
+                      <div className="text-sm font-medium text-gray-900 truncate">
+                        {member.nickname}
+                      </div>
+                      {member.is_fictional && (
+                        <div className="text-xs text-amber-600">Fictional</div>
+                      )}
+                    </div>
+                    {paidBy === member.id && (
+                      <Check className="w-5 h-5 text-primary-600 flex-shrink-0" />
+                    )}
+                  </div>
+                </button>
               ))}
-            </select>
+            </div>
           </div>
 
           {/* Date and Category */}
@@ -346,10 +412,91 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
             </div>
           </div>
 
+          {/* Split With */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-gray-700">
+                <Users className="w-4 h-4 inline mr-1" />
+                Split With *
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedMembers(new Set(members.map(m => m.id)))}
+                  className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+                  disabled={isLoading}
+                >
+                  Select All
+                </button>
+                <span className="text-gray-300">|</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedMembers(new Set())}
+                  className="text-xs text-gray-600 hover:text-gray-700 font-medium"
+                  disabled={isLoading}
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+              {members.map((member, index) => {
+                const isSelected = selectedMembers.has(member.id);
+                return (
+                  <button
+                    key={member.id}
+                    type="button"
+                    onClick={() => {
+                      const newSelected = new Set(selectedMembers);
+                      if (isSelected) {
+                        newSelected.delete(member.id);
+                      } else {
+                        newSelected.add(member.id);
+                      }
+                      setSelectedMembers(newSelected);
+                    }}
+                    className={`p-3 rounded-lg border-2 transition-all ${
+                      isSelected
+                        ? 'border-primary-500 bg-primary-50 shadow-sm'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
+                    disabled={isLoading}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`w-8 h-8 ${getMemberColor(index)} rounded-full flex items-center justify-center text-white font-semibold text-xs flex-shrink-0 ${
+                          !isSelected && 'opacity-40'
+                        }`}
+                      >
+                        {getMemberInitials(member.nickname)}
+                      </div>
+                      <div className="flex-1 text-left min-w-0">
+                        <div className={`text-sm font-medium truncate ${
+                          isSelected ? 'text-gray-900' : 'text-gray-500'
+                        }`}>
+                          {member.nickname}
+                        </div>
+                      </div>
+                      {isSelected && (
+                        <Check className="w-5 h-5 text-primary-600 flex-shrink-0" />
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {selectedMembers.size > 0 && (
+              <div className="text-xs text-gray-600 bg-gray-50 rounded-lg p-2 text-center">
+                {selectedMembers.size} {selectedMembers.size === 1 ? 'person' : 'people'} selected
+              </div>
+            )}
+          </div>
+
           {/* Split Type */}
           <div className="space-y-3">
             <label className="block text-sm font-medium text-gray-700">
-              <Users className="w-4 h-4 inline mr-1" />
               Split Method
             </label>
             <div className="grid grid-cols-3 gap-2">
@@ -361,8 +508,10 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
                     ? 'border-primary-500 bg-primary-50 text-primary-700'
                     : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
                 }`}
+                disabled={isLoading}
               >
-                <span className="block text-sm font-medium">Equal</span>
+                <div className="text-sm font-medium">Equal</div>
+                <div className="text-xs opacity-70 mt-0.5">Split evenly</div>
               </button>
               <button
                 type="button"
@@ -372,8 +521,10 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
                     ? 'border-primary-500 bg-primary-50 text-primary-700'
                     : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
                 }`}
+                disabled={isLoading}
               >
-                <span className="block text-sm font-medium">Percentage</span>
+                <div className="text-sm font-medium">Percentage</div>
+                <div className="text-xs opacity-70 mt-0.5">By %</div>
               </button>
               <button
                 type="button"
@@ -383,39 +534,79 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
                     ? 'border-primary-500 bg-primary-50 text-primary-700'
                     : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
                 }`}
+                disabled={isLoading}
               >
-                <span className="block text-sm font-medium">Custom</span>
+                <div className="text-sm font-medium">Custom</div>
+                <div className="text-xs opacity-70 mt-0.5">Exact amounts</div>
               </button>
             </div>
           </div>
 
           {/* Custom Splits */}
-          {splitType !== 'equal' && (
+          {splitType !== 'equal' && selectedMembers.size > 0 && (
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700">
                 {splitType === 'percentage' ? 'Percentage per Member' : 'Amount per Member'}
               </label>
-              <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3">
-                {members.map((member) => (
-                  <div key={member.id} className="flex items-center gap-2">
-                    <span className="flex-1 text-sm text-gray-700">{member.nickname}</span>
-                    <input
-                      type="number"
-                      value={customSplits[member.id] || '0'}
-                      onChange={(e) =>
-                        setCustomSplits({ ...customSplits, [member.id]: e.target.value })
-                      }
-                      step="0.01"
-                      min="0"
-                      className="w-24 px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
-                      disabled={isLoading}
-                    />
-                    <span className="text-sm text-gray-500 w-8">
-                      {splitType === 'percentage' ? '%' : currency}
-                    </span>
-                  </div>
-                ))}
+              <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3 bg-gray-50">
+                {Array.from(selectedMembers).map((memberId) => {
+                  const member = members.find(m => m.id === memberId);
+                  if (!member) return null;
+                  
+                  return (
+                    <div key={member.id} className="flex items-center gap-2 bg-white rounded-lg p-2">
+                      <span className="flex-1 text-sm font-medium text-gray-700">{member.nickname}</span>
+                      <input
+                        type="number"
+                        value={customSplits[member.id] || '0'}
+                        onChange={(e) =>
+                          setCustomSplits({ ...customSplits, [member.id]: e.target.value })
+                        }
+                        step="0.01"
+                        min="0"
+                        className="w-24 px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                        disabled={isLoading}
+                      />
+                      <span className="text-sm text-gray-500 w-10 text-right">
+                        {splitType === 'percentage' ? '%' : currency}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
+              
+              {/* Split Summary */}
+              {splitType === 'percentage' && (
+                <div className="text-xs text-center">
+                  <span className="text-gray-600">Total: </span>
+                  <span className={`font-semibold ${
+                    Math.abs(Array.from(selectedMembers).reduce((sum, id) => 
+                      sum + parseFloat(customSplits[id] || '0'), 0) - 100) < 0.01
+                      ? 'text-green-600'
+                      : 'text-red-600'
+                  }`}>
+                    {Array.from(selectedMembers).reduce((sum, id) => 
+                      sum + parseFloat(customSplits[id] || '0'), 0).toFixed(2)}%
+                  </span>
+                  <span className="text-gray-600"> / 100%</span>
+                </div>
+              )}
+              
+              {splitType === 'custom' && amount && (
+                <div className="text-xs text-center">
+                  <span className="text-gray-600">Total: </span>
+                  <span className={`font-semibold ${
+                    Math.abs(Array.from(selectedMembers).reduce((sum, id) => 
+                      sum + parseFloat(customSplits[id] || '0'), 0) - parseFloat(amount)) < 0.01
+                      ? 'text-green-600'
+                      : 'text-red-600'
+                  }`}>
+                    {Array.from(selectedMembers).reduce((sum, id) => 
+                      sum + parseFloat(customSplits[id] || '0'), 0).toFixed(2)} {currency}
+                  </span>
+                  <span className="text-gray-600"> / {parseFloat(amount).toFixed(2)} {currency}</span>
+                </div>
+              )}
             </div>
           )}
 

@@ -4,7 +4,7 @@ Split model for expense distribution among trip members
 from typing import Optional
 from decimal import Decimal
 from sqlmodel import Field, SQLModel, Column
-from sqlalchemy import Numeric
+from sqlalchemy import Numeric, ForeignKey
 
 
 class Split(SQLModel, table=True):
@@ -15,8 +15,14 @@ class Split(SQLModel, table=True):
     __tablename__ = "splits"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    expense_id: int = Field(foreign_key="expenses.id",
-                            description="Expense this split belongs to")
+    expense_id: int = Field(
+        sa_column=Column(
+            "expense_id",
+            ForeignKey("expenses.id", ondelete="CASCADE"),
+            nullable=False
+        ),
+        description="Expense this split belongs to"
+    )
     member_id: int = Field(foreign_key="trip_members.id",
                            description="Member who owes this split")
 

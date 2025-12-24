@@ -1,8 +1,8 @@
 /**
  * Trip Info Card Component
- * Displays trip currency, dates, and members chip
+ * Displays trip currency, dates, members chip, expense count and total spent
  */
-import { Calendar, DollarSign, Users } from 'lucide-react';
+import { Calendar, DollarSign, Receipt, Users } from 'lucide-react';
 import React from 'react';
 import type { TripMember } from '../types';
 
@@ -11,6 +11,8 @@ interface TripInfoCardProps {
   dateRange: string;
   memberCount: number;
   members: TripMember[];
+  expenseCount: number;
+  totalSpent: number;
   onMembersClick: () => void;
   getMemberColor: (index: number) => string;
   getMemberInitials: (nickname: string) => string;
@@ -21,6 +23,8 @@ export const TripInfoCard: React.FC<TripInfoCardProps> = ({
   dateRange,
   memberCount,
   members,
+  expenseCount,
+  totalSpent,
   onMembersClick,
   getMemberColor,
   getMemberInitials,
@@ -35,6 +39,26 @@ export const TripInfoCard: React.FC<TripInfoCardProps> = ({
         <div className="flex items-center gap-1.5">
           <Calendar className="w-4 h-4" />
           <span className="text-xs">{dateRange}</span>
+        </div>
+      </div>
+
+      {/* Stats Row */}
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div className="bg-white/20 backdrop-blur-sm rounded-xl p-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Receipt className="w-4 h-4" />
+            <span className="text-xs opacity-90">Expenses</span>
+          </div>
+          <div className="text-2xl font-bold">{expenseCount}</div>
+        </div>
+        <div className="bg-white/20 backdrop-blur-sm rounded-xl p-3">
+          <div className="flex items-center gap-2 mb-1">
+            <DollarSign className="w-4 h-4" />
+            <span className="text-xs opacity-90">Total Spent</span>
+          </div>
+          <div className="text-2xl font-bold">
+            {currency} {Number(totalSpent).toFixed(0)}
+          </div>
         </div>
       </div>
 

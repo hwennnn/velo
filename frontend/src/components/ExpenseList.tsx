@@ -1,11 +1,11 @@
 /**
  * ExpenseList Component
  * 
- * Displays a list of expenses with filtering and actions.
+ * Displays a list of expenses grouped by date with timeline headers.
  */
-import { format } from 'date-fns';
+import { format, isToday, isYesterday, parseISO } from 'date-fns';
 import { Calendar, ChevronDown, Filter, Receipt, Tag, Trash2, User } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useAlert } from '../contexts/AlertContext';
 import type { Expense, TripMember } from '../types';
 
@@ -15,8 +15,11 @@ interface ExpenseListProps {
   baseCurrency: string;
   currentUserId?: string;
   isCurrentUserAdmin?: boolean;
+  selectedCategory: string;
+  selectedMember: number | null;
   onDelete: (expenseId: number) => Promise<void>;
   onRefresh: () => void;
+  onFilterClick: () => void;
 }
 
 const CATEGORIES = [
@@ -31,29 +34,59 @@ const CATEGORIES = [
 
 export const ExpenseList: React.FC<ExpenseListProps> = ({
   expenses,
-  members,
   baseCurrency,
   currentUserId,
   isCurrentUserAdmin = false,
+  selectedCategory,
+  selectedMember,
   onDelete,
   onRefresh,
+  onFilterClick,
 }) => {
   const { showAlert, showConfirm } = useAlert();
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedMember, setSelectedMember] = useState<number | null>(null);
   const [expandedExpense, setExpandedExpense] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   // Filter expenses
-  const filteredExpenses = expenses.filter((expense) => {
-    if (selectedCategory !== 'all' && expense.category !== selectedCategory) {
-      return false;
-    }
-    if (selectedMember !== null && expense.paid_by_member_id !== selectedMember) {
-      return false;
-    }
-    return true;
-  });
+  const filteredExpenses = useMemo(() => {
+    return expenses.filter((expense) => {
+      if (selectedCategory !== 'all' && expense.category !== selectedCategory) {
+        return false;
+      }
+      if (selectedMember !== null && expense.paid_by_member_id !== selectedMember) {
+        return false;
+      }
+      return true;
+    });
+  }, [expenses, selectedCategory, selectedMember]);
+
+  // Group expenses by date
+  const groupedExpenses = useMemo(() => {
+    const groups: { [key: string]: Expense[] } = {};
+    
+    filteredExpenses.forEach((expense) => {
+      const date = format(parseISO(expense.expense_date), 'yyyy-MM-dd');
+      if (!groups[date]) {
+        groups[date] = [];
+      }
+      groups[date].push(expense);
+    });
+
+    // Sort dates in descending order (most recent first)
+    const sortedDates = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+    
+    return sortedDates.map(date => ({
+      date,
+      expenses: groups[date].sort((a, b) => b.id - a.id), // Sort expenses within date by ID descending
+    }));
+  }, [filteredExpenses]);
+
+  const getDateLabel = (dateString: string) => {
+    const date = parseISO(dateString);
+    if (isToday(date)) return 'Today';
+    if (isYesterday(date)) return 'Yesterday';
+    return format(date, 'EEEE, MMMM d, yyyy');
+  };
 
   const handleDelete = async (expenseId: number) => {
     const confirmed = await showConfirm('Are you sure you want to delete this expense?', {
@@ -85,186 +118,174 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
     setExpandedExpense(expandedExpense === expenseId ? null : expenseId);
   };
 
-  // Calculate total
-  const total = filteredExpenses.reduce((sum, expense) => sum + (Number(expense.amount_in_base_currency) || 0), 0);
+  const hasActiveFilters = selectedCategory !== 'all' || selectedMember !== null;
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Filter className="w-4 h-4 text-gray-500" />
-          <span className="text-sm font-medium text-gray-700">Filters</span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {/* Category Filter */}
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Category</label>
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            >
-              {CATEGORIES.map((cat) => (
-                <option key={cat.value} value={cat.value}>
-                  {cat.emoji} {cat.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Member Filter */}
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Paid By</label>
-            <select
-              value={selectedMember || ''}
-              onChange={(e) => setSelectedMember(e.target.value ? parseInt(e.target.value) : null)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            >
-              <option value="">All Members</option>
-              {members.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.nickname}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Summary */}
-        <div className="mt-3 pt-3 border-t border-gray-200">
-          <div className="flex justify-between items-center text-sm">
-            <span className="text-gray-600">
-              Showing {filteredExpenses.length} of {expenses.length} expenses
+      {/* Filter Button & Summary */}
+      <div className="flex items-center justify-between gap-3">
+        <button
+          onClick={onFilterClick}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-all ${
+            hasActiveFilters
+              ? 'bg-primary-600 text-white shadow-md'
+              : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+          }`}
+        >
+          <Filter className="w-4 h-4" />
+          <span className="text-sm">Filters</span>
+          {hasActiveFilters && (
+            <span className="ml-1 px-1.5 py-0.5 bg-white/20 rounded-full text-xs font-semibold">
+              •
             </span>
-            <span className="font-semibold text-gray-900">
-              Total: {Number(total).toFixed(2)} {baseCurrency}
-            </span>
-          </div>
+          )}
+        </button>
+        
+        <div className="text-sm text-gray-600">
+          <span className="font-medium text-gray-900">{filteredExpenses.length}</span>
+          {filteredExpenses.length !== expenses.length && (
+            <span> of {expenses.length}</span>
+          )}
+          {filteredExpenses.length === 1 ? ' expense' : ' expenses'}
         </div>
       </div>
 
-      {/* Expense List */}
+      {/* Expense List - Grouped by Date */}
       {filteredExpenses.length === 0 ? (
         <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
           <Receipt className="w-12 h-12 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500">No expenses found</p>
           <p className="text-sm text-gray-400 mt-1">
-            {selectedCategory !== 'all' || selectedMember !== null
+            {hasActiveFilters
               ? 'Try adjusting your filters'
               : 'Add your first expense to get started'}
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {filteredExpenses.map((expense) => (
-            <div
-              key={expense.id}
-              className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
-            >
-              {/* Expense Header */}
-              <div
-                className="p-4 cursor-pointer"
-                onClick={() => toggleExpanded(expense.id)}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-lg">{getCategoryEmoji(expense.category)}</span>
-                      <h3 className="text-sm font-semibold text-gray-900 truncate">
-                        {expense.description}
-                      </h3>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        {format(new Date(expense.expense_date), 'MMM d, yyyy')}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <User className="w-3 h-3" />
-                        Paid by {expense.paid_by_nickname}
-                      </span>
-                      {expense.category && (
-                        <span className="flex items-center gap-1">
-                          <Tag className="w-3 h-3" />
-                          {expense.category}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <div className="text-sm font-bold text-gray-900">
-                        {Number(expense.amount).toFixed(2)} {expense.currency}
-                      </div>
-                      {expense.currency !== baseCurrency && (
-                        <div className="text-xs text-gray-500">
-                          ≈ {Number(expense.amount_in_base_currency).toFixed(2)} {baseCurrency}
-                        </div>
-                      )}
-                    </div>
-                    <ChevronDown
-                      className={`w-5 h-5 text-gray-400 transition-transform ${
-                        expandedExpense === expense.id ? 'rotate-180' : ''
-                      }`}
-                    />
-                  </div>
+        <div className="space-y-4">
+          {groupedExpenses.map(({ date, expenses: dateExpenses }) => (
+            <div key={date} className="space-y-2">
+              {/* Date Header */}
+              <div className="sticky top-0 z-10 bg-gray-50 px-3 py-2 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    {getDateLabel(date)}
+                  </h3>
+                  <span className="text-xs text-gray-500">
+                    {dateExpenses.length} {dateExpenses.length === 1 ? 'expense' : 'expenses'}
+                  </span>
                 </div>
               </div>
 
-              {/* Expanded Details */}
-              {expandedExpense === expense.id && (
-                <div className="border-t border-gray-200 bg-gray-50 p-4 space-y-3">
-                  {/* Notes */}
-                  {expense.notes && (
-                    <div>
-                      <h4 className="text-xs font-medium text-gray-700 mb-1">Notes</h4>
-                      <p className="text-sm text-gray-600">{expense.notes}</p>
-                    </div>
-                  )}
-
-                  {/* Splits */}
-                  <div>
-                    <h4 className="text-xs font-medium text-gray-700 mb-2">Split Details</h4>
-                    <div className="space-y-1">
-                      {expense.splits.map((split) => (
-                        <div
-                          key={split.id}
-                          className="flex justify-between items-center text-sm py-1"
-                        >
-                          <span className="text-gray-700">{split.member_nickname}</span>
-                          <span className="font-medium text-gray-900">
-                            {Number(split.amount).toFixed(2)} {baseCurrency}
-                            {split.percentage && (
-                              <span className="text-xs text-gray-500 ml-1">
-                                ({Number(split.percentage).toFixed(1)}%)
+              {/* Expenses for this date */}
+              <div className="space-y-2">
+                {dateExpenses.map((expense) => (
+                  <div
+                    key={expense.id}
+                    className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
+                  >
+                    {/* Expense Header */}
+                    <div
+                      className="p-4 cursor-pointer"
+                      onClick={() => toggleExpanded(expense.id)}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-lg">{getCategoryEmoji(expense.category)}</span>
+                            <h3 className="text-sm font-semibold text-gray-900 truncate">
+                              {expense.description}
+                            </h3>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
+                            <span className="flex items-center gap-1">
+                              <User className="w-3 h-3" />
+                              Paid by {expense.paid_by_nickname}
+                            </span>
+                            {expense.category && (
+                              <span className="flex items-center gap-1">
+                                <Tag className="w-3 h-3" />
+                                {expense.category}
                               </span>
                             )}
-                          </span>
+                          </div>
                         </div>
-                      ))}
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            <div className="text-sm font-bold text-gray-900">
+                              {Number(expense.amount).toFixed(2)} {expense.currency}
+                            </div>
+                            {expense.currency !== baseCurrency && (
+                              <div className="text-xs text-gray-500">
+                                ≈ {Number(expense.amount_in_base_currency).toFixed(2)} {baseCurrency}
+                              </div>
+                            )}
+                          </div>
+                          <ChevronDown
+                            className={`w-5 h-5 text-gray-400 transition-transform ${
+                              expandedExpense === expense.id ? 'rotate-180' : ''
+                            }`}
+                          />
+                        </div>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Actions */}
-                  {currentUserId && (expense.created_by === currentUserId || isCurrentUserAdmin) && (
-                    <div className="flex gap-2 pt-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(expense.id);
-                        }}
-                        disabled={deletingId === expense.id}
-                        className="flex-1 px-3 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        {deletingId === expense.id ? 'Deleting...' : 'Delete'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
+                    {/* Expanded Details */}
+                    {expandedExpense === expense.id && (
+                      <div className="border-t border-gray-200 bg-gray-50 p-4 space-y-3">
+                        {/* Notes */}
+                        {expense.notes && (
+                          <div>
+                            <h4 className="text-xs font-medium text-gray-700 mb-1">Notes</h4>
+                            <p className="text-sm text-gray-600">{expense.notes}</p>
+                          </div>
+                        )}
+
+                        {/* Splits */}
+                        <div>
+                          <h4 className="text-xs font-medium text-gray-700 mb-2">Split Details</h4>
+                          <div className="space-y-1">
+                            {expense.splits.map((split) => (
+                              <div
+                                key={split.id}
+                                className="flex justify-between items-center text-sm py-1"
+                              >
+                                <span className="text-gray-700">{split.member_nickname}</span>
+                                <span className="font-medium text-gray-900">
+                                  {Number(split.amount).toFixed(2)} {baseCurrency}
+                                  {split.percentage && (
+                                    <span className="text-xs text-gray-500 ml-1">
+                                      ({Number(split.percentage).toFixed(1)}%)
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        {currentUserId && (expense.created_by === currentUserId || isCurrentUserAdmin) && (
+                          <div className="flex gap-2 pt-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(expense.id);
+                              }}
+                              disabled={deletingId === expense.id}
+                              className="flex-1 px-3 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              {deletingId === expense.id ? 'Deleting...' : 'Delete'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>

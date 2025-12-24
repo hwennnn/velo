@@ -3,16 +3,19 @@
  * Optimized with React Query, broken into smaller components
  */
 import { format } from 'date-fns';
-import { Copy, Link2, LogOut, MoreVertical, Plus, Shield, Trash2, UserCheck, Users, X } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { ActionChips } from '../components/ActionChips';
 import { AddMemberModal } from '../components/AddMemberModal';
 import { BalancesModal } from '../components/BalancesModal';
 import { CreateExpenseModal } from '../components/CreateExpenseModal';
 import { ExpenseList } from '../components/ExpenseList';
 import { ExpenseListSkeleton } from '../components/ExpenseListSkeleton';
+import { FilterModal } from '../components/FilterModal';
+import { InviteModal } from '../components/InviteModal';
 import { MemberDetailModal } from '../components/MemberDetailModal';
-import { QuickStats } from '../components/QuickStats';
+import { MembersModal } from '../components/MembersModal';
 import { SettlementsModal } from '../components/SettlementsModal';
 import { TripDetailSkeleton } from '../components/TripDetailSkeleton';
 import { TripHeader } from '../components/TripHeader';
@@ -24,6 +27,7 @@ import { useCreateExpense, useDeleteExpense, useExpenses } from '../hooks/useExp
 import { useAddMember, useClaimMember, useLeaveTrip, useRemoveMember, useUpdateMember } from '../hooks/useMembers';
 import { useGenerateInvite, useTrip } from '../hooks/useTrips';
 import type { AddMemberInput, CreateExpenseInput, TripMember } from '../types';
+import { getMemberColor, getMemberInitials } from '../utils/memberUtils';
 
 export default function TripDetail() {
   const { tripId } = useParams<{ tripId: string }>();
@@ -37,11 +41,14 @@ export default function TripDetail() {
   const [showMembersModal, setShowMembersModal] = useState(false);
   const [showBalancesModal, setShowBalancesModal] = useState(false);
   const [showSettlementsModal, setShowSettlementsModal] = useState(false);
+  const [showFilterModal, setShowFilterModal] = useState(false);
   const [memberMenuOpen, setMemberMenuOpen] = useState<number | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState<TripMember | null>(null);
   const [showMemberDetail, setShowMemberDetail] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedMemberFilter, setSelectedMemberFilter] = useState<number | null>(null);
 
   // React Query hooks - Parallel fetching for optimal performance
   const { data: trip, isLoading: tripLoading, isFetching: tripFetching } = useTrip(tripId);
@@ -86,6 +93,7 @@ export default function TripDetail() {
     try {
       await removeMemberMutation.mutateAsync(memberId.toString());
       setMemberMenuOpen(null);
+      showAlert('Member removed successfully!', { type: 'success', autoClose: true });
     } catch (error) {
       const err = error as { response?: { data?: { detail?: string } } };
       showAlert(err.response?.data?.detail || 'Failed to remove member', { type: 'error' });
@@ -142,6 +150,7 @@ export default function TripDetail() {
     try {
       await updateMemberMutation.mutateAsync({ memberId: memberId.toString(), data: { is_admin: true } });
       setMemberMenuOpen(null);
+      showAlert('Member promoted to admin!', { type: 'success', autoClose: true });
     } catch (error) {
       const err = error as { response?: { data?: { detail?: string } } };
       showAlert(err.response?.data?.detail || 'Failed to promote member', { type: 'error' });
@@ -160,6 +169,7 @@ export default function TripDetail() {
     try {
       await updateMemberMutation.mutateAsync({ memberId: memberId.toString(), data: { is_admin: false } });
       setMemberMenuOpen(null);
+      showAlert('Admin privileges removed!', { type: 'success', autoClose: true });
     } catch (error) {
       const err = error as { response?: { data?: { detail?: string } } };
       showAlert(err.response?.data?.detail || 'Failed to demote admin', { type: 'error' });
@@ -217,41 +227,6 @@ export default function TripDetail() {
     );
   }
 
-  // Get member colors for avatars
-  const getMemberColor = (index: number) => {
-    const colors = [
-      'bg-blue-500',
-      'bg-green-500',
-      'bg-purple-500',
-      'bg-pink-500',
-      'bg-yellow-500',
-      'bg-red-500',
-      'bg-indigo-500',
-      'bg-teal-500',
-    ];
-    return colors[index % colors.length];
-  };
-
-  const getMemberInitials = (nickname: string) => {
-    return nickname
-      .split(' ')
-      .map(n => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
-  const hasAvailableActions = (member: TripMember) => {
-    const currentUserMember = trip?.members?.find(m => m.user_id === user?.id);
-    const isAdmin = currentUserMember?.is_admin || false;
-    const isNotSelf = member.user_id !== user?.id;
-
-    if (member.is_fictional) return true;
-    if (isAdmin && isNotSelf) return true;
-    if (member.user_id === user?.id) return true;
-
-    return false;
-  };
 
   const totalSpent = trip?.total_spent || 0;
   const expenseCount = trip?.expense_count || 0;
@@ -274,16 +249,15 @@ export default function TripDetail() {
           dateRange={formatDateRange(trip.start_date, trip.end_date)}
           memberCount={trip.member_count || 0}
           members={trip.members || []}
+          expenseCount={expenseCount}
+          totalSpent={totalSpent}
           onMembersClick={() => setShowMembersModal(true)}
           getMemberColor={(index) => getMemberColor(index)}
           getMemberInitials={getMemberInitials}
         />
 
-        {/* Quick Stats & Action Chips */}
-        <QuickStats
-          expenseCount={expenseCount}
-          totalSpent={totalSpent}
-          currency={trip.base_currency}
+        {/* Action Chips */}
+        <ActionChips
           onBalancesClick={() => setShowBalancesModal(true)}
           onSettlementsClick={() => setShowSettlementsModal(true)}
         />
@@ -299,8 +273,11 @@ export default function TripDetail() {
               baseCurrency={trip.base_currency}
               currentUserId={user?.id}
               isCurrentUserAdmin={isCurrentUserAdmin}
+              selectedCategory={selectedCategory}
+              selectedMember={selectedMemberFilter}
               onDelete={handleDeleteExpense}
               onRefresh={() => {}}
+              onFilterClick={() => setShowFilterModal(true)}
             />
           )}
         </div>
@@ -316,182 +293,35 @@ export default function TripDetail() {
       </button>
 
       {/* Members Modal */}
-      {showMembersModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-          <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fadeIn"
-            onClick={() => setShowMembersModal(false)}
-          />
-          <div className="relative w-full max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-xl animate-slideUp sm:animate-fadeIn max-h-[80vh] flex flex-col">
-            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Trip Members</h3>
-              <button
-                onClick={() => setShowMembersModal(false)}
-                className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4">
-              {trip.members && trip.members.length > 0 ? (
-                <div className="space-y-2">
-                  {trip.members.map((member, index) => (
-                    <div
-                      key={member.id}
-                      className="bg-gray-50 rounded-xl p-3 flex items-center justify-between hover:bg-gray-100 transition-colors"
-                    >
-                      <div 
-                        className="flex items-center gap-3 flex-1 cursor-pointer"
-                        onClick={() => {
-                          setSelectedMember(member);
-                          setShowMemberDetail(true);
-                          setShowMembersModal(false);
-                        }}
-                      >
-                        <div
-                          className={`w-10 h-10 ${getMemberColor(index)} rounded-full flex items-center justify-center text-white font-semibold text-sm`}
-                        >
-                          {getMemberInitials(member.nickname)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-gray-900 flex items-center gap-2 text-sm">
-                            <span className="truncate">{member.nickname}</span>
-                            {member.user_id === user?.id && (
-                              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
-                                me
-                              </span>
-                            )}
-                            {member.is_admin && (
-                              <span className="px-2 py-0.5 bg-primary-100 text-primary-700 text-xs font-medium rounded-full">
-                                Admin
-                              </span>
-                            )}
-                          </div>
-                          {member.is_fictional ? (
-                            <div className="text-xs text-amber-600 font-medium">Fictional member</div>
-                          ) : (
-                            <div className="text-xs text-gray-500 truncate">{member.email || 'Active member'}</div>
-                          )}
-                        </div>
-                      </div>
-
-                      {hasAvailableActions(member) && (
-                        <div className="relative">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setMemberMenuOpen(memberMenuOpen === member.id ? null : member.id);
-                            }}
-                            className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
-                          >
-                            <MoreVertical className="w-4 h-4 text-gray-600" />
-                          </button>
-
-                          {memberMenuOpen === member.id && (
-                          <>
-                            <div
-                              className="fixed inset-0 z-10"
-                              onClick={() => setMemberMenuOpen(null)}
-                            />
-                            <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
-                              {member.is_fictional && (
-                                <button
-                                  onClick={() => handleClaimMember(member.id)}
-                                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                                >
-                                  <UserCheck className="w-4 h-4" />
-                                  Claim Member
-                                </button>
-                              )}
-
-                              {trip.members?.find(m => m.user_id === user?.id)?.is_admin && 
-                               member.user_id !== user?.id && 
-                               !member.is_fictional && (
-                                <>
-                                  {!member.is_admin ? (
-                                    <button
-                                      onClick={() => handlePromoteToAdmin(member.id, member.nickname)}
-                                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                                    >
-                                      <Shield className="w-4 h-4" />
-                                      Promote to Admin
-                                    </button>
-                                  ) : (
-                                    <button
-                                      onClick={() => handleDemoteAdmin(member.id, member.nickname)}
-                                      className="w-full px-4 py-2 text-left text-sm text-amber-600 hover:bg-amber-50 flex items-center gap-2"
-                                    >
-                                      <Shield className="w-4 h-4" />
-                                      Remove Admin
-                                    </button>
-                                  )}
-                                </>
-                              )}
-
-                              {trip.members?.find(m => m.user_id === user?.id)?.is_admin && 
-                               member.user_id !== user?.id && (
-                                <button
-                                  onClick={() => handleRemoveMember(member.id, member.nickname)}
-                                  className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                  Remove Member
-                                </button>
-                              )}
-
-                              {member.user_id === user?.id && (
-                                <button
-                                  onClick={handleLeaveTrip}
-                                  className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-gray-200"
-                                >
-                                  <LogOut className="w-4 h-4" />
-                                  Leave Trip
-                                </button>
-                              )}
-                            </div>
-                          </>
-                        )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-600 text-sm">No members yet</p>
-                </div>
-              )}
-            </div>
-
-            {isCurrentUserAdmin && (
-              <div className="p-4 border-t border-gray-200 flex gap-2">
-                <button 
-                  onClick={() => {
-                    setShowMembersModal(false);
-                    handleGenerateInvite();
-                  }}
-                  className="flex-1 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
-                >
-                  <Link2 className="w-4 h-4" />
-                  Invite
-                </button>
-                <button 
-                  onClick={() => {
-                    setShowMembersModal(false);
-                    setShowAddMemberModal(true);
-                  }}
-                  className="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Member
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <MembersModal
+        isOpen={showMembersModal}
+        members={trip.members || []}
+        currentUserId={user?.id}
+        isCurrentUserAdmin={isCurrentUserAdmin}
+        memberMenuOpen={memberMenuOpen}
+        getMemberColor={getMemberColor}
+        getMemberInitials={getMemberInitials}
+        onClose={() => setShowMembersModal(false)}
+        onMemberClick={(member) => {
+          setSelectedMember(member);
+          setShowMemberDetail(true);
+          setShowMembersModal(false);
+        }}
+        onMenuToggle={(memberId) => setMemberMenuOpen(memberMenuOpen === memberId ? null : memberId)}
+        onClaimMember={handleClaimMember}
+        onPromoteToAdmin={handlePromoteToAdmin}
+        onDemoteAdmin={handleDemoteAdmin}
+        onRemoveMember={handleRemoveMember}
+        onLeaveTrip={handleLeaveTrip}
+        onInvite={() => {
+          setShowMembersModal(false);
+          handleGenerateInvite();
+        }}
+        onAddMember={() => {
+          setShowMembersModal(false);
+          setShowAddMemberModal(true);
+        }}
+      />
 
       {/* Modals */}
       <AddMemberModal
@@ -509,6 +339,16 @@ export default function TripDetail() {
         baseCurrency={trip.base_currency}
       />
 
+      <FilterModal
+        isOpen={showFilterModal}
+        selectedCategory={selectedCategory}
+        selectedMember={selectedMemberFilter}
+        members={trip.members || []}
+        onClose={() => setShowFilterModal(false)}
+        onCategoryChange={setSelectedCategory}
+        onMemberChange={setSelectedMemberFilter}
+      />
+
       <MemberDetailModal
         isOpen={showMemberDetail}
         member={selectedMember}
@@ -520,58 +360,12 @@ export default function TripDetail() {
       />
 
       {/* Invite Link Modal */}
-      {showInviteModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-          <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fadeIn"
-            onClick={() => setShowInviteModal(false)}
-          />
-          <div className="relative w-full max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-xl animate-slideUp sm:animate-fadeIn">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center">
-                    <Link2 className="w-5 h-5 text-primary-600" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900">Invite Link</h3>
-                </div>
-                <button
-                  onClick={() => setShowInviteModal(false)}
-                  className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors"
-                >
-                  <X className="w-5 h-5 text-gray-500" />
-                </button>
-              </div>
-
-              <p className="text-sm text-gray-600 mb-4">
-                Share this link with others to invite them to this trip:
-              </p>
-
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={inviteLink || ''}
-                  readOnly
-                  className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg text-sm text-gray-700"
-                />
-                <button
-                  onClick={handleCopyInvite}
-                  className="px-4 py-2.5 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-colors flex items-center gap-2"
-                >
-                  <Copy className="w-4 h-4" />
-                  Copy
-                </button>
-              </div>
-
-              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-xs text-blue-900">
-                  💡 Anyone with this link can join the trip. The link contains the trip ID.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <InviteModal
+        isOpen={showInviteModal}
+        inviteLink={inviteLink}
+        onClose={() => setShowInviteModal(false)}
+        onCopy={handleCopyInvite}
+      />
 
       {/* Balances Modal */}
       <BalancesModal

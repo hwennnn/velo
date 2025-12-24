@@ -3,7 +3,9 @@ Trip model for managing travel expense groups
 """
 from datetime import datetime, date
 from typing import Optional
-from sqlmodel import Field, SQLModel, Relationship
+from decimal import Decimal
+from sqlmodel import Field, SQLModel, Relationship, Column
+from sqlalchemy import Numeric
 from pydantic import model_validator
 
 
@@ -24,6 +26,17 @@ class Trip(SQLModel, table=True):
     start_date: Optional[date] = Field(
         default=None, description="Trip start date")
     end_date: Optional[date] = Field(default=None, description="Trip end date")
+
+    # Cached metadata for performance
+    total_spent: Decimal = Field(
+        default=Decimal("0.0"),
+        sa_column=Column(Numeric(12, 2)),
+        description="Total amount spent in base currency (cached)"
+    )
+    expense_count: int = Field(
+        default=0,
+        description="Number of expenses in this trip (cached)"
+    )
 
     created_by: str = Field(foreign_key="users.id",
                             description="User who created the trip")

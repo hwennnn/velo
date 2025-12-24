@@ -4,6 +4,7 @@ Expense API endpoints for expense tracking
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional
+import random
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlmodel import Session, select, func
 
@@ -141,65 +142,122 @@ async def create_expense(
     amount_in_base = expense.amount * exchange_rate
 
     # Create splits based on split_type
+    splits_to_create = []
+
     if expense_data.split_type == "equal":
         # If splits are provided, use only those members; otherwise use all trip members
         if expense_data.splits and len(expense_data.splits) > 0:
-            # Use the selected members from splits
             member_ids = [split.member_id for split in expense_data.splits]
-            split_amount = amount_in_base / len(member_ids)
-            split_percentage = Decimal("100.0") / len(member_ids)
-
-            for member_id in member_ids:
-                split = Split(
-                    expense_id=expense.id,
-                    member_id=member_id,
-                    amount=split_amount,
-                    percentage=split_percentage,
-                )
-                session.add(split)
         else:
             # Fallback: Get all trip members
             members_statement = select(TripMember).where(
                 TripMember.trip_id == trip_id)
             members = session.exec(members_statement).all()
+            member_ids = [member.id for member in members]
 
-            split_amount = amount_in_base / len(members)
-            split_percentage = Decimal("100.0") / len(members)
+        # Calculate equal splits with rounding fix
+        num_members = len(member_ids)
+        split_amount = (amount_in_base / num_members).quantize(Decimal('0.01'))
+        split_percentage = (Decimal("100.0") /
+                            num_members).quantize(Decimal('0.01'))
 
-            for member in members:
-                split = Split(
-                    expense_id=expense.id,
-                    member_id=member.id,
-                    amount=split_amount,
-                    percentage=split_percentage,
-                )
-                session.add(split)
+        # Calculate total and remainder
+        total_split = split_amount * num_members
+        remainder = amount_in_base - total_split
+
+        # Assign remainder to a random member
+        lucky_index = random.randint(
+            0, num_members - 1) if remainder != 0 else -1
+
+        for idx, member_id in enumerate(member_ids):
+            amount = split_amount
+            if idx == lucky_index:
+                amount += remainder
+
+            splits_to_create.append(Split(
+                expense_id=expense.id,
+                member_id=member_id,
+                amount=amount,
+                percentage=split_percentage,
+            ))
 
     elif expense_data.split_type == "percentage":
-        for split_data in expense_data.splits:
-            split_amount = amount_in_base * (split_data.percentage / 100)
-            split = Split(
+        # Calculate splits with rounding fix
+        total_assigned = Decimal("0")
+        lucky_index = random.randint(0, len(expense_data.splits) - 1)
+
+        for idx, split_data in enumerate(expense_data.splits):
+            split_amount = (
+                amount_in_base * (split_data.percentage / 100)).quantize(Decimal('0.01'))
+            total_assigned += split_amount
+
+            splits_to_create.append({
+                'member_id': split_data.member_id,
+                'amount': split_amount,
+                'percentage': split_data.percentage,
+                'index': idx
+            })
+
+        # Assign remainder to random member
+        remainder = amount_in_base - total_assigned
+        if remainder != 0:
+            splits_to_create[lucky_index]['amount'] += remainder
+
+        # Create split objects
+        for split_data in splits_to_create:
+            session.add(Split(
                 expense_id=expense.id,
-                member_id=split_data.member_id,
-                amount=split_amount,
-                percentage=split_data.percentage,
-            )
-            session.add(split)
+                member_id=split_data['member_id'],
+                amount=split_data['amount'],
+                percentage=split_data['percentage'],
+            ))
+        splits_to_create = []  # Clear since we already added them
 
     elif expense_data.split_type == "custom":
-        for split_data in expense_data.splits:
-            # Convert custom amount to base currency
-            split_amount_in_base = split_data.amount * exchange_rate
-            split_percentage = (split_amount_in_base / amount_in_base) * 100
+        # Calculate splits with rounding fix
+        total_assigned = Decimal("0")
+        lucky_index = random.randint(0, len(expense_data.splits) - 1)
 
-            split = Split(
+        for idx, split_data in enumerate(expense_data.splits):
+            split_amount_in_base = (
+                split_data.amount * exchange_rate).quantize(Decimal('0.01'))
+            split_percentage = (
+                (split_amount_in_base / amount_in_base) * 100).quantize(Decimal('0.01'))
+            total_assigned += split_amount_in_base
+
+            splits_to_create.append({
+                'member_id': split_data.member_id,
+                'amount': split_amount_in_base,
+                'percentage': split_percentage,
+                'index': idx
+            })
+
+        # Assign remainder to random member
+        remainder = amount_in_base - total_assigned
+        if remainder != 0:
+            splits_to_create[lucky_index]['amount'] += remainder
+
+        # Create split objects
+        for split_data in splits_to_create:
+            session.add(Split(
                 expense_id=expense.id,
-                member_id=split_data.member_id,
-                amount=split_amount_in_base,
-                percentage=split_percentage,
-            )
-            session.add(split)
+                member_id=split_data['member_id'],
+                amount=split_data['amount'],
+                percentage=split_data['percentage'],
+            ))
+        splits_to_create = []  # Clear since we already added them
 
+    # Add remaining splits (for equal type)
+    for split in splits_to_create:
+        session.add(split)
+
+    session.commit()
+
+    # Update trip metadata
+    trip.total_spent += amount_in_base
+    trip.expense_count += 1
+    trip.updated_at = datetime.utcnow()
+    session.add(trip)
     session.commit()
 
     # Build response
@@ -416,7 +474,10 @@ async def delete_expense(
             detail="Only the expense creator or trip admins can delete it",
         )
 
-    # Delete all splits first
+    # Calculate amount in base currency for trip metadata update
+    amount_in_base = expense.amount * expense.exchange_rate_to_base
+
+    # Delete all splits first (will cascade with new migration)
     splits_statement = select(Split).where(Split.expense_id == expense.id)
     splits = session.exec(splits_statement).all()
     for split in splits:
@@ -424,4 +485,11 @@ async def delete_expense(
 
     # Delete expense
     session.delete(expense)
+
+    # Update trip metadata
+    trip.total_spent -= amount_in_base
+    trip.expense_count -= 1
+    trip.updated_at = datetime.utcnow()
+    session.add(trip)
+
     session.commit()

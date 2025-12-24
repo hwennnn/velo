@@ -51,7 +51,10 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
   const [paidBy, setPaidBy] = useState<number | null>(null);
   const [expenseDate, setExpenseDate] = useState(() => {
     const today = new Date();
-    return today.toISOString().split('T')[0];
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   });
   const [category, setCategory] = useState<string>('');
   const [notes, setNotes] = useState('');
@@ -69,7 +72,10 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
       setCurrency(baseCurrency);
       setPaidBy(members.length > 0 ? members[0].id : null);
       const today = new Date();
-      setExpenseDate(today.toISOString().split('T')[0]);
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      setExpenseDate(`${year}-${month}-${day}`);
       setCategory('');
       setNotes('');
       setSplitType('equal');

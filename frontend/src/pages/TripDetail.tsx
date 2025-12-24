@@ -285,8 +285,10 @@ export default function TripDetail() {
     return false;
   };
 
-  const totalSpent = expenses.reduce((sum, exp) => sum + (Number(exp.amount_in_base_currency) || 0), 0);
-  
+  // Use trip metadata instead of calculating from expenses
+  const totalSpent = trip?.total_spent || 0;
+  const expenseCount = trip?.expense_count || 0;
+
   // Check if current user is admin
   const isCurrentUserAdmin = trip?.members?.find(m => m.user_id === user?.id)?.is_admin || false;
 
@@ -339,14 +341,14 @@ export default function TripDetail() {
             onClick={() => setActiveTab('expenses')}
             className="bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition-all text-center"
           >
-            <div className="text-2xl font-bold text-gray-900">{expenses.length}</div>
+            <div className="text-2xl font-bold text-gray-900">{expenseCount}</div>
             <div className="text-xs text-gray-600 mt-1">Expenses</div>
           </button>
           <button 
             onClick={() => setActiveTab('expenses')}
             className="bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition-all text-center"
           >
-            <div className="text-2xl font-bold text-gray-900">{trip.base_currency} {totalSpent.toFixed(0)}</div>
+            <div className="text-2xl font-bold text-gray-900">{trip.base_currency} {Number(totalSpent).toFixed(0)}</div>
             <div className="text-xs text-gray-600 mt-1">Total Spent</div>
           </button>
           <button 

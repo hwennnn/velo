@@ -20,6 +20,8 @@ export interface Trip {
   created_by: string;
   created_at: string;
   updated_at: string;
+  total_spent: number;
+  expense_count: number;
   member_count?: number;
   members?: TripMember[];
 }

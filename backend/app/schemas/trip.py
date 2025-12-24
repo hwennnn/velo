@@ -3,6 +3,7 @@ Pydantic schemas for Trip API endpoints
 """
 from datetime import date, datetime
 from typing import Optional
+from decimal import Decimal
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -120,6 +121,11 @@ class TripResponse(BaseModel):
     created_by: str
     created_at: datetime
     updated_at: datetime
+
+    # Cached metadata
+    total_spent: Decimal = Field(default=Decimal(
+        "0.0"), description="Total spent in base currency")
+    expense_count: int = Field(default=0, description="Number of expenses")
 
     # Optional: include member count or members list
     member_count: Optional[int] = None

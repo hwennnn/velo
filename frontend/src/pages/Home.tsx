@@ -4,35 +4,22 @@
  */
 import { format } from 'date-fns';
 import { Calendar, LogOut, MapPin, Plus, Users } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CreateTripModal from '../components/CreateTripModal';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 import { useAuth } from '../hooks/useAuth';
-import { api } from '../services/api';
-import type { CreateTripInput, Trip } from '../types';
+import { useCreateTrip, useTrips } from '../hooks/useTrips';
+import type { CreateTripInput } from '../types';
 
 export default function Home() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [trips, setTrips] = useState<Trip[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    loadTrips();
-  }, []);
-
-  const loadTrips = async () => {
-    try {
-      setIsLoading(true);
-      const response = await api.trips.getAll();
-      setTrips(response.data.trips || []);
-    } catch (error) {
-      console.error('Error loading trips:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Use React Query hooks
+  const { data: trips = [], isLoading } = useTrips();
+  const createTripMutation = useCreateTrip();
 
   const handleSignOut = async () => {
     try {
@@ -43,8 +30,8 @@ export default function Home() {
   };
 
   const handleCreateTrip = async (tripData: CreateTripInput) => {
-    await api.trips.create(tripData);
-    await loadTrips();
+    await createTripMutation.mutateAsync(tripData);
+    setIsModalOpen(false);
   };
 
   const formatDateRange = (startDate?: string, endDate?: string) => {
@@ -92,18 +79,8 @@ export default function Home() {
         </div>
 
         {isLoading ? (
-          /* Loading State */
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="bg-white rounded-2xl p-6 shadow-sm animate-pulse">
-                <div className="h-6 bg-gray-200 rounded w-3/4 mb-3"></div>
-                <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
-                <div className="flex gap-4">
-                  <div className="h-4 bg-gray-200 rounded w-20"></div>
-                  <div className="h-4 bg-gray-200 rounded w-24"></div>
-                </div>
-              </div>
-            ))}
+          <div className="flex justify-center py-16">
+            <LoadingSpinner size="lg" text="Loading trips..." />
           </div>
         ) : trips.length === 0 ? (
           /* Empty State */

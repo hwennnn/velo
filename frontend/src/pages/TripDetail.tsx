@@ -1,87 +1,77 @@
 /**
- * Trip Detail Page
- * Shows trip information, members, expenses, and settlements
+ * Trip Detail Page (Refactored)
+ * Optimized with React Query, broken into smaller components
  */
 import { format } from 'date-fns';
-import { ArrowLeft, Calendar, Copy, DollarSign, Link2, LogOut, MoreVertical, Plus, Receipt, Scale, Settings, Shield, Trash2, UserCheck, Users, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Copy, Link2, LogOut, MoreVertical, Plus, Shield, Trash2, UserCheck, Users, X } from 'lucide-react';
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AddMemberModal } from '../components/AddMemberModal';
+import { BalancesModal } from '../components/BalancesModal';
 import { CreateExpenseModal } from '../components/CreateExpenseModal';
 import { ExpenseList } from '../components/ExpenseList';
+import { ExpenseListSkeleton } from '../components/ExpenseListSkeleton';
 import { MemberDetailModal } from '../components/MemberDetailModal';
-import { SettlementView } from '../components/SettlementView';
+import { QuickStats } from '../components/QuickStats';
+import { SettlementsModal } from '../components/SettlementsModal';
+import { TripDetailSkeleton } from '../components/TripDetailSkeleton';
+import { TripHeader } from '../components/TripHeader';
+import { TripInfoCard } from '../components/TripInfoCard';
 import { useAlert } from '../contexts/AlertContext';
 import { useAuth } from '../hooks/useAuth';
-import { api } from '../services/api';
-import type { AddMemberInput, CreateExpenseInput, Expense, Trip, TripMember } from '../types';
-
-type TabType = 'members' | 'expenses' | 'settlements';
+import { useBalances, useSettlements } from '../hooks/useBalances';
+import { useCreateExpense, useDeleteExpense, useExpenses } from '../hooks/useExpenses';
+import { useAddMember, useClaimMember, useLeaveTrip, useRemoveMember, useUpdateMember } from '../hooks/useMembers';
+import { useGenerateInvite, useTrip } from '../hooks/useTrips';
+import type { AddMemberInput, CreateExpenseInput, TripMember } from '../types';
 
 export default function TripDetail() {
   const { tripId } = useParams<{ tripId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { showAlert, showConfirm } = useAlert();
-  const [trip, setTrip] = useState<Trip | null>(null);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<TabType>('members');
+
+  // UI State - Declare before hooks that depend on them
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
+  const [showMembersModal, setShowMembersModal] = useState(false);
+  const [showBalancesModal, setShowBalancesModal] = useState(false);
+  const [showSettlementsModal, setShowSettlementsModal] = useState(false);
   const [memberMenuOpen, setMemberMenuOpen] = useState<number | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState<TripMember | null>(null);
   const [showMemberDetail, setShowMemberDetail] = useState(false);
 
-  useEffect(() => {
-    if (tripId) {
-      loadData();
-    }
-  }, [tripId]);
-
-  const loadData = async () => {
-    try {
-      setIsLoading(true);
-      const [tripRes, expensesRes] = await Promise.all([
-        api.trips.getById(tripId!),
-        api.expenses.getAll(tripId!),
-      ]);
-      setTrip(tripRes.data);
-      setExpenses(expensesRes.data.expenses || []);
-    } catch (error) {
-      console.error('Error loading trip:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // React Query hooks - Parallel fetching for optimal performance
+  const { data: trip, isLoading: tripLoading, isFetching: tripFetching } = useTrip(tripId);
+  const { data: expenses = [], isLoading: expensesLoading } = useExpenses(tripId);
+  
+  // Lazy load balances and settlements - only fetch when modals are opened
+  const { data: balances = [], isLoading: balancesLoading } = useBalances(showBalancesModal ? tripId : undefined);
+  const { data: settlements = [], isLoading: settlementsLoading } = useSettlements(showSettlementsModal ? tripId : undefined);
+  
+  const createExpenseMutation = useCreateExpense(tripId!);
+  const deleteExpenseMutation = useDeleteExpense(tripId!);
+  const addMemberMutation = useAddMember(tripId!);
+  const removeMemberMutation = useRemoveMember(tripId!);
+  const claimMemberMutation = useClaimMember(tripId!);
+  const updateMemberMutation = useUpdateMember(tripId!);
+  const leaveTripMutation = useLeaveTrip(tripId!);
+  const generateInviteMutation = useGenerateInvite(tripId!);
 
   const handleAddMember = async (memberData: AddMemberInput) => {
-    try {
-      await api.members.add(tripId!, memberData);
-      await loadData();
-    } catch (error) {
-      throw error;
-    }
+    await addMemberMutation.mutateAsync(memberData);
+    setShowAddMemberModal(false);
   };
 
   const handleCreateExpense = async (expenseData: CreateExpenseInput) => {
-    try {
-      await api.expenses.create(tripId!, expenseData);
-      await loadData();
-    } catch (error) {
-      throw error;
-    }
+    await createExpenseMutation.mutateAsync(expenseData);
+    setShowAddExpenseModal(false);
   };
 
   const handleDeleteExpense = async (expenseId: number) => {
-    try {
-      await api.expenses.delete(tripId!, expenseId);
-      await loadData();
-    } catch (error) {
-      throw error;
-    }
+    await deleteExpenseMutation.mutateAsync(expenseId);
   };
 
   const handleRemoveMember = async (memberId: number, memberName: string) => {
@@ -94,11 +84,11 @@ export default function TripDetail() {
     if (!confirmed) return;
 
     try {
-      await api.members.remove(tripId!, memberId.toString());
-      await loadData();
+      await removeMemberMutation.mutateAsync(memberId.toString());
       setMemberMenuOpen(null);
-    } catch (error: any) {
-      showAlert(error.response?.data?.detail || 'Failed to remove member', { type: 'error' });
+    } catch (error) {
+      const err = error as { response?: { data?: { detail?: string } } };
+      showAlert(err.response?.data?.detail || 'Failed to remove member', { type: 'error' });
     }
   };
 
@@ -111,22 +101,23 @@ export default function TripDetail() {
     if (!confirmed) return;
 
     try {
-      await api.members.claim(tripId!, memberId.toString());
-      await loadData();
+      await claimMemberMutation.mutateAsync(memberId.toString());
       setMemberMenuOpen(null);
       showAlert('Member claimed successfully!', { type: 'success', autoClose: true });
-    } catch (error: any) {
-      showAlert(error.response?.data?.detail || 'Failed to claim member', { type: 'error' });
+    } catch (error) {
+      const err = error as { response?: { data?: { detail?: string } } };
+      showAlert(err.response?.data?.detail || 'Failed to claim member', { type: 'error' });
     }
   };
 
   const handleGenerateInvite = async () => {
     try {
-      const response = await api.trips.generateInvite(tripId!);
-      setInviteLink(response.data.invite_url);
+      const url = await generateInviteMutation.mutateAsync();
+      setInviteLink(url);
       setShowInviteModal(true);
-    } catch (error: any) {
-      showAlert(error.response?.data?.detail || 'Failed to generate invite link', { type: 'error' });
+    } catch (error) {
+      const err = error as { response?: { data?: { detail?: string } } };
+      showAlert(err.response?.data?.detail || 'Failed to generate invite link', { type: 'error' });
     }
   };
 
@@ -149,11 +140,11 @@ export default function TripDetail() {
     if (!confirmed) return;
 
     try {
-      await api.members.update(tripId!, memberId.toString(), { is_admin: true });
-      await loadData();
+      await updateMemberMutation.mutateAsync({ memberId: memberId.toString(), data: { is_admin: true } });
       setMemberMenuOpen(null);
-    } catch (error: any) {
-      showAlert(error.response?.data?.detail || 'Failed to promote member', { type: 'error' });
+    } catch (error) {
+      const err = error as { response?: { data?: { detail?: string } } };
+      showAlert(err.response?.data?.detail || 'Failed to promote member', { type: 'error' });
     }
   };
 
@@ -167,11 +158,11 @@ export default function TripDetail() {
     if (!confirmed) return;
 
     try {
-      await api.members.update(tripId!, memberId.toString(), { is_admin: false });
-      await loadData();
+      await updateMemberMutation.mutateAsync({ memberId: memberId.toString(), data: { is_admin: false } });
       setMemberMenuOpen(null);
-    } catch (error: any) {
-      showAlert(error.response?.data?.detail || 'Failed to demote admin', { type: 'error' });
+    } catch (error) {
+      const err = error as { response?: { data?: { detail?: string } } };
+      showAlert(err.response?.data?.detail || 'Failed to demote admin', { type: 'error' });
     }
   };
 
@@ -190,11 +181,11 @@ export default function TripDetail() {
     if (!confirmed) return;
 
     try {
-      await api.members.leave(tripId!);
-      // Redirect to trips list after leaving
+      await leaveTripMutation.mutateAsync();
       navigate('/trips');
-    } catch (error: any) {
-      showAlert(error.response?.data?.detail || 'Failed to leave trip', { type: 'error' });
+    } catch (error) {
+      const err = error as { response?: { data?: { detail?: string } } };
+      showAlert(err.response?.data?.detail || 'Failed to leave trip', { type: 'error' });
     }
   };
 
@@ -205,21 +196,9 @@ export default function TripDetail() {
     return `${format(new Date(startDate!), 'MMM d')} - ${format(new Date(endDate!), 'MMM d, yyyy')}`;
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex flex-col">
-        <header className="bg-white px-6 py-4 border-b border-gray-200">
-          <div className="h-6 bg-gray-200 rounded w-32 animate-pulse"></div>
-        </header>
-        <div className="flex-1 p-6">
-          <div className="bg-white rounded-2xl p-6 shadow-sm mb-6 animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-3/4 mb-4"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-          </div>
-          <div className="h-48 bg-gray-200 rounded-2xl animate-pulse"></div>
-        </div>
-      </div>
-    );
+  // Show loading skeleton only on initial load (no cached data)
+  if ((tripLoading || expensesLoading) && !trip && expenses.length === 0) {
+    return <TripDetailSkeleton />;
   }
 
   if (!trip) {
@@ -267,187 +246,117 @@ export default function TripDetail() {
     const isAdmin = currentUserMember?.is_admin || false;
     const isNotSelf = member.user_id !== user?.id;
 
-    // Can claim fictional members
-    if (member.is_fictional) {
-      return true;
-    }
-
-    // Admins can manage other members (not themselves)
-    if (isAdmin && isNotSelf) {
-      return true;
-    }
-
-    // Can leave trip if it's yourself
-    if (member.user_id === user?.id) {
-      return true;
-    }
+    if (member.is_fictional) return true;
+    if (isAdmin && isNotSelf) return true;
+    if (member.user_id === user?.id) return true;
 
     return false;
   };
 
-  // Use trip metadata instead of calculating from expenses
   const totalSpent = trip?.total_spent || 0;
   const expenseCount = trip?.expense_count || 0;
-
-  // Check if current user is admin
   const isCurrentUserAdmin = trip?.members?.find(m => m.user_id === user?.id)?.is_admin || false;
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
-      <header className="bg-white px-6 py-4 border-b border-gray-200">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate('/trips')}
-            className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
-            aria-label="Back to trips"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-700" />
-          </button>
-          <h1 className="text-lg font-semibold text-gray-900 flex-1">Trip Details</h1>
-          <button
-            className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
-            aria-label="Trip settings"
-          >
-            <Settings className="w-5 h-5 text-gray-600" />
-          </button>
-        </div>
-      </header>
+      <TripHeader
+        tripName={trip.name}
+        isLoading={tripFetching || expensesLoading}
+        onBack={() => navigate('/trips')}
+      />
 
       {/* Content */}
       <main className="flex-1 overflow-y-auto pb-20">
         {/* Trip Info Card */}
-        <div className="bg-gradient-to-br from-primary-500 to-primary-700 p-6 text-white">
-          <h2 className="text-2xl font-bold mb-2">{trip.name}</h2>
-          {trip.description && (
-            <p className="text-primary-100 mb-4">{trip.description}</p>
+        <TripInfoCard
+          currency={trip.base_currency}
+          dateRange={formatDateRange(trip.start_date, trip.end_date)}
+          memberCount={trip.member_count || 0}
+          members={trip.members || []}
+          onMembersClick={() => setShowMembersModal(true)}
+          getMemberColor={(index) => getMemberColor(index)}
+          getMemberInitials={getMemberInitials}
+        />
+
+        {/* Quick Stats & Action Chips */}
+        <QuickStats
+          expenseCount={expenseCount}
+          totalSpent={totalSpent}
+          currency={trip.base_currency}
+          onBalancesClick={() => setShowBalancesModal(true)}
+          onSettlementsClick={() => setShowSettlementsModal(true)}
+        />
+
+        {/* Main Content - Expenses List */}
+        <div className="px-4 pb-6">
+          {expensesLoading && expenses.length === 0 ? (
+            <ExpenseListSkeleton />
+          ) : (
+            <ExpenseList
+              expenses={expenses}
+              members={trip.members || []}
+              baseCurrency={trip.base_currency}
+              currentUserId={user?.id}
+              isCurrentUserAdmin={isCurrentUserAdmin}
+              onDelete={handleDeleteExpense}
+              onRefresh={() => {}}
+            />
           )}
-          
-          <div className="flex items-center gap-6 text-sm">
-            <div className="flex items-center gap-2">
-              <DollarSign className="w-4 h-4" />
-              <span className="font-medium">{trip.base_currency}</span>
+        </div>
+      </main>
+
+      {/* Floating Action Button */}
+      <button
+        onClick={() => setShowAddExpenseModal(true)}
+        className="fixed bottom-20 right-6 w-14 h-14 bg-primary-600 text-white rounded-full shadow-lg hover:bg-primary-700 transition-all hover:scale-110 flex items-center justify-center z-20"
+        aria-label="Add expense"
+      >
+        <Plus className="w-6 h-6" />
+      </button>
+
+      {/* Members Modal */}
+      {showMembersModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fadeIn"
+            onClick={() => setShowMembersModal(false)}
+          />
+          <div className="relative w-full max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-xl animate-slideUp sm:animate-fadeIn max-h-[80vh] flex flex-col">
+            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">Trip Members</h3>
+              <button
+                onClick={() => setShowMembersModal(false)}
+                className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
             </div>
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4" />
-              <span>{formatDateRange(trip.start_date, trip.end_date)}</span>
-            </div>
-          </div>
-        </div>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-3 gap-4 p-6">
-          <button 
-            onClick={() => setActiveTab('expenses')}
-            className="bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition-all text-center"
-          >
-            <div className="text-2xl font-bold text-gray-900">{expenseCount}</div>
-            <div className="text-xs text-gray-600 mt-1">Expenses</div>
-          </button>
-          <button 
-            onClick={() => setActiveTab('expenses')}
-            className="bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition-all text-center"
-          >
-            <div className="text-2xl font-bold text-gray-900">{trip.base_currency} {Number(totalSpent).toFixed(0)}</div>
-            <div className="text-xs text-gray-600 mt-1">Total Spent</div>
-          </button>
-          <button 
-            onClick={() => setActiveTab('members')}
-            className="bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition-all text-center"
-          >
-            <div className="text-2xl font-bold text-gray-900">{trip.member_count || 0}</div>
-            <div className="text-xs text-gray-600 mt-1">Members</div>
-          </button>
-        </div>
-
-        {/* Tab Navigation */}
-        <div className="px-6 mb-4">
-          <div className="flex gap-2 bg-white rounded-lg p-1 shadow-sm">
-            <button
-              onClick={() => setActiveTab('members')}
-              className={`flex-1 px-4 py-2.5 rounded-md font-medium transition-colors flex items-center justify-center gap-2 ${
-                activeTab === 'members'
-                  ? 'bg-primary-600 text-white'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              <Users className="w-4 h-4" />
-              Members
-            </button>
-            <button
-              onClick={() => setActiveTab('expenses')}
-              className={`flex-1 px-4 py-2.5 rounded-md font-medium transition-colors flex items-center justify-center gap-2 ${
-                activeTab === 'expenses'
-                  ? 'bg-primary-600 text-white'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              <Receipt className="w-4 h-4" />
-              Expenses
-            </button>
-            <button
-              onClick={() => setActiveTab('settlements')}
-              className={`flex-1 px-4 py-2.5 rounded-md font-medium transition-colors flex items-center justify-center gap-2 ${
-                activeTab === 'settlements'
-                  ? 'bg-primary-600 text-white'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              <Scale className="w-4 h-4" />
-              Balances
-            </button>
-          </div>
-        </div>
-
-        {/* Tab Content */}
-        <div className="px-6 pb-6">
-          {/* Members Tab */}
-          {activeTab === 'members' && (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Trip Members</h3>
-                {isCurrentUserAdmin && (
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={handleGenerateInvite}
-                      className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2"
-                    >
-                      <Link2 className="w-4 h-4" />
-                      Invite
-                    </button>
-                    <button 
-                      onClick={() => setShowAddMemberModal(true)}
-                      className="px-4 py-2 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm flex items-center gap-2"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add Member
-                    </button>
-                  </div>
-                )}
-              </div>
-
+            <div className="flex-1 overflow-y-auto p-4">
               {trip.members && trip.members.length > 0 ? (
-                <div className="bg-white rounded-2xl shadow-sm divide-y divide-gray-100">
+                <div className="space-y-2">
                   {trip.members.map((member, index) => (
                     <div
                       key={member.id}
-                      className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                      className="bg-gray-50 rounded-xl p-3 flex items-center justify-between hover:bg-gray-100 transition-colors"
                     >
                       <div 
                         className="flex items-center gap-3 flex-1 cursor-pointer"
                         onClick={() => {
                           setSelectedMember(member);
                           setShowMemberDetail(true);
+                          setShowMembersModal(false);
                         }}
                       >
                         <div
-                          className={`w-12 h-12 ${getMemberColor(index)} rounded-full flex items-center justify-center text-white font-semibold text-sm`}
+                          className={`w-10 h-10 ${getMemberColor(index)} rounded-full flex items-center justify-center text-white font-semibold text-sm`}
                         >
                           {getMemberInitials(member.nickname)}
                         </div>
-                        <div>
-                          <div className="font-medium text-gray-900 flex items-center gap-2">
-                            {member.nickname}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-900 flex items-center gap-2 text-sm">
+                            <span className="truncate">{member.nickname}</span>
                             {member.user_id === user?.id && (
                               <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
                                 me
@@ -460,18 +369,13 @@ export default function TripDetail() {
                             )}
                           </div>
                           {member.is_fictional ? (
-                            <div className="text-sm text-amber-600 font-medium">Fictional member</div>
-                          ) : member.display_name && member.display_name !== member.nickname ? (
-                            <div className="text-sm text-gray-500">
-                              {member.display_name} • {member.email}
-                            </div>
+                            <div className="text-xs text-amber-600 font-medium">Fictional member</div>
                           ) : (
-                            <div className="text-sm text-gray-500">{member.email || 'Active member'}</div>
+                            <div className="text-xs text-gray-500 truncate">{member.email || 'Active member'}</div>
                           )}
                         </div>
                       </div>
 
-                      {/* Member Actions */}
                       {hasAvailableActions(member) && (
                         <div className="relative">
                           <button
@@ -481,19 +385,16 @@ export default function TripDetail() {
                             }}
                             className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
                           >
-                            <MoreVertical className="w-5 h-5 text-gray-600" />
+                            <MoreVertical className="w-4 h-4 text-gray-600" />
                           </button>
 
                           {memberMenuOpen === member.id && (
                           <>
-                            {/* Backdrop to close menu */}
                             <div
                               className="fixed inset-0 z-10"
                               onClick={() => setMemberMenuOpen(null)}
                             />
-                            {/* Menu */}
                             <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
-                              {/* Claim fictional member */}
                               {member.is_fictional && (
                                 <button
                                   onClick={() => handleClaimMember(member.id)}
@@ -504,7 +405,6 @@ export default function TripDetail() {
                                 </button>
                               )}
 
-                              {/* Promote/Demote admin (only for admins, can't target yourself) */}
                               {trip.members?.find(m => m.user_id === user?.id)?.is_admin && 
                                member.user_id !== user?.id && 
                                !member.is_fictional && (
@@ -529,7 +429,6 @@ export default function TripDetail() {
                                 </>
                               )}
 
-                              {/* Remove member (only for admins, can't target yourself) */}
                               {trip.members?.find(m => m.user_id === user?.id)?.is_admin && 
                                member.user_id !== user?.id && (
                                 <button
@@ -541,7 +440,6 @@ export default function TripDetail() {
                                 </button>
                               )}
 
-                              {/* Leave trip (only for yourself) */}
                               {member.user_id === user?.id && (
                                 <button
                                   onClick={handleLeaveTrip}
@@ -560,60 +458,40 @@ export default function TripDetail() {
                   ))}
                 </div>
               ) : (
-                <div className="bg-white rounded-2xl p-8 shadow-sm text-center">
-                  <div className="w-16 h-16 mx-auto mb-3 bg-gray-100 rounded-full flex items-center justify-center">
-                    <Users className="w-8 h-8 text-gray-400" />
-                  </div>
-                  <p className="text-gray-600 text-sm mb-4">No members yet</p>
-                  {isCurrentUserAdmin && (
-                    <button 
-                      onClick={() => setShowAddMemberModal(true)}
-                      className="px-4 py-2 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"
-                    >
-                      Add First Member
-                    </button>
-                  )}
+                <div className="text-center py-8">
+                  <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-600 text-sm">No members yet</p>
                 </div>
               )}
             </div>
-          )}
 
-          {/* Expenses Tab */}
-          {activeTab === 'expenses' && (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Trip Expenses</h3>
+            {isCurrentUserAdmin && (
+              <div className="p-4 border-t border-gray-200 flex gap-2">
                 <button 
-                  onClick={() => setShowAddExpenseModal(true)}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm flex items-center gap-2"
+                  onClick={() => {
+                    setShowMembersModal(false);
+                    handleGenerateInvite();
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Link2 className="w-4 h-4" />
+                  Invite
+                </button>
+                <button 
+                  onClick={() => {
+                    setShowMembersModal(false);
+                    setShowAddMemberModal(true);
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
                 >
                   <Plus className="w-4 h-4" />
-                  Add Expense
+                  Add Member
                 </button>
               </div>
-
-              <ExpenseList
-                expenses={expenses}
-                members={trip.members || []}
-                baseCurrency={trip.base_currency}
-                currentUserId={user?.id}
-                isCurrentUserAdmin={isCurrentUserAdmin}
-                onDelete={handleDeleteExpense}
-                onRefresh={loadData}
-              />
-            </div>
-          )}
-
-          {/* Settlements Tab */}
-          {activeTab === 'settlements' && (
-            <SettlementView
-              tripId={tripId!}
-              members={trip.members || []}
-              baseCurrency={trip.base_currency}
-            />
-          )}
+            )}
+          </div>
         </div>
-      </main>
+      )}
 
       {/* Modals */}
       <AddMemberModal
@@ -694,6 +572,32 @@ export default function TripDetail() {
           </div>
         </div>
       )}
+
+      {/* Balances Modal */}
+      <BalancesModal
+        isOpen={showBalancesModal}
+        balances={balances}
+        isLoading={balancesLoading}
+        currency={trip.base_currency}
+        getMemberColor={(memberId) => {
+          const index = trip.members?.findIndex(m => m.id === memberId) || 0;
+          return getMemberColor(index);
+        }}
+        onClose={() => setShowBalancesModal(false)}
+      />
+
+      {/* Settlements Modal */}
+      <SettlementsModal
+        isOpen={showSettlementsModal}
+        settlements={settlements}
+        isLoading={settlementsLoading}
+        currency={trip.base_currency}
+        getMemberColor={(memberId) => {
+          const index = trip.members?.findIndex(m => m.id === memberId) || 0;
+          return getMemberColor(index);
+        }}
+        onClose={() => setShowSettlementsModal(false)}
+      />
     </div>
   );
 }

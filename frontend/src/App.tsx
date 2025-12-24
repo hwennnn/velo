@@ -2,57 +2,100 @@
  * Main App Component
  * Handles routing and layout
  */
+import { QueryClientProvider } from '@tanstack/react-query';
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import MobileContainer from './components/MobileContainer';
 import ProtectedRoute from './components/ProtectedRoute';
 import { AlertProvider } from './contexts/AlertContext';
 import { AuthProvider } from './hooks/useAuth';
-import AuthCallback from './pages/AuthCallback';
-import Home from './pages/Home';
-import JoinTrip from './pages/JoinTrip';
-import Login from './pages/Login';
-import TripDetail from './pages/TripDetail';
+import { queryClient } from './lib/queryClient';
+
+// Lazy load pages for better initial load performance
+const AuthCallback = lazy(() => import('./pages/AuthCallback'));
+const Home = lazy(() => import('./pages/Home'));
+const JoinTrip = lazy(() => import('./pages/JoinTrip'));
+const Login = lazy(() => import('./pages/Login'));
+const TripDetail = lazy(() => import('./pages/TripDetail'));
+
+// Custom loading component with brand styling
+function PageLoader() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-primary-50 flex items-center justify-center">
+      <div className="flex flex-col items-center gap-6">
+        {/* Animated logo/icon */}
+        <div className="relative">
+          {/* Outer ring */}
+          <div className="w-20 h-20 border-4 border-primary-200 rounded-full animate-spin"></div>
+          {/* Inner spinning circle */}
+          <div className="absolute inset-0 w-20 h-20 border-4 border-transparent border-t-primary-600 rounded-full animate-spin" style={{ animationDuration: '0.8s' }}></div>
+          {/* Center dot with pulse */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-3 h-3 bg-primary-600 rounded-full animate-pulse"></div>
+          </div>
+        </div>
+        
+        {/* Loading text with fade animation */}
+        <div className="flex flex-col items-center gap-2">
+          <h2 className="text-xl font-bold text-gray-900 animate-pulse">Velo</h2>
+          <p className="text-gray-600 text-sm animate-pulse">Loading your trips...</p>
+        </div>
+        
+        {/* Animated dots */}
+        <div className="flex gap-2">
+          <div className="w-2 h-2 bg-primary-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+          <div className="w-2 h-2 bg-primary-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+          <div className="w-2 h-2 bg-primary-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AlertProvider>
-          <MobileContainer>
-            <Routes>
-            {/* Public routes */}
-            <Route path="/auth/login" element={<Login />} />
-            <Route path="/auth/callback" element={<AuthCallback />} />
-            <Route path="/join" element={<JoinTrip />} />
-              
-              {/* Protected routes */}
-              <Route
-                path="/trips"
-                element={
-                  <ProtectedRoute>
-                    <Home />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/trips/:tripId"
-                element={
-                  <ProtectedRoute>
-                    <TripDetail />
-                  </ProtectedRoute>
-                }
-              />
-              
-              {/* Redirect root to trips */}
-              <Route path="/" element={<Navigate to="/trips" replace />} />
-              
-              {/* 404 - Redirect to trips */}
-              <Route path="*" element={<Navigate to="/trips" replace />} />
-            </Routes>
-          </MobileContainer>
-        </AlertProvider>
-      </AuthProvider>
-    </BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <AuthProvider>
+          <AlertProvider>
+            <MobileContainer>
+              <Suspense fallback={<PageLoader />}>
+                <Routes>
+                  {/* Public routes */}
+                  <Route path="/auth/login" element={<Login />} />
+                  <Route path="/auth/callback" element={<AuthCallback />} />
+                  <Route path="/join" element={<JoinTrip />} />
+                  
+                  {/* Protected routes */}
+                  <Route
+                    path="/trips"
+                    element={
+                      <ProtectedRoute>
+                        <Home />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/trips/:tripId"
+                    element={
+                      <ProtectedRoute>
+                        <TripDetail />
+                      </ProtectedRoute>
+                    }
+                  />
+                  
+                  {/* Redirect root to trips */}
+                  <Route path="/" element={<Navigate to="/trips" replace />} />
+                  
+                  {/* 404 - Redirect to trips */}
+                  <Route path="*" element={<Navigate to="/trips" replace />} />
+                </Routes>
+              </Suspense>
+            </MobileContainer>
+          </AlertProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 }
 

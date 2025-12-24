@@ -1,0 +1,61 @@
+/**
+ * React Query hooks for Expense operations
+ */
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { api } from '../services/api';
+import type { CreateExpenseInput, Expense } from '../types';
+import { tripKeys } from './useTrips';
+
+// Query Keys
+export const expenseKeys = {
+  all: ['expenses'] as const,
+  lists: () => [...expenseKeys.all, 'list'] as const,
+  list: (tripId: string, filters?: any) => [...expenseKeys.lists(), tripId, filters] as const,
+  details: () => [...expenseKeys.all, 'detail'] as const,
+  detail: (tripId: string, id: number) => [...expenseKeys.details(), tripId, id] as const,
+};
+
+// Fetch expenses for a trip
+export function useExpenses(tripId: string | undefined) {
+  return useQuery({
+    queryKey: expenseKeys.list(tripId!),
+    queryFn: async () => {
+      const response = await api.expenses.getAll(tripId!);
+      return response.data.expenses as Expense[];
+    },
+    enabled: !!tripId,
+  });
+}
+
+// Create expense mutation
+export function useCreateExpense(tripId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: CreateExpenseInput) => {
+      const response = await api.expenses.create(tripId, data);
+      return response.data;
+    },
+    onSuccess: () => {
+      // Invalidate both expenses and trip data (for totals)
+      queryClient.invalidateQueries({ queryKey: expenseKeys.list(tripId) });
+      queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
+    },
+  });
+}
+
+// Delete expense mutation
+export function useDeleteExpense(tripId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (expenseId: number) => {
+      await api.expenses.delete(tripId, expenseId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: expenseKeys.list(tripId) });
+      queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
+    },
+  });
+}
+

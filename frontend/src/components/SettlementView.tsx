@@ -3,9 +3,10 @@
  * 
  * Displays balances and optimal settlement plan for a trip.
  */
-import React, { useState, useEffect } from 'react';
-import { DollarSign, TrendingUp, TrendingDown, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { api } from '../services/api';
+import React, { useState } from 'react';
+import { TrendingUp, TrendingDown, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { useBalances, useSettlements } from '../hooks/useBalances';
+import { LoadingSpinner } from './LoadingSpinner';
 import type { TripMember } from '../types';
 
 interface Balance {
@@ -35,34 +36,14 @@ export const SettlementView: React.FC<SettlementViewProps> = ({
   members,
   baseCurrency,
 }) => {
-  const [balances, setBalances] = useState<Balance[]>([]);
-  const [settlements, setSettlements] = useState<Settlement[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [showBalances, setShowBalances] = useState(true);
 
-  useEffect(() => {
-    loadData();
-  }, [tripId]);
+  // Use React Query hooks
+  const { data: balances = [], isLoading: balancesLoading, error: balancesError } = useBalances(tripId);
+  const { data: settlements = [], isLoading: settlementsLoading, error: settlementsError } = useSettlements(tripId);
 
-  const loadData = async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const [balancesRes, settlementsRes] = await Promise.all([
-        api.balances.get(tripId),
-        api.balances.getSettlements(tripId),
-      ]);
-
-      setBalances(balancesRes.data.balances);
-      setSettlements(settlementsRes.data.settlements);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to load balance data');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const isLoading = balancesLoading || settlementsLoading;
+  const error = balancesError || settlementsError;
 
   const getMemberColor = (memberId: number) => {
     const index = members.findIndex((m) => m.id === memberId);
@@ -81,12 +62,8 @@ export const SettlementView: React.FC<SettlementViewProps> = ({
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 p-8">
-        <div className="animate-pulse space-y-4">
-          <div className="h-6 bg-gray-200 rounded w-1/3"></div>
-          <div className="h-4 bg-gray-200 rounded w-2/3"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-        </div>
+      <div className="bg-white rounded-lg border border-gray-200 p-8 flex justify-center">
+        <LoadingSpinner size="md" text="Loading balances..." />
       </div>
     );
   }
@@ -96,7 +73,7 @@ export const SettlementView: React.FC<SettlementViewProps> = ({
       <div className="bg-white rounded-lg border border-red-200 p-6">
         <div className="flex items-center gap-3 text-red-600">
           <AlertCircle className="w-5 h-5" />
-          <p>{error}</p>
+          <p>{String(error)}</p>
         </div>
       </div>
     );

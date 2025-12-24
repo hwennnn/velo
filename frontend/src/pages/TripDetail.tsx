@@ -233,7 +233,7 @@ export default function TripDetail() {
   const isCurrentUserAdmin = trip?.members?.find(m => m.user_id === user?.id)?.is_admin || false;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex flex-col relative">
       {/* Header */}
       <TripHeader
         tripName={trip.name}
@@ -242,7 +242,7 @@ export default function TripDetail() {
       />
 
       {/* Content */}
-      <main className="flex-1 overflow-y-auto pb-20">
+      <main className="flex-1 overflow-y-auto pb-24 md:pb-28">
         {/* Trip Info Card */}
         <TripInfoCard
           currency={trip.base_currency}
@@ -286,7 +286,7 @@ export default function TripDetail() {
       {/* Floating Action Button */}
       <button
         onClick={() => setShowAddExpenseModal(true)}
-        className="fixed bottom-20 right-6 w-14 h-14 bg-primary-600 text-white rounded-full shadow-lg hover:bg-primary-700 transition-all hover:scale-110 flex items-center justify-center z-20"
+        className="absolute bottom-6 md:bottom-10 right-6 w-14 h-14 bg-primary-600 text-white rounded-full shadow-lg hover:bg-primary-700 transition-all hover:scale-110 flex items-center justify-center z-20"
         aria-label="Add expense"
       >
         <Plus className="w-6 h-6" />

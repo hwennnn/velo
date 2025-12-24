@@ -100,7 +100,7 @@ export default function TripDetail() {
   };
 
   const handleClaimMember = async (memberId: number) => {
-    const confirmed = await showConfirm('Claim this fictional member as yourself?', {
+    const confirmed = await showConfirm('Claim this fictional member as yourself? Your current expenses and balances will be merged into this member.', {
       title: 'Claim Member',
       confirmText: 'Claim',
     });
@@ -111,6 +111,7 @@ export default function TripDetail() {
       await api.members.claim(tripId!, memberId.toString());
       await loadData();
       setMemberMenuOpen(null);
+      showAlert('Member claimed successfully!', { type: 'success', autoClose: true });
     } catch (error: any) {
       showAlert(error.response?.data?.detail || 'Failed to claim member', { type: 'error' });
     }

@@ -20,10 +20,10 @@ function App() {
         <AlertProvider>
           <MobileContainer>
             <Routes>
-              {/* Public routes */}
-              <Route path="/auth/login" element={<Login />} />
-              <Route path="/auth/callback" element={<AuthCallback />} />
-              <Route path="/join" element={<JoinTrip />} />
+            {/* Public routes */}
+            <Route path="/auth/login" element={<Login />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/join" element={<JoinTrip />} />
               
               {/* Protected routes */}
               <Route

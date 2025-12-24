@@ -11,6 +11,8 @@ from app.core.database import get_session
 from app.models.user import User
 from app.models.trip import Trip
 from app.models.trip_member import TripMember
+from app.models.expense import Expense
+from app.models.split import Split
 from app.schemas.member import (
     MemberAdd,
     MemberUpdate,
@@ -290,20 +292,28 @@ async def claim_member(
     """
     Claim a fictional member.
     Current user takes over the fictional member account.
-    """
-    # Check if user is member of trip
-    check_trip_access(trip_id, current_user, session)
 
-    # Get fictional member
-    member = session.get(TripMember, member_id)
-    if not member or member.trip_id != trip_id:
+    If the user already has a membership in this trip, their expenses and splits
+    will be transferred to the claimed member, and their old membership will be deleted.
+    """
+    # Check if trip exists
+    trip = session.get(Trip, trip_id)
+    if not trip or trip.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trip not found",
+        )
+
+    # Get fictional member to claim
+    fictional_member = session.get(TripMember, member_id)
+    if not fictional_member or fictional_member.trip_id != trip_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Member not found",
         )
 
     # Check if member is fictional
-    if not member.is_fictional:
+    if not fictional_member.is_fictional:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only fictional members can be claimed",
@@ -317,28 +327,51 @@ async def claim_member(
     existing_member = session.exec(existing_member_statement).first()
 
     if existing_member:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You are already a member of this trip",
+        # User already has a membership - merge it into the fictional member
+
+        # Transfer all expenses paid by existing member to fictional member
+        expenses_statement = select(Expense).where(
+            Expense.trip_id == trip_id,
+            Expense.paid_by_member_id == existing_member.id,
         )
+        expenses = session.exec(expenses_statement).all()
+        for expense in expenses:
+            expense.paid_by_member_id = fictional_member.id
+            session.add(expense)
 
-    # Claim the member
-    member.user_id = current_user.id
-    member.is_fictional = False
-    member.joined_at = datetime.utcnow()
+        # Transfer all splits for existing member to fictional member
+        splits_statement = select(Split).where(
+            Split.member_id == existing_member.id,
+        )
+        splits = session.exec(splits_statement).all()
+        for split in splits:
+            split.member_id = fictional_member.id
+            session.add(split)
 
-    session.add(member)
+        # Preserve admin status if existing member was admin
+        if existing_member.is_admin:
+            fictional_member.is_admin = True
+
+        # Delete the existing member
+        session.delete(existing_member)
+
+    # Claim the fictional member
+    fictional_member.user_id = current_user.id
+    fictional_member.is_fictional = False
+    fictional_member.joined_at = datetime.utcnow()
+
+    session.add(fictional_member)
     session.commit()
-    session.refresh(member)
+    session.refresh(fictional_member)
 
     # Build response
     response = MemberResponse(
-        id=member.id,
-        trip_id=member.trip_id,
-        nickname=member.nickname,
-        is_fictional=member.is_fictional,
-        is_admin=member.is_admin,
-        user_id=member.user_id,
+        id=fictional_member.id,
+        trip_id=fictional_member.trip_id,
+        nickname=fictional_member.nickname,
+        is_fictional=fictional_member.is_fictional,
+        is_admin=fictional_member.is_admin,
+        user_id=fictional_member.user_id,
         email=current_user.email,
         avatar_url=current_user.avatar_url,
     )

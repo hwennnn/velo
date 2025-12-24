@@ -3,10 +3,11 @@
  * 
  * Displays a list of expenses with filtering and actions.
  */
-import React, { useState } from 'react';
-import { Receipt, Calendar, User, Tag, Trash2, Edit2, ChevronDown, Filter } from 'lucide-react';
-import type { Expense, TripMember } from '../types';
 import { format } from 'date-fns';
+import { Calendar, ChevronDown, Filter, Receipt, Tag, Trash2, User } from 'lucide-react';
+import React, { useState } from 'react';
+import { useAlert } from '../contexts/AlertContext';
+import type { Expense, TripMember } from '../types';
 
 interface ExpenseListProps {
   expenses: Expense[];
@@ -33,6 +34,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
   onDelete,
   onRefresh,
 }) => {
+  const { showAlert, showConfirm } = useAlert();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedMember, setSelectedMember] = useState<number | null>(null);
   const [expandedExpense, setExpandedExpense] = useState<number | null>(null);
@@ -50,9 +52,13 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
   });
 
   const handleDelete = async (expenseId: number) => {
-    if (!window.confirm('Are you sure you want to delete this expense?')) {
-      return;
-    }
+    const confirmed = await showConfirm('Are you sure you want to delete this expense?', {
+      title: 'Delete Expense',
+      confirmText: 'Delete',
+      confirmButtonClass: 'bg-red-600 hover:bg-red-700',
+    });
+
+    if (!confirmed) return;
 
     setDeletingId(expenseId);
     try {
@@ -60,7 +66,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
       onRefresh();
     } catch (err) {
       console.error('Failed to delete expense:', err);
-      alert('Failed to delete expense');
+      showAlert('Failed to delete expense', { type: 'error' });
     } finally {
       setDeletingId(null);
     }

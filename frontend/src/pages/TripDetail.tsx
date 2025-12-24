@@ -2,17 +2,18 @@
  * Trip Detail Page
  * Shows trip information, members, expenses, and settlements
  */
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Users, DollarSign, Calendar, Settings, Receipt, Scale, MoreVertical, Trash2, UserCheck, Link2, Copy, X, Shield, LogOut } from 'lucide-react';
-import { api } from '../services/api';
-import { useAuth } from '../hooks/useAuth';
-import type { Trip, Expense, TripMember, AddMemberInput, CreateExpenseInput } from '../types';
 import { format } from 'date-fns';
+import { ArrowLeft, Calendar, Copy, DollarSign, Link2, LogOut, MoreVertical, Plus, Receipt, Scale, Settings, Shield, Trash2, UserCheck, Users, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { AddMemberModal } from '../components/AddMemberModal';
 import { CreateExpenseModal } from '../components/CreateExpenseModal';
 import { ExpenseList } from '../components/ExpenseList';
 import { SettlementView } from '../components/SettlementView';
+import { useAlert } from '../contexts/AlertContext';
+import { useAuth } from '../hooks/useAuth';
+import { api } from '../services/api';
+import type { AddMemberInput, CreateExpenseInput, Expense, Trip } from '../types';
 
 type TabType = 'members' | 'expenses' | 'settlements';
 
@@ -20,6 +21,7 @@ export default function TripDetail() {
   const { tripId } = useParams<{ tripId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { showAlert, showConfirm } = useAlert();
   const [trip, setTrip] = useState<Trip | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -80,30 +82,37 @@ export default function TripDetail() {
   };
 
   const handleRemoveMember = async (memberId: number, memberName: string) => {
-    if (!window.confirm(`Remove ${memberName} from this trip?`)) {
-      return;
-    }
+    const confirmed = await showConfirm(`Remove ${memberName} from this trip?`, {
+      title: 'Remove Member',
+      confirmText: 'Remove',
+      confirmButtonClass: 'bg-red-600 hover:bg-red-700',
+    });
+
+    if (!confirmed) return;
 
     try {
       await api.members.remove(tripId!, memberId.toString());
       await loadData();
       setMemberMenuOpen(null);
     } catch (error: any) {
-      alert(error.response?.data?.detail || 'Failed to remove member');
+      showAlert(error.response?.data?.detail || 'Failed to remove member', { type: 'error' });
     }
   };
 
   const handleClaimMember = async (memberId: number) => {
-    if (!window.confirm('Claim this fictional member as yourself?')) {
-      return;
-    }
+    const confirmed = await showConfirm('Claim this fictional member as yourself?', {
+      title: 'Claim Member',
+      confirmText: 'Claim',
+    });
+
+    if (!confirmed) return;
 
     try {
       await api.members.claim(tripId!, memberId.toString());
       await loadData();
       setMemberMenuOpen(null);
     } catch (error: any) {
-      alert(error.response?.data?.detail || 'Failed to claim member');
+      showAlert(error.response?.data?.detail || 'Failed to claim member', { type: 'error' });
     }
   };
 
@@ -113,58 +122,75 @@ export default function TripDetail() {
       setInviteLink(response.data.invite_url);
       setShowInviteModal(true);
     } catch (error: any) {
-      alert(error.response?.data?.detail || 'Failed to generate invite link');
+      showAlert(error.response?.data?.detail || 'Failed to generate invite link', { type: 'error' });
     }
   };
 
   const handleCopyInvite = () => {
     if (inviteLink) {
       navigator.clipboard.writeText(inviteLink);
-      alert('Invite link copied to clipboard!');
+      showAlert('Invite link copied to clipboard!', { type: 'success', autoClose: true });
     }
   };
 
   const handlePromoteToAdmin = async (memberId: number, memberName: string) => {
-    if (!window.confirm(`Promote ${memberName} to admin? They will be able to manage this trip.`)) {
-      return;
-    }
+    const confirmed = await showConfirm(
+      `Promote ${memberName} to admin? They will be able to manage this trip.`,
+      {
+        title: 'Promote to Admin',
+        confirmText: 'Promote',
+      }
+    );
+
+    if (!confirmed) return;
 
     try {
       await api.members.update(tripId!, memberId.toString(), { is_admin: true });
       await loadData();
       setMemberMenuOpen(null);
     } catch (error: any) {
-      alert(error.response?.data?.detail || 'Failed to promote member');
+      showAlert(error.response?.data?.detail || 'Failed to promote member', { type: 'error' });
     }
   };
 
   const handleDemoteAdmin = async (memberId: number, memberName: string) => {
-    if (!window.confirm(`Remove admin privileges from ${memberName}?`)) {
-      return;
-    }
+    const confirmed = await showConfirm(`Remove admin privileges from ${memberName}?`, {
+      title: 'Remove Admin',
+      confirmText: 'Remove',
+      confirmButtonClass: 'bg-amber-600 hover:bg-amber-700',
+    });
+
+    if (!confirmed) return;
 
     try {
       await api.members.update(tripId!, memberId.toString(), { is_admin: false });
       await loadData();
       setMemberMenuOpen(null);
     } catch (error: any) {
-      alert(error.response?.data?.detail || 'Failed to demote admin');
+      showAlert(error.response?.data?.detail || 'Failed to demote admin', { type: 'error' });
     }
   };
 
   const handleLeaveTrip = async () => {
     if (!trip) return;
 
-    if (!window.confirm(`Are you sure you want to leave "${trip.name}"? You'll need an invite link to rejoin.`)) {
-      return;
-    }
+    const confirmed = await showConfirm(
+      `Are you sure you want to leave "${trip.name}"? You'll need an invite link to rejoin.`,
+      {
+        title: 'Leave Trip',
+        confirmText: 'Leave',
+        confirmButtonClass: 'bg-red-600 hover:bg-red-700',
+      }
+    );
+
+    if (!confirmed) return;
 
     try {
       await api.members.leave(tripId!);
       // Redirect to trips list after leaving
       navigate('/trips');
     } catch (error: any) {
-      alert(error.response?.data?.detail || 'Failed to leave trip');
+      showAlert(error.response?.data?.detail || 'Failed to leave trip', { type: 'error' });
     }
   };
 

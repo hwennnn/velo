@@ -5,10 +5,12 @@
 import { Github } from 'lucide-react';
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useAlert } from '../contexts/AlertContext';
 import { useAuth } from '../hooks/useAuth';
 
 export default function Login() {
   const { user, signInWithGoogle, signInWithGithub } = useAuth();
+  const { showAlert } = useAlert();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get('redirect');
@@ -25,7 +27,7 @@ export default function Login() {
       await signInWithGoogle();
     } catch (error) {
       console.error('Error signing in with Google:', error);
-      alert('Failed to sign in with Google. Please try again.');
+      showAlert('Failed to sign in with Google. Please try again.', { type: 'error' });
     }
   };
 
@@ -34,7 +36,7 @@ export default function Login() {
       await signInWithGithub();
     } catch (error) {
       console.error('Error signing in with GitHub:', error);
-      alert('Failed to sign in with GitHub. Please try again.');
+      showAlert('Failed to sign in with GitHub. Please try again.', { type: 'error' });
     }
   };
 

@@ -1,8 +1,8 @@
 /**
  * Balances Modal Component
- * Full-screen modal showing member balances
+ * Modal showing member balances within the app container
  */
-import { ArrowLeft, DollarSign, TrendingDown, TrendingUp } from 'lucide-react';
+import { DollarSign, TrendingDown, TrendingUp, X } from 'lucide-react';
 import React from 'react';
 import { Shimmer } from './Shimmer';
 
@@ -34,25 +34,25 @@ export const BalancesModal: React.FC<BalancesModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-gray-50">
-      {/* Header */}
-      <header className="bg-white px-4 py-3 border-b border-gray-200 sticky top-0 z-10">
-        <div className="flex items-center gap-3">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fadeIn"
+        onClick={onClose}
+      />
+      <div className="relative w-full max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-xl animate-slideUp sm:animate-fadeIn max-h-[85vh] flex flex-col">
+        {/* Header */}
+        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900">Member Balances</h3>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
-            aria-label="Close balances"
+            className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors"
           >
-            <ArrowLeft className="w-5 h-5 text-gray-700" />
+            <X className="w-5 h-5 text-gray-500" />
           </button>
-          <div className="flex-1">
-            <h1 className="text-base font-semibold text-gray-900">Member Balances</h1>
-          </div>
         </div>
-      </header>
 
-      {/* Content */}
-      <main className="flex-1 overflow-y-auto p-4">
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4">
         {isLoading ? (
           // Loading skeleton with shimmer
           <div className="space-y-3">
@@ -138,7 +138,8 @@ export const BalancesModal: React.FC<BalancesModalProps> = ({
             )}
           </div>
         )}
-      </main>
+        </div>
+      </div>
     </div>
   );
 };

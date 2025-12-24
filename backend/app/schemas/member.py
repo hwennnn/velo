@@ -67,6 +67,8 @@ class MemberResponse(BaseModel):
     is_admin: bool
     user_id: Optional[str] = None
     email: Optional[str] = None  # Only for real members
+    # User's real name (for claimed members)
+    display_name: Optional[str] = None
     avatar_url: Optional[str] = None  # Only for real members
 
     class Config:

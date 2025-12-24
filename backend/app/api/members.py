@@ -24,6 +24,30 @@ from app.schemas.member import (
 router = APIRouter()
 
 
+def build_member_response(member: TripMember, session: Session) -> MemberResponse:
+    """
+    Build a MemberResponse with user details if the member has a user_id.
+    """
+    response = MemberResponse(
+        id=member.id,
+        trip_id=member.trip_id,
+        nickname=member.nickname,
+        is_fictional=member.is_fictional,
+        is_admin=member.is_admin,
+        user_id=member.user_id,
+    )
+
+    # Add user details if real member
+    if member.user_id:
+        user = session.get(User, member.user_id)
+        if user:
+            response.email = user.email
+            response.display_name = user.display_name
+            response.avatar_url = user.avatar_url
+
+    return response
+
+
 def check_trip_access(
     trip_id: int,
     user: User,
@@ -127,23 +151,7 @@ async def add_member(
     session.refresh(member)
 
     # Build response
-    response = MemberResponse(
-        id=member.id,
-        trip_id=member.trip_id,
-        nickname=member.nickname,
-        is_fictional=member.is_fictional,
-        is_admin=member.is_admin,
-        user_id=member.user_id,
-    )
-
-    # Add user details if real member
-    if member.user_id:
-        user = session.get(User, member.user_id)
-        if user:
-            response.email = user.email
-            response.avatar_url = user.avatar_url
-
-    return response
+    return build_member_response(member, session)
 
 
 @router.get("/trips/{trip_id}/members", response_model=list[MemberResponse])
@@ -164,26 +172,7 @@ async def list_members(
     members = session.exec(members_statement).all()
 
     # Build responses
-    responses = []
-    for member in members:
-        response = MemberResponse(
-            id=member.id,
-            trip_id=member.trip_id,
-            nickname=member.nickname,
-            is_fictional=member.is_fictional,
-            is_admin=member.is_admin,
-            user_id=member.user_id,
-        )
-
-        # Add user details if real member
-        if member.user_id:
-            user = session.get(User, member.user_id)
-            if user:
-                response.email = user.email
-                response.avatar_url = user.avatar_url
-
-        responses.append(response)
-
+    responses = [build_member_response(member, session) for member in members]
     return responses
 
 
@@ -220,23 +209,7 @@ async def update_member(
     session.refresh(member)
 
     # Build response
-    response = MemberResponse(
-        id=member.id,
-        trip_id=member.trip_id,
-        nickname=member.nickname,
-        is_fictional=member.is_fictional,
-        is_admin=member.is_admin,
-        user_id=member.user_id,
-    )
-
-    # Add user details if real member
-    if member.user_id:
-        user = session.get(User, member.user_id)
-        if user:
-            response.email = user.email
-            response.avatar_url = user.avatar_url
-
-    return response
+    return build_member_response(member, session)
 
 
 @router.delete("/trips/{trip_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -365,18 +338,7 @@ async def claim_member(
     session.refresh(fictional_member)
 
     # Build response
-    response = MemberResponse(
-        id=fictional_member.id,
-        trip_id=fictional_member.trip_id,
-        nickname=fictional_member.nickname,
-        is_fictional=fictional_member.is_fictional,
-        is_admin=fictional_member.is_admin,
-        user_id=fictional_member.user_id,
-        email=current_user.email,
-        avatar_url=current_user.avatar_url,
-    )
-
-    return response
+    return build_member_response(fictional_member, session)
 
 
 @router.post("/trips/{trip_id}/invite", response_model=InviteLinkResponse)
@@ -490,17 +452,7 @@ async def join_trip_via_invite(
 
     if existing_member:
         # User is already a member - return their membership
-        response = MemberResponse(
-            id=existing_member.id,
-            trip_id=existing_member.trip_id,
-            nickname=existing_member.nickname,
-            is_fictional=existing_member.is_fictional,
-            is_admin=existing_member.is_admin,
-            user_id=existing_member.user_id,
-            email=current_user.email,
-            avatar_url=current_user.avatar_url,
-        )
-        return response
+        return build_member_response(existing_member, session)
 
     # Add user as a new member
     member = TripMember(
@@ -517,15 +469,4 @@ async def join_trip_via_invite(
     session.refresh(member)
 
     # Build response
-    response = MemberResponse(
-        id=member.id,
-        trip_id=member.trip_id,
-        nickname=member.nickname,
-        is_fictional=member.is_fictional,
-        is_admin=member.is_admin,
-        user_id=member.user_id,
-        email=current_user.email,
-        avatar_url=current_user.avatar_url,
-    )
-
-    return response
+    return build_member_response(member, session)

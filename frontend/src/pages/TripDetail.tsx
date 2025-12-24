@@ -9,11 +9,12 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { AddMemberModal } from '../components/AddMemberModal';
 import { CreateExpenseModal } from '../components/CreateExpenseModal';
 import { ExpenseList } from '../components/ExpenseList';
+import { MemberDetailModal } from '../components/MemberDetailModal';
 import { SettlementView } from '../components/SettlementView';
 import { useAlert } from '../contexts/AlertContext';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../services/api';
-import type { AddMemberInput, CreateExpenseInput, Expense, Trip } from '../types';
+import type { AddMemberInput, CreateExpenseInput, Expense, Trip, TripMember } from '../types';
 
 type TabType = 'members' | 'expenses' | 'settlements';
 
@@ -31,6 +32,8 @@ export default function TripDetail() {
   const [memberMenuOpen, setMemberMenuOpen] = useState<number | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<TripMember | null>(null);
+  const [showMemberDetail, setShowMemberDetail] = useState(false);
 
   useEffect(() => {
     if (tripId) {
@@ -259,6 +262,29 @@ export default function TripDetail() {
       .slice(0, 2);
   };
 
+  const hasAvailableActions = (member: TripMember) => {
+    const currentUserMember = trip?.members?.find(m => m.user_id === user?.id);
+    const isAdmin = currentUserMember?.is_admin || false;
+    const isNotSelf = member.user_id !== user?.id;
+
+    // Can claim fictional members
+    if (member.is_fictional) {
+      return true;
+    }
+
+    // Admins can manage other members (not themselves)
+    if (isAdmin && isNotSelf) {
+      return true;
+    }
+
+    // Can leave trip if it's yourself
+    if (member.user_id === user?.id) {
+      return true;
+    }
+
+    return false;
+  };
+
   const totalSpent = expenses.reduce((sum, exp) => sum + exp.amount_in_base_currency, 0);
 
   return (
@@ -400,7 +426,13 @@ export default function TripDetail() {
                       key={member.id}
                       className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
                     >
-                      <div className="flex items-center gap-3">
+                      <div 
+                        className="flex items-center gap-3 flex-1 cursor-pointer"
+                        onClick={() => {
+                          setSelectedMember(member);
+                          setShowMemberDetail(true);
+                        }}
+                      >
                         <div
                           className={`w-12 h-12 ${getMemberColor(index)} rounded-full flex items-center justify-center text-white font-semibold text-sm`}
                         >
@@ -409,6 +441,11 @@ export default function TripDetail() {
                         <div>
                           <div className="font-medium text-gray-900 flex items-center gap-2">
                             {member.nickname}
+                            {member.user_id === user?.id && (
+                              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                                me
+                              </span>
+                            )}
                             {member.is_admin && (
                               <span className="px-2 py-0.5 bg-primary-100 text-primary-700 text-xs font-medium rounded-full">
                                 Admin
@@ -417,6 +454,10 @@ export default function TripDetail() {
                           </div>
                           {member.is_fictional ? (
                             <div className="text-sm text-amber-600 font-medium">Fictional member</div>
+                          ) : member.display_name && member.display_name !== member.nickname ? (
+                            <div className="text-sm text-gray-500">
+                              {member.display_name} • {member.email}
+                            </div>
                           ) : (
                             <div className="text-sm text-gray-500">{member.email || 'Active member'}</div>
                           )}
@@ -424,15 +465,19 @@ export default function TripDetail() {
                       </div>
 
                       {/* Member Actions */}
-                      <div className="relative">
-                        <button
-                          onClick={() => setMemberMenuOpen(memberMenuOpen === member.id ? null : member.id)}
-                          className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
-                        >
-                          <MoreVertical className="w-5 h-5 text-gray-600" />
-                        </button>
+                      {hasAvailableActions(member) && (
+                        <div className="relative">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMemberMenuOpen(memberMenuOpen === member.id ? null : member.id);
+                            }}
+                            className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                          >
+                            <MoreVertical className="w-5 h-5 text-gray-600" />
+                          </button>
 
-                        {memberMenuOpen === member.id && (
+                          {memberMenuOpen === member.id && (
                           <>
                             {/* Backdrop to close menu */}
                             <div
@@ -502,7 +547,8 @@ export default function TripDetail() {
                             </div>
                           </>
                         )}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -572,6 +618,16 @@ export default function TripDetail() {
         onCreate={handleCreateExpense}
         members={trip.members || []}
         baseCurrency={trip.base_currency}
+      />
+
+      <MemberDetailModal
+        isOpen={showMemberDetail}
+        member={selectedMember}
+        isCurrentUser={selectedMember?.user_id === user?.id}
+        onClose={() => {
+          setShowMemberDetail(false);
+          setSelectedMember(null);
+        }}
       />
 
       {/* Invite Link Modal */}

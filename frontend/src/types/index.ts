@@ -32,6 +32,7 @@ export interface TripMember {
   is_fictional: boolean;
   is_admin: boolean;
   email?: string;
+  display_name?: string;  // User's real name (for claimed members)
   avatar_url?: string;
   color?: string;
   created_at?: string;

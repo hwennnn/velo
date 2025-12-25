@@ -29,7 +29,11 @@ fi
 show_usage() {
     echo -e "${BLUE}Velo Migration Helper${NC}"
     echo ""
-    echo "Usage: ./migrate.sh [command]"
+    echo "Usage: ./migrate.sh [command] [--production]"
+    echo ""
+    echo "Options:"
+    echo "  --production        - Use .env.production instead of .env"
+    echo "                       Can also set PRODUCTION=true environment variable"
     echo ""
     echo "Commands:"
     echo "  create <message>    - Create a new migration with auto-detection"
@@ -45,39 +49,72 @@ show_usage() {
     echo ""
     echo "Examples:"
     echo "  ./migrate.sh create 'Add user phone number'"
-    echo "  ./migrate.sh upgrade"
+    echo "  ./migrate.sh create 'Add user phone' --production"
+    echo "  ./migrate.sh upgrade --production"
     echo "  ./migrate.sh history"
+    echo "  PRODUCTION=true ./migrate.sh upgrade"
 }
 
 # Function to check database connection
 check_db() {
-    if [[ ! -f .env ]]; then
-        echo -e "${RED}❌ .env file not found${NC}"
+    # Determine which env file to use
+    if [[ "${PRODUCTION:-false}" == "true" ]] || [[ "${1:-}" == "--production" ]]; then
+        ENV_FILE=".env.production"
+    else
+        ENV_FILE=".env"
+    fi
+
+    if [[ ! -f "$ENV_FILE" ]]; then
+        echo -e "${RED}❌ $ENV_FILE file not found${NC}"
         exit 1
     fi
-    
+
     # Check if DATABASE_URL is set
-    source .env
+    source "$ENV_FILE"
     if [[ -z "$DATABASE_URL" ]]; then
-        echo -e "${RED}❌ DATABASE_URL not set in .env${NC}"
+        echo -e "${RED}❌ DATABASE_URL not set in $ENV_FILE${NC}"
         exit 1
     fi
-    
-    echo -e "${GREEN}✓ Database URL configured${NC}"
+
+    echo -e "${GREEN}✓ Database URL configured ($ENV_FILE)${NC}"
 }
 
-# Parse command
-case "${1:-help}" in
+# Parse command and flags
+COMMAND="${1:-help}"
+PRODUCTION_FLAG=""
+
+# Check for production flag in any position
+for arg in "$@"; do
+    if [[ "$arg" == "--production" ]]; then
+        PRODUCTION_FLAG="--production"
+        break
+    fi
+done
+
+# Also check environment variable
+if [[ "$PRODUCTION" == "true" ]]; then
+    PRODUCTION_FLAG="--production"
+fi
+
+case "$COMMAND" in
     create)
-        if [[ -z "$2" ]]; then
+        # Find the message - it could be $2 or $3 depending on flag position
+        MESSAGE=""
+        if [[ "$2" != "--production" ]] && [[ -n "$2" ]]; then
+            MESSAGE="$2"
+        elif [[ "$3" != "--production" ]] && [[ -n "$3" ]]; then
+            MESSAGE="$3"
+        fi
+
+        if [[ -z "$MESSAGE" ]]; then
             echo -e "${RED}❌ Migration message required${NC}"
-            echo "Usage: ./migrate.sh create '<message>'"
+            echo "Usage: ./migrate.sh create '<message>' [--production]"
             exit 1
         fi
-        
-        echo -e "${BLUE}Creating new migration: $2${NC}"
-        check_db
-        alembic revision --autogenerate -m "$2"
+
+        echo -e "${BLUE}Creating new migration: $MESSAGE${NC}"
+        check_db "$PRODUCTION_FLAG"
+        PRODUCTION="$([[ "$PRODUCTION_FLAG" == "--production" ]] && echo "true" || echo "")" alembic revision --autogenerate -m "$MESSAGE"
         
         # Get the latest migration file
         latest=$(ls -t alembic/versions/*.py 2>/dev/null | head -1)
@@ -92,15 +129,23 @@ case "${1:-help}" in
         ;;
     
     manual)
-        if [[ -z "$2" ]]; then
+        # Find the message - it could be $2 or $3 depending on flag position
+        MESSAGE=""
+        if [[ "$2" != "--production" ]] && [[ -n "$2" ]]; then
+            MESSAGE="$2"
+        elif [[ "$3" != "--production" ]] && [[ -n "$3" ]]; then
+            MESSAGE="$3"
+        fi
+
+        if [[ -z "$MESSAGE" ]]; then
             echo -e "${RED}❌ Migration message required${NC}"
-            echo "Usage: ./migrate.sh manual '<message>'"
+            echo "Usage: ./migrate.sh manual '<message>' [--production]"
             exit 1
         fi
-        
-        echo -e "${BLUE}Creating empty migration: $2${NC}"
-        check_db
-        alembic revision -m "$2"
+
+        echo -e "${BLUE}Creating empty migration: $MESSAGE${NC}"
+        check_db "$PRODUCTION_FLAG"
+        PRODUCTION="$([[ "$PRODUCTION_FLAG" == "--production" ]] && echo "true" || echo "")" alembic revision -m "$MESSAGE"
         
         latest=$(ls -t alembic/versions/*.py 2>/dev/null | head -1)
         if [[ -f "$latest" ]]; then
@@ -112,15 +157,15 @@ case "${1:-help}" in
     
     upgrade)
         echo -e "${BLUE}Applying all pending migrations...${NC}"
-        check_db
-        alembic upgrade head
+        check_db "$PRODUCTION_FLAG"
+        PRODUCTION="$([[ "$PRODUCTION_FLAG" == "--production" ]] && echo "true" || echo "")" alembic upgrade head
         echo -e "${GREEN}✓ Migrations applied successfully${NC}"
         ;;
     
     upgrade-one)
         echo -e "${BLUE}Applying next migration...${NC}"
-        check_db
-        alembic upgrade +1
+        check_db "$PRODUCTION_FLAG"
+        PRODUCTION="$([[ "$PRODUCTION_FLAG" == "--production" ]] && echo "true" || echo "")" alembic upgrade +1
         echo -e "${GREEN}✓ Migration applied${NC}"
         ;;
     
@@ -129,8 +174,8 @@ case "${1:-help}" in
         read -p "Are you sure? (y/N) " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
-            check_db
-            alembic downgrade -1
+            check_db "$PRODUCTION_FLAG"
+            PRODUCTION="$([[ "$PRODUCTION_FLAG" == "--production" ]] && echo "true" || echo "")" alembic downgrade -1
             echo -e "${GREEN}✓ Rollback complete${NC}"
         else
             echo "Cancelled"
@@ -139,24 +184,24 @@ case "${1:-help}" in
     
     current)
         echo -e "${BLUE}Current migration version:${NC}"
-        check_db
-        alembic current
+        check_db "$PRODUCTION_FLAG"
+        PRODUCTION="$([[ "$PRODUCTION_FLAG" == "--production" ]] && echo "true" || echo "")" alembic current
         ;;
     
     history)
         echo -e "${BLUE}Migration history:${NC}"
-        check_db
-        alembic history --verbose
+        check_db "$PRODUCTION_FLAG"
+        PRODUCTION="$([[ "$PRODUCTION_FLAG" == "--production" ]] && echo "true" || echo "")" alembic history --verbose
         ;;
     
     pending)
         echo -e "${BLUE}Checking for pending migrations...${NC}"
-        check_db
-        
+        check_db "$PRODUCTION_FLAG"
+
         # Get current and head revisions
-        current=$(alembic current 2>/dev/null | grep -oP '(?<=\(head\), ).*' || echo "none")
-        
-        if alembic upgrade head --sql > /dev/null 2>&1; then
+        current=$(PRODUCTION="$([[ "$PRODUCTION_FLAG" == "--production" ]] && echo "true" || echo "")" alembic current 2>/dev/null | grep -oP '(?<=\(head\), ).*' || echo "none")
+
+        if PRODUCTION="$([[ "$PRODUCTION_FLAG" == "--production" ]] && echo "true" || echo "")" alembic upgrade head --sql > /dev/null 2>&1; then
             echo -e "${GREEN}✓ No pending migrations${NC}"
         else
             echo -e "${YELLOW}⚠️  Pending migrations found${NC}"
@@ -166,8 +211,8 @@ case "${1:-help}" in
     
     sql)
         echo -e "${BLUE}Showing SQL for pending migrations (dry-run):${NC}"
-        check_db
-        alembic upgrade head --sql
+        check_db "$PRODUCTION_FLAG"
+        PRODUCTION="$([[ "$PRODUCTION_FLAG" == "--production" ]] && echo "true" || echo "")" alembic upgrade head --sql
         ;;
     
     reset)
@@ -176,11 +221,11 @@ case "${1:-help}" in
         read -p "Type 'RESET' to confirm: " confirm
         
         if [[ "$confirm" == "RESET" ]]; then
-            check_db
+            check_db "$PRODUCTION_FLAG"
             echo "Rolling back all migrations..."
-            alembic downgrade base
+            PRODUCTION="$([[ "$PRODUCTION_FLAG" == "--production" ]] && echo "true" || echo "")" alembic downgrade base
             echo "Applying all migrations..."
-            alembic upgrade head
+            PRODUCTION="$([[ "$PRODUCTION_FLAG" == "--production" ]] && echo "true" || echo "")" alembic upgrade head
             echo -e "${GREEN}✓ Database reset complete${NC}"
         else
             echo "Cancelled"

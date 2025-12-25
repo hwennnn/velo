@@ -3,6 +3,31 @@ Alembic environment configuration for Velo backend.
 This file is used by Alembic to generate and apply database migrations.
 """
 
+import os
+import sys
+from pathlib import Path
+
+# Determine which env file to load based on production flag
+# Check command line args first, then environment variable
+env_file = ".env"
+for arg in sys.argv:
+    if arg == "--production":
+        env_file = ".env.production"
+        break
+
+if os.getenv("PRODUCTION") == "true":
+    env_file = ".env.production"
+
+# Load the appropriate environment file
+env_path = Path(__file__).resolve().parent.parent / env_file
+if env_path.exists():
+    from dotenv import load_dotenv
+
+    load_dotenv(env_path)
+
+# Add the parent directory to the path so we can import our app
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from sqlmodel import SQLModel
 from app.models.split import Split
 from app.models.expense import Expense
@@ -15,11 +40,6 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from alembic import context
-import sys
-from pathlib import Path
-
-# Add the parent directory to the path so we can import our app
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
 # Import all models so Alembic can detect them

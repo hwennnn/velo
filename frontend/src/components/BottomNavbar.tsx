@@ -13,7 +13,7 @@ export default function BottomNavbar() {
   const isAccountActive = location.pathname === '/account';
 
   return (
-    <nav className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 safe-bottom shadow-lg z-20">
+    <nav className="sticky bottom-0 left-0 right-0 bg-white border-t border-gray-200 safe-bottom shadow-lg z-20">
       <div className="grid grid-cols-2 gap-1 px-4 py-2">
         <button
           onClick={() => navigate('/trips')}

@@ -94,14 +94,14 @@ export default function Profile() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="h-full bg-gray-50 flex items-center justify-center">
         <LoadingSpinner size="lg" text="Loading profile..." />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col relative">
+    <div className="h-full bg-gray-50 flex flex-col relative">
       {/* Header */}
       <header className="bg-white px-5 py-4 safe-top shadow-sm border-b border-gray-100">
         <div className="flex items-start justify-between mt-4 mb-2">

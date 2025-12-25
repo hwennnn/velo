@@ -62,8 +62,15 @@ export function useCreateExpense(tripId: string) {
       return response.data;
     },
     onSuccess: () => {
-      // Invalidate both expenses and trip data (for totals)
-      queryClient.invalidateQueries({ queryKey: expenseKeys.lists() });
+      // Invalidate all expense queries for this trip (including infinite queries with different filters)
+      queryClient.invalidateQueries({ 
+        queryKey: expenseKeys.lists(),
+        predicate: (query) => {
+          // Match any expense query that includes this tripId
+          return query.queryKey.includes(tripId);
+        }
+      });
+      // Invalidate trip data (for totals and metadata)
       queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
     },
   });
@@ -78,7 +85,15 @@ export function useDeleteExpense(tripId: string) {
       await api.expenses.delete(tripId, expenseId);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: expenseKeys.lists() });
+      // Invalidate all expense queries for this trip (including infinite queries with different filters)
+      queryClient.invalidateQueries({ 
+        queryKey: expenseKeys.lists(),
+        predicate: (query) => {
+          // Match any expense query that includes this tripId
+          return query.queryKey.includes(tripId);
+        }
+      });
+      // Invalidate trip data (for totals and metadata)
       queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
     },
   });

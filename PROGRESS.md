@@ -343,6 +343,7 @@ All components are reusable and follow consistent patterns:
 #### Backend Implementation
 
 - **Generic Caching Decorator** (`backend/app/core/cache.py`)
+
   - TTL-based in-memory cache
   - Support for both sync and async functions
   - Automatic cache key generation from function args
@@ -351,6 +352,7 @@ All components are reusable and follow consistent patterns:
   - 30-minute default cache lifetime
 
 - **Exchange Rate Service** (`backend/app/services/exchange_rate.py`)
+
   - Integration with exchangerate-api.com
   - Cached API calls (30-minute TTL)
   - Support for 166+ currencies
@@ -369,11 +371,13 @@ All components are reusable and follow consistent patterns:
 #### Key Features Delivered
 
 1. **Real-time Exchange Rates**
+
    - Fetches latest rates from exchangerate-api.com
    - Supports 166+ currencies worldwide
    - Updates daily from API source
 
 2. **Smart Caching**
+
    - 30-minute cache reduces API calls
    - 10x+ faster on cached requests
    - Cache automatically expires and refreshes
@@ -400,7 +404,7 @@ All components are reusable and follow consistent patterns:
 ### Polish & Enhancement
 
 - [x] Exchange rate API integration
-- [ ] Trip settings and editing
+- [x] Trip settings and editing
 - [ ] Member profile avatars
 - [ ] Dark mode support
 - [ ] Budget tracking

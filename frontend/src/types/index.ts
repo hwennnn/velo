@@ -68,7 +68,7 @@ export interface Split {
 
 export interface Balance {
   member_id: number;
-  member: TripMember;
+  member_nickname: string;
   total_paid: number;
   total_owed: number;
   net_balance: number;
@@ -80,6 +80,8 @@ export interface Settlement {
   amount: number;
   from_member?: TripMember;
   to_member?: TripMember;
+  from_nickname: string;
+  to_nickname: string;
 }
 
 export interface CreateTripInput {

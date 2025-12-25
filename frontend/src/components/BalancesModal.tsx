@@ -7,14 +7,6 @@ import React from 'react';
 import { useBalances } from '../hooks/useBalances';
 import { Shimmer } from './Shimmer';
 
-interface Balance {
-  member_id: number;
-  member_nickname: string;
-  total_paid: number;
-  total_owed: number;
-  net_balance: number;
-}
-
 interface BalancesModalProps {
   isOpen: boolean;
   tripId: string;

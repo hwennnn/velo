@@ -7,14 +7,6 @@ import React from 'react';
 import { useSettlements } from '../hooks/useBalances';
 import { Shimmer } from './Shimmer';
 
-interface Settlement {
-  from_member_id: number;
-  to_member_id: number;
-  amount: number;
-  from_nickname: string;
-  to_nickname: string;
-}
-
 interface SettlementsModalProps {
   isOpen: boolean;
   tripId: string;

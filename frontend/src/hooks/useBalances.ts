@@ -1,8 +1,9 @@
 /**
  * React Query hooks for Balance operations
  */
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { api } from '../services/api';
+import type { Balance, Settlement } from '../types';
 
 // Query Keys
 export const balanceKeys = {
@@ -12,7 +13,7 @@ export const balanceKeys = {
 };
 
 // Fetch balances for a trip
-export function useBalances(tripId: string | undefined) {
+export function useBalances(tripId: string | undefined) : UseQueryResult<Balance[]> {
   return useQuery({
     queryKey: balanceKeys.trip(tripId!),
     queryFn: async () => {
@@ -24,7 +25,7 @@ export function useBalances(tripId: string | undefined) {
 }
 
 // Fetch settlements for a trip
-export function useSettlements(tripId: string | undefined) {
+export function useSettlements(tripId: string | undefined) : UseQueryResult<Settlement[]> {
   return useQuery({
     queryKey: balanceKeys.settlements(tripId!),
     queryFn: async () => {

@@ -24,10 +24,12 @@ async def update_debts_for_expense(
     """
     Update member debts when an expense is created or modified.
 
-    Logic:
+    Logic (Greedy Approach):
     1. For each split, if the member is not the payer, they owe the payer
     2. Calculate the amount in the original currency
-    3. Create or update debt records
+    3. Check for reverse debt (payer owes the split member) in the same currency
+    4. If reverse debt exists, reduce it first (greedy settlement)
+    5. Only create/update forward debt if there's remaining amount
     """
     payer_id = expense.paid_by_member_id
 
@@ -39,8 +41,42 @@ async def update_debts_for_expense(
         # Calculate amount in original currency
         # split.amount is in base currency, convert back to original
         amount_in_original = split.amount / expense.exchange_rate_to_base
+        remaining_amount = amount_in_original
 
-        # Find existing debt record
+        # GREEDY: First check if there's a reverse debt (payer owes split member)
+        reverse_debt_statement = select(MemberDebt).where(
+            and_(
+                MemberDebt.trip_id == expense.trip_id,
+                MemberDebt.debtor_member_id == payer_id,
+                MemberDebt.creditor_member_id == split.member_id,
+                MemberDebt.currency == expense.currency,
+            )
+        )
+        result = await session.execute(reverse_debt_statement)
+        reverse_debt = result.scalar_one_or_none()
+
+        if reverse_debt:
+            # Greedy settlement: reduce the reverse debt first
+            if reverse_debt.amount >= remaining_amount:
+                # Reverse debt is larger or equal - just reduce it
+                reverse_debt.amount -= remaining_amount
+                reverse_debt.updated_at = expense.updated_at
+
+                if reverse_debt.amount < Decimal("0.01"):
+                    # Debt fully settled, remove it
+                    await session.delete(reverse_debt)
+                else:
+                    session.add(reverse_debt)
+
+                # No remaining amount to add as forward debt
+                continue
+            else:
+                # Reverse debt is smaller - eliminate it and continue with remainder
+                remaining_amount -= reverse_debt.amount
+                await session.delete(reverse_debt)
+
+        # Now handle the remaining amount (if any)
+        # Find existing forward debt record
         debt_statement = select(MemberDebt).where(
             and_(
                 MemberDebt.trip_id == expense.trip_id,
@@ -54,7 +90,7 @@ async def update_debts_for_expense(
 
         if existing_debt:
             # Update existing debt
-            existing_debt.amount += amount_in_original
+            existing_debt.amount += remaining_amount
             existing_debt.updated_at = expense.updated_at
             session.add(existing_debt)
         else:
@@ -63,7 +99,7 @@ async def update_debts_for_expense(
                 trip_id=expense.trip_id,
                 debtor_member_id=split.member_id,
                 creditor_member_id=payer_id,
-                amount=amount_in_original,
+                amount=remaining_amount,
                 currency=expense.currency,
                 source_expense_id=expense.id,
             )
@@ -408,13 +444,13 @@ async def merge_debt_currency(
     """
     Merge a debt from one currency to another without paying it.
     This consolidates debts in fewer currencies for easier settlement.
-    
+
     Process:
     1. Find the debt in from_currency
     2. Reduce or delete it by the specified amount
     3. Convert the amount to to_currency
     4. Add to existing debt in to_currency or create new one
-    
+
     Args:
         trip_id: Trip ID
         debtor_member_id: Member who owes
@@ -424,7 +460,7 @@ async def merge_debt_currency(
         to_currency: Target currency
         conversion_rate: Conversion rate (1 from_currency = X to_currency)
         session: Database session
-        
+
     Returns:
         Dict with merge details
     """
@@ -439,20 +475,20 @@ async def merge_debt_currency(
     )
     result = await session.execute(source_debt_statement)
     source_debt = result.scalar_one_or_none()
-    
+
     if not source_debt:
         raise ValueError(
             f"No debt found from member {debtor_member_id} to {creditor_member_id} in {from_currency}"
         )
-    
+
     if source_debt.amount < amount:
         raise ValueError(
             f"Cannot merge {amount} {from_currency}. Only {source_debt.amount} {from_currency} owed."
         )
-    
+
     # Calculate converted amount
     converted_amount = amount * conversion_rate
-    
+
     # Reduce or delete source debt
     if source_debt.amount - amount < Decimal("0.01"):
         # Delete if fully merged (or negligible remainder)
@@ -463,7 +499,7 @@ async def merge_debt_currency(
         source_debt.amount -= amount
         session.add(source_debt)
         remaining_in_original = source_debt.amount
-    
+
     # Find or create target debt
     target_debt_statement = select(MemberDebt).where(
         and_(
@@ -475,7 +511,7 @@ async def merge_debt_currency(
     )
     result = await session.execute(target_debt_statement)
     target_debt = result.scalar_one_or_none()
-    
+
     if target_debt:
         # Add to existing debt
         old_amount = target_debt.amount
@@ -494,7 +530,7 @@ async def merge_debt_currency(
         session.add(target_debt)
         old_amount = Decimal("0")
         new_amount = converted_amount
-    
+
     return {
         "status": "merged",
         "from_currency": from_currency,

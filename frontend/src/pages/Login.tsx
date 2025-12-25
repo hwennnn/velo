@@ -5,7 +5,6 @@
 import { Github } from 'lucide-react';
 import { useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { env } from '../config/env';
 import { useAlert } from '../contexts/AlertContext';
 import { useAuth } from '../hooks/useAuth';
 
@@ -95,41 +94,21 @@ export default function Login() {
       {/* Footer */}
       <p className="mt-12 text-sm text-gray-500 text-center">
         By continuing, you agree to our{' '}
-        {env.legal.termsOfServiceUrl ? (
-          <a
-            href={env.legal.termsOfServiceUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary-600 hover:text-primary-700 underline"
-          >
-            Terms of Service
-          </a>
-        ) : (
-          <Link
+        <Link
             to="/terms-of-service"
             className="text-primary-600 hover:text-primary-700 underline"
           >
             Terms of Service
           </Link>
-        )}
+
         {' '}and{' '}
-        {env.legal.privacyPolicyUrl ? (
-          <a
-            href={env.legal.privacyPolicyUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary-600 hover:text-primary-700 underline"
-          >
-            Privacy Policy
-          </a>
-        ) : (
           <Link
             to="/privacy-policy"
             className="text-primary-600 hover:text-primary-700 underline"
           >
             Privacy Policy
           </Link>
-        )}
+
       </p>
     </div>
   );

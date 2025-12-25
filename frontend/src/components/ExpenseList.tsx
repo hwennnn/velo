@@ -4,7 +4,7 @@
  * Displays a list of expenses grouped by date with timeline headers.
  */
 import { format, isToday, isYesterday, parseISO } from 'date-fns';
-import { Loader2, Receipt } from 'lucide-react';
+import { Filter, Loader2, Receipt } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAlert } from '../contexts/AlertContext';
 import { useDeleteExpense } from '../hooks/useExpenses';
@@ -51,6 +51,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
   selectedCategory,
   selectedMember,
   members,
+  onFilterClick,
 }) => {
   const { showAlert, showConfirm } = useAlert();
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
@@ -166,9 +167,25 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
   const hasActiveFilters = selectedCategory !== 'all' || selectedMember !== null;
 
   return (
-    <div className="space-y-3">
-      {/* Expense List - Grouped by Date */}
-      {filteredExpenses.length === 0 ? (
+    <div className="relative">
+      {/* Sticky Header */}
+      <div className="sticky top-0 z-10 bg-gray-50 px-5 py-3 border-b border-gray-100">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-gray-900">Recent Activity</h3>
+          <button
+            onClick={onFilterClick}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm text-primary-600 font-medium hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
+          >
+            <Filter className="w-4 h-4" />
+            Filter
+          </button>
+        </div>
+      </div>
+
+      {/* Expense List Content */}
+      <div className="px-5 pt-3 space-y-3">
+        {/* Expense List - Grouped by Date */}
+        {filteredExpenses.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
           <Receipt className="w-12 h-12 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500">No expenses found</p>
@@ -239,27 +256,28 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
               </div>
             </div>
           ))}
-        </div>
-      )}
+          </div>
+        )}
 
-      {/* Infinite scroll trigger */}
-      {hasNextPage && (
-        <div ref={loadMoreRef} className="flex justify-center py-4">
-          {isFetchingNextPage ? (
-            <div className="flex items-center gap-2 text-gray-500">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-sm">Loading more expenses...</span>
-            </div>
-          ) : (
-            <button
-              onClick={onLoadMore}
-              className="px-4 py-2 text-sm text-primary-600 hover:text-primary-700 font-medium"
-            >
-              Load more expenses
-            </button>
-          )}
-        </div>
-      )}
+        {/* Infinite scroll trigger */}
+        {hasNextPage && (
+          <div ref={loadMoreRef} className="flex justify-center py-4">
+            {isFetchingNextPage ? (
+              <div className="flex items-center gap-2 text-gray-500">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm">Loading more expenses...</span>
+              </div>
+            ) : (
+              <button
+                onClick={onLoadMore}
+                className="px-4 py-2 text-sm text-primary-600 hover:text-primary-700 font-medium"
+              >
+                Load more expenses
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Expense Detail Modal */}
       <ExpenseDetailModal

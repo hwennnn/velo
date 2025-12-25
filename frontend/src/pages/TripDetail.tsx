@@ -3,7 +3,7 @@
  * Optimized with React Query, broken into smaller components
  */
 import { format } from 'date-fns';
-import { ArrowLeft, Filter, Plus, Settings, TrendingUp, Wallet } from 'lucide-react';
+import { ArrowLeft, Plus, Settings, TrendingUp, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AddMemberModal } from '../components/AddMemberModal';
@@ -362,34 +362,21 @@ export default function TripDetail() {
         </div>
 
         {/* Recent Activity */}
-        <div className="px-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-lg font-bold text-gray-900">Recent Activity</h3>
-            <button
-              onClick={() => setShowFilterModal(true)}
-              className="flex items-center gap-1 px-3 py-1.5 text-sm text-primary-600 font-medium hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
-            >
-              <Filter className="w-4 h-4" />
-              Filter
-            </button>
-          </div>
-
-          <ExpenseList
-            tripId={tripId!}
-            expenses={expenses}
-            isLoading={expensesLoading}
-            hasNextPage={hasNextPage}
-            isFetchingNextPage={isFetchingNextPage}
-            onLoadMore={fetchNextPage}
-            members={trip.members || []}
-            baseCurrency={trip.base_currency}
-            currentUserId={user?.id}
-            isCurrentUserAdmin={isCurrentUserAdmin}
-            selectedCategory={selectedCategory}
-            selectedMember={selectedMemberFilter}
-            onFilterClick={() => setShowFilterModal(true)}
-          />
-        </div>
+        <ExpenseList
+          tripId={tripId!}
+          expenses={expenses}
+          isLoading={expensesLoading}
+          hasNextPage={hasNextPage}
+          isFetchingNextPage={isFetchingNextPage}
+          onLoadMore={fetchNextPage}
+          members={trip.members || []}
+          baseCurrency={trip.base_currency}
+          currentUserId={user?.id}
+          isCurrentUserAdmin={isCurrentUserAdmin}
+          selectedCategory={selectedCategory}
+          selectedMember={selectedMemberFilter}
+          onFilterClick={() => setShowFilterModal(true)}
+        />
       </main>
 
       {/* Floating Action Button */}

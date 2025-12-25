@@ -110,14 +110,12 @@ export default function Home() {
             <p className="text-gray-500 mb-6">
             Create your first trip to start tracking expenses
             </p>
-            (
-              <button
-                onClick={() => setIsModalOpen(true)}
-                className="px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors shadow-sm hover:shadow-md"
-              >
-                Create Trip
-              </button>
-            )
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors shadow-sm hover:shadow-md"
+            >
+              Create Trip
+            </button>
           </div>
         ) : (
           /* Trip List */

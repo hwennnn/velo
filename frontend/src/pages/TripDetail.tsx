@@ -3,10 +3,9 @@
  * Optimized with React Query, broken into smaller components
  */
 import { format } from 'date-fns';
-import { Plus } from 'lucide-react';
+import { ArrowLeft, Plus, Settings, TrendingUp, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ActionChips } from '../components/ActionChips';
 import { AddMemberModal } from '../components/AddMemberModal';
 import { BalancesModal } from '../components/BalancesModal';
 import { CreateExpenseModal } from '../components/CreateExpenseModal';
@@ -17,11 +16,10 @@ import { MemberDetailModal } from '../components/MemberDetailModal';
 import { MembersModal } from '../components/MembersModal';
 import { SettlementsModal } from '../components/SettlementsModal';
 import { TripDetailSkeleton } from '../components/TripDetailSkeleton';
-import { TripHeader } from '../components/TripHeader';
-import { TripInfoCard } from '../components/TripInfoCard';
 import { TripSettingsModal } from '../components/TripSettingsModal';
 import { useAlert } from '../contexts/AlertContext';
 import { useAuth } from '../hooks/useAuth';
+import { useBalances } from '../hooks/useBalances';
 import { useCreateExpense, useExpenses, type ExpenseFilters } from '../hooks/useExpenses';
 import { useAddMember, useClaimMember, useLeaveTrip, useRemoveMember, useUpdateMember } from '../hooks/useMembers';
 import { useGenerateInvite, useTrip } from '../hooks/useTrips';
@@ -50,7 +48,7 @@ export default function TripDetail() {
   const [selectedMemberFilter, setSelectedMemberFilter] = useState<number | null>(null);
   const [showTripSettingsModal, setShowTripSettingsModal] = useState(false);
 
-  const { data: trip, isLoading: tripLoading, isFetching: tripFetching } = useTrip(tripId);
+  const { data: trip, isLoading: tripLoading } = useTrip(tripId);
   
   // Create filters object for expenses
   const expenseFilters: ExpenseFilters = {
@@ -68,6 +66,9 @@ export default function TripDetail() {
   
   // Flatten all expenses from all pages
   const expenses = expensesData?.pages.flatMap(page => page.expenses) || [];
+  
+  // Get balances (must be called before any early returns)
+  const { data: balances = [] } = useBalances(tripId);
   
   const createExpenseMutation = useCreateExpense(tripId!);
   const addMemberMutation = useAddMember(tripId!);
@@ -207,10 +208,19 @@ export default function TripDetail() {
   };
 
   const formatDateRange = (startDate?: string, endDate?: string) => {
-    if (!startDate && !endDate) return 'No dates set';
+    if (!startDate && !endDate) return '';
     if (startDate && !endDate) return `From ${format(new Date(startDate), 'MMM d, yyyy')}`;
     if (!startDate && endDate) return `Until ${format(new Date(endDate), 'MMM d, yyyy')}`;
     return `${format(new Date(startDate!), 'MMM d')} - ${format(new Date(endDate!), 'MMM d, yyyy')}`;
+  };
+
+  const formatCurrency = (amount: number, currency: string) => {
+    const formatted = amount.toLocaleString('en-US', { 
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2 
+    });
+    
+    return `${currency} ${formatted}`;
   };
 
   // Show loading skeleton only on initial load (no cached data)
@@ -236,61 +246,146 @@ export default function TripDetail() {
 
 
   const totalSpent = trip?.total_spent || 0;
-  const expenseCount = trip?.expense_count || 0;
   const isCurrentUserAdmin = trip?.members?.find(m => m.user_id === user?.id)?.is_admin || false;
+
+  // Get current user's balance
+  const currentUserMember = trip?.members?.find(m => m.user_id === user?.id);
+  const currentUserBalance = balances.find(b => b.member_id === currentUserMember?.id);
+  const netBalance = currentUserBalance?.net_balance || 0;
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col relative">
       {/* Header */}
-      <TripHeader
-        tripName={trip.name}
-        isLoading={tripFetching}
-        onBack={() => navigate('/trips')}
-        onSettings={() => setShowTripSettingsModal(true)}
-      />
+      <header className="bg-white px-5 py-4 safe-top shadow-sm border-b border-gray-100">
+        <div className="flex items-center justify-between mt-4">
+          <button
+            onClick={() => navigate('/trips')}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors -ml-2"
+            aria-label="Back"
+          >
+            <ArrowLeft className="w-5 h-5 text-gray-600" />
+          </button>
+          <div className="flex-1 text-center px-4">
+            <h1 className="text-xl font-bold text-gray-900">{trip.name}</h1>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {formatDateRange(trip.start_date, trip.end_date)}
+            </p>
+          </div>
+          <button
+            onClick={() => setShowTripSettingsModal(true)}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            aria-label="Settings"
+          >
+            <Settings className="w-5 h-5 text-gray-600" />
+          </button>
+        </div>
+      </header>
 
       {/* Content */}
-      <main className="flex-1 flex flex-col overflow-hidden">
-        {/* Trip Info Card */}
-        <TripInfoCard
-          currency={trip.base_currency}
-          dateRange={formatDateRange(trip.start_date, trip.end_date)}
-          memberCount={trip.member_count || 0}
-          members={trip.members || []}
-          expenseCount={expenseCount}
-          totalSpent={totalSpent}
-          onMembersClick={() => setShowMembersModal(true)}
-          getMemberColor={(index) => getMemberColor(index)}
-          getMemberInitials={getMemberInitials}
-        />
-
-        {/* Action Chips */}
-        <ActionChips
-          onBalancesClick={() => setShowBalancesModal(true)}
-          onSettlementsClick={() => setShowSettlementsModal(true)}
-        />
-
-        {/* Main Content - Expenses List */}
-        <div className="flex-1 overflow-hidden px-4">
-          <div className="h-full overflow-y-auto">
-            <div className="pb-20">
-              <ExpenseList
-                tripId={tripId!}
-                expenses={expenses}
-                isLoading={expensesLoading}
-                hasNextPage={hasNextPage}
-                isFetchingNextPage={isFetchingNextPage}
-                onLoadMore={fetchNextPage}
-                members={trip.members || []}
-                baseCurrency={trip.base_currency}
-                currentUserId={user?.id}
-                isCurrentUserAdmin={isCurrentUserAdmin}
-                selectedCategory={selectedCategory}
-                selectedMember={selectedMemberFilter}
-                onFilterClick={() => setShowFilterModal(true)}
-              />
+      <main className="flex-1 overflow-y-auto pb-24">
+        {/* Total Spent Card */}
+        <div className="px-5 pt-4 pb-3">
+          <div className="bg-white rounded-2xl p-5 shadow-sm">
+            {/* Header with member avatars */}
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm text-gray-500 uppercase tracking-wide font-medium">TOTAL SPENT</p>
+              <button
+                onClick={() => setShowMembersModal(true)}
+                className="flex -space-x-2 hover:opacity-80 transition-opacity"
+              >
+                {trip.members?.slice(0, 4).map((member, index) => (
+                  <div
+                    key={member.id}
+                    className={`w-8 h-8 ${getMemberColor(index)} rounded-full flex items-center justify-center text-white text-xs font-bold border-2 border-white`}
+                  >
+                    {getMemberInitials(member.nickname)}
+                  </div>
+                ))}
+                {(trip.member_count || 0) > 4 && (
+                  <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-gray-700 text-xs font-bold border-2 border-white">
+                    +{(trip.member_count || 0) - 4}
+                  </div>
+                )}
+              </button>
             </div>
+
+            {/* Total Amount */}
+            <div className="mb-4">
+              <h2 className="text-4xl font-bold text-gray-900">
+                {formatCurrency(totalSpent, trip.base_currency)}
+              </h2>
+            </div>
+
+            {/* Balance Indicator */}
+            {currentUserBalance && netBalance !== 0 && (
+              <div className={`rounded-xl p-3 flex items-center gap-2 ${
+                netBalance > 0 
+                  ? 'bg-green-50' 
+                  : 'bg-red-50'
+              }`}>
+                <TrendingUp className={`w-4 h-4 ${
+                  netBalance > 0 ? 'text-green-600' : 'text-red-600'
+                }`} />
+                <span className={`text-sm font-medium ${
+                  netBalance > 0 ? 'text-green-700' : 'text-red-700'
+                }`}>
+                  {netBalance > 0 
+                    ? `You are owed ${formatCurrency(Math.abs(netBalance), trip.base_currency)}`
+                    : `You owe ${formatCurrency(Math.abs(netBalance), trip.base_currency)}`
+                  }
+                </span>
+              </div>
+            )}
           </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="px-5 pb-4">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setShowBalancesModal(true)}
+              className="bg-white rounded-xl p-3 shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 border border-gray-100"
+            >
+              <Wallet className="w-4 h-4 text-blue-600" />
+              <span className="text-sm font-medium text-gray-900">Balances</span>
+            </button>
+            <button
+              onClick={() => setShowSettlementsModal(true)}
+              className="bg-white rounded-xl p-3 shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 border border-gray-100"
+            >
+              <TrendingUp className="w-4 h-4 text-orange-600" />
+              <span className="text-sm font-medium text-gray-900">Settle Up</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Recent Activity */}
+        <div className="px-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-bold text-gray-900">Recent Activity</h3>
+            <button
+              onClick={() => setShowFilterModal(true)}
+              className="text-sm text-primary-600 font-medium hover:text-primary-700"
+            >
+              View all
+            </button>
+          </div>
+
+          <ExpenseList
+            tripId={tripId!}
+            expenses={expenses}
+            isLoading={expensesLoading}
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            onLoadMore={fetchNextPage}
+            members={trip.members || []}
+            baseCurrency={trip.base_currency}
+            currentUserId={user?.id}
+            isCurrentUserAdmin={isCurrentUserAdmin}
+            selectedCategory={selectedCategory}
+            selectedMember={selectedMemberFilter}
+            onFilterClick={() => setShowFilterModal(true)}
+          />
         </div>
       </main>
 

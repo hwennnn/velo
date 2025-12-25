@@ -17,8 +17,9 @@ npm install
 # Copy .env.example if .env.local doesn't exist
 if [ ! -f ".env.local" ]; then
     echo "📝 Creating .env.local from .env.example..."
-    cp .env.example .env.local
-    echo "⚠️  Please edit .env.local with your Supabase credentials!"
+    cp .env.example .env.local 2>/dev/null || cp .env.sample .env.local 2>/dev/null || echo "⚠️  No .env.example found. Please create .env.local manually."
+    echo "⚠️  Please edit .env.local with your actual Supabase credentials!"
+    echo "   Get these values from: https://app.supabase.com/project/YOUR_PROJECT/settings/api"
 else
     echo "✅ .env.local already exists"
 fi

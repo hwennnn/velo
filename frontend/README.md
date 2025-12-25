@@ -94,8 +94,8 @@ VITE_SUPABASE_ANON_KEY=your-anon-key-here
 VITE_API_BASE_URL=http://localhost:8000/api
 
 # App Info
-VITE_APP_NAME=Velo
-VITE_APP_VERSION=0.1.0
+VITE_APP_NAME=Your App Name
+VITE_APP_VERSION=1.0.0
 ```
 
 ### 4. Configure Supabase Authentication
@@ -144,7 +144,7 @@ The app uses a **fixed mobile container** that:
 The app connects to the FastAPI backend via the `api` service:
 
 ```typescript
-import { api } from './services/api';
+import { api } from "./services/api";
 
 // Example: Fetch all trips
 const response = await api.trips.getAll();
@@ -152,6 +152,7 @@ const trips = response.data;
 ```
 
 The API client automatically:
+
 - Attaches Supabase JWT token to requests
 - Handles token refresh
 - Redirects to login on 401 errors

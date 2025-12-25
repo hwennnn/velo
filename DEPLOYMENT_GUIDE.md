@@ -83,9 +83,16 @@ API_PREFIX=/api
 ### Frontend (.env)
 
 ```env
-VITE_API_URL=http://localhost:8000/api
+# Required - Get from Supabase dashboard
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+
+# Required for production - Your deployed API URL
+VITE_API_BASE_URL=https://your-api.railway.app/api
+
+# Optional - App branding
+VITE_APP_NAME=Velo
+VITE_APP_VERSION=2.0.0
 ```
 
 ## Production Deployment
@@ -150,10 +157,19 @@ dist
 
 #### Environment Variables
 
+**⚠️ Important**: Set these as environment variables in your deployment platform, NOT in .env files that get committed to git.
+
 ```env
-VITE_API_URL=https://your-api.railway.app/api
+# Required - Supabase credentials (set in deployment platform)
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+
+# Required - Your deployed API URL
+VITE_API_BASE_URL=https://your-api.railway.app/api
+
+# Optional - App branding
+VITE_APP_NAME=Velo
+VITE_APP_VERSION=2.0.0
 ```
 
 ## Database Migrations

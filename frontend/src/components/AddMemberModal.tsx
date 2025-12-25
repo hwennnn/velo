@@ -28,6 +28,58 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Helper functions for avatar preview
+  const getMemberInitials = (name: string) => {
+    if (!name) return '?';
+    
+    const words = name.trim().split(' ');
+    if (!words.length) return '?';
+    
+    let initials = '';
+    for (const word of words) {
+      if (word && word[0] && /[a-zA-Z]/.test(word[0])) {
+        initials += word[0].toUpperCase();
+        if (initials.length >= 2) break;
+      }
+    }
+    
+    if (initials.length === 0) {
+      for (const char of name) {
+        if (/[a-zA-Z]/.test(char)) {
+          initials = char.toUpperCase();
+          break;
+        }
+      }
+      if (!initials) initials = '?';
+    }
+    
+    return initials.slice(0, 2);
+  };
+
+  const getPreviewColor = () => {
+    // Use a hash of the nickname to get consistent color
+    const colors = [
+      'bg-blue-500',
+      'bg-emerald-500',
+      'bg-violet-500', 
+      'bg-pink-500',
+      'bg-amber-500',
+      'bg-red-500',
+      'bg-indigo-500',
+      'bg-cyan-500',
+      'bg-lime-500',
+      'bg-orange-500',
+    ];
+    
+    if (!nickname.trim()) return colors[0];
+    
+    let hash = 0;
+    for (let i = 0; i < nickname.length; i++) {
+      hash = nickname.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -211,6 +263,28 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
               The name that will be displayed for this member in the trip
             </p>
           </div>
+
+          {/* Avatar Preview */}
+          {nickname.trim() && (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Avatar Preview
+              </label>
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                <div
+                  className={`w-12 h-12 ${getPreviewColor()} rounded-full flex items-center justify-center text-white font-semibold`}
+                >
+                  {getMemberInitials(nickname)}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-900">{nickname.trim()}</p>
+                  <p className="text-xs text-gray-500">
+                    {isFictional ? 'Generated avatar for fictional member' : 'Default avatar (can be changed in profile)'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Admin Toggle */}
           <div className="space-y-2">

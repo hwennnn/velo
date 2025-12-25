@@ -20,6 +20,7 @@ from app.schemas.trip import (
     TripListResponse,
     TripMemberResponse,
 )
+from app.services.avatar import get_avatar_for_member
 
 router = APIRouter()
 
@@ -184,12 +185,19 @@ async def get_trip(
         )
 
         # Add user details if real member
+        user_avatar_url = None
         if m.user_id:
             user = await session.get(User, m.user_id)
             if user:
                 member_response.email = user.email
                 member_response.display_name = user.display_name
-                member_response.avatar_url = user.avatar_url
+                user_avatar_url = user.avatar_url
+
+        # Get avatar (user's profile picture or generated)
+        avatar_info = get_avatar_for_member(
+            member_id=m.id, nickname=m.nickname, user_avatar_url=user_avatar_url
+        )
+        member_response.avatar_url = avatar_info["avatar_url"]
 
         member_responses.append(member_response)
 

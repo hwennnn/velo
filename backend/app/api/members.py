@@ -22,6 +22,7 @@ from app.schemas.member import (
     InviteLinkResponse,
     MemberClaimRequest,
 )
+from app.services.avatar import get_avatar_for_member
 
 router = APIRouter()
 
@@ -44,12 +45,19 @@ async def build_member_response(
     )
 
     # Add user details if real member
+    user_avatar_url = None
     if member.user_id:
         user = await session.get(User, member.user_id)
         if user:
             response.email = user.email
             response.display_name = user.display_name
-            response.avatar_url = user.avatar_url
+            user_avatar_url = user.avatar_url
+
+    # Get avatar (user's profile picture or generated)
+    avatar_info = get_avatar_for_member(
+        member_id=member.id, nickname=member.nickname, user_avatar_url=user_avatar_url
+    )
+    response.avatar_url = avatar_info["avatar_url"]
 
     return response
 

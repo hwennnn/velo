@@ -13,8 +13,6 @@ interface MembersModalProps {
   currentUserId?: string;
   isCurrentUserAdmin: boolean;
   memberMenuOpen: number | null;
-  getMemberColor: (index: number) => string;
-  getMemberInitials: (nickname: string) => string;
   onClose: () => void;
   onMemberClick: (member: TripMember) => void;
   onMenuToggle: (memberId: number) => void;
@@ -33,8 +31,6 @@ export const MembersModal: React.FC<MembersModalProps> = ({
   currentUserId,
   isCurrentUserAdmin,
   memberMenuOpen,
-  getMemberColor,
-  getMemberInitials,
   onClose,
   onMemberClick,
   onMenuToggle,
@@ -72,12 +68,9 @@ export const MembersModal: React.FC<MembersModalProps> = ({
                 <MemberListItem
                   key={member.id}
                   member={member}
-                  index={index}
                   currentUserId={currentUserId}
                   isCurrentUserAdmin={isCurrentUserAdmin}
                   isMenuOpen={memberMenuOpen === member.id}
-                  getMemberColor={getMemberColor}
-                  getMemberInitials={getMemberInitials}
                   onMemberClick={() => onMemberClick(member)}
                   onMenuToggle={() => onMenuToggle(member.id)}
                   onClaimMember={() => onClaimMember(member.id, member.nickname)}

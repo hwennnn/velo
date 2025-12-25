@@ -313,8 +313,6 @@ export default function TripDetail() {
         currentUserId={user?.id}
         isCurrentUserAdmin={isCurrentUserAdmin}
         memberMenuOpen={memberMenuOpen}
-        getMemberColor={getMemberColor}
-        getMemberInitials={getMemberInitials}
         onClose={() => setShowMembersModal(false)}
         onMemberClick={(member) => {
           setSelectedMember(member);

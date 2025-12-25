@@ -5,15 +5,13 @@
 import { LogOut, MoreVertical, Shield, Trash2, UserCheck } from 'lucide-react';
 import React from 'react';
 import type { TripMember } from '../types';
+import { Avatar } from './Avatar';
 
 interface MemberListItemProps {
   member: TripMember;
-  index: number;
   currentUserId?: string;
   isCurrentUserAdmin: boolean;
   isMenuOpen: boolean;
-  getMemberColor: (index: number) => string;
-  getMemberInitials: (nickname: string) => string;
   onMemberClick: () => void;
   onMenuToggle: () => void;
   onClaimMember: () => void;
@@ -25,12 +23,9 @@ interface MemberListItemProps {
 
 export const MemberListItem: React.FC<MemberListItemProps> = ({
   member,
-  index,
   currentUserId,
   isCurrentUserAdmin,
   isMenuOpen,
-  getMemberColor,
-  getMemberInitials,
   onMemberClick,
   onMenuToggle,
   onClaimMember,
@@ -48,11 +43,7 @@ export const MemberListItem: React.FC<MemberListItemProps> = ({
         className="flex items-center gap-3 flex-1 cursor-pointer"
         onClick={onMemberClick}
       >
-        <div
-          className={`w-10 h-10 ${getMemberColor(index)} rounded-full flex items-center justify-center text-white font-semibold text-sm`}
-        >
-          {getMemberInitials(member.nickname)}
-        </div>
+        <Avatar member={member} size="md" />
         <div className="flex-1 min-w-0">
           <div className="font-medium text-gray-900 flex items-center gap-2 text-sm">
             <span className="truncate">{member.nickname}</span>

@@ -5,6 +5,7 @@
 import { format } from 'date-fns';
 import { Calendar, Mail, Shield, User, UserCheck, X } from 'lucide-react';
 import type { TripMember } from '../types';
+import { Avatar } from './Avatar';
 
 interface MemberDetailModalProps {
   isOpen: boolean;
@@ -21,28 +22,6 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
 }) => {
   if (!isOpen || !member) return null;
 
-  const getMemberColor = (id: number) => {
-    const colors = [
-      'bg-blue-500',
-      'bg-green-500',
-      'bg-purple-500',
-      'bg-pink-500',
-      'bg-yellow-500',
-      'bg-red-500',
-      'bg-indigo-500',
-      'bg-teal-500',
-    ];
-    return colors[id % colors.length];
-  };
-
-  const getMemberInitials = (nickname: string) => {
-    return nickname
-      .split(' ')
-      .map(n => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -69,10 +48,8 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
 
           {/* Avatar and Name */}
           <div className="flex flex-col items-center mb-6">
-            <div
-              className={`w-20 h-20 ${getMemberColor(member.id)} rounded-full flex items-center justify-center text-white font-bold text-2xl mb-3`}
-            >
-              {getMemberInitials(member.nickname)}
+            <div className="mb-3">
+              <Avatar member={member} size="xl" />
             </div>
             <h4 className="text-xl font-bold text-gray-900 mb-1">{member.nickname}</h4>
             {member.display_name && member.display_name !== member.nickname && (

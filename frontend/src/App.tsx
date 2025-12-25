@@ -29,7 +29,7 @@ function PageLoader() {
         {/* Velo logo */}
         <div className="relative">
           <img
-            src="/public/velo.svg"
+            src="/velo.svg"
             alt="Velo"
             className="w-20 h-20 animate-pulse"
           />
@@ -62,7 +62,7 @@ function App() {
               <Suspense fallback={<PageLoader />}>
                 <Routes>
                   {/* Public routes */}
-                  <Route path="/auth/login" element={<Login />} />
+                  <Route path="/" element={<Login />} />
                   <Route path="/auth/callback" element={<AuthCallback />} />
                   <Route path="/join" element={<JoinTrip />} />
                   <Route path="/privacy-policy" element={<PrivacyPolicy />} />

@@ -46,7 +46,7 @@ export default function Login() {
       <div className="text-center mb-12 flex flex-col items-center">
         <div className="mb-4">
           <img
-            src="/public/velo.svg"
+            src="/velo.svg"
             alt="Velo"
             className="w-20 h-20"
           />

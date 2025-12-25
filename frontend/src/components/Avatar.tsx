@@ -4,6 +4,7 @@
  */
 import React, { useState } from 'react';
 import type { TripMember } from '../types';
+import { getMemberInitials } from '../utils/memberUtils';
 
 interface AvatarProps {
   member: TripMember;
@@ -35,33 +36,6 @@ const getMemberColor = (id: number) => {
   return colors[id % colors.length];
 };
 
-const getMemberInitials = (nickname: string) => {
-  if (!nickname) return '?';
-  
-  const words = nickname.trim().split(' ');
-  if (!words.length) return '?';
-  
-  let initials = '';
-  for (const word of words) {
-    if (word && word[0] && /[a-zA-Z]/.test(word[0])) {
-      initials += word[0].toUpperCase();
-      if (initials.length >= 2) break;
-    }
-  }
-  
-  if (initials.length === 0) {
-    for (const char of nickname) {
-      if (/[a-zA-Z]/.test(char)) {
-        initials = char.toUpperCase();
-        break;
-      }
-    }
-    if (!initials) initials = '?';
-  }
-  
-  return initials.slice(0, 2);
-};
-
 export const Avatar: React.FC<AvatarProps> = ({ 
   member, 
   size = 'md', 
@@ -73,7 +47,7 @@ export const Avatar: React.FC<AvatarProps> = ({
   
   const sizeClass = sizeClasses[size];
   const colorClass = getMemberColor(member.id);
-  const initials = getMemberInitials(member.nickname);
+  const initials = getMemberInitials(member);
   
   const hasAvatar = member.avatar_url && !imageError;
   

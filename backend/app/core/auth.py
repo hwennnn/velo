@@ -98,6 +98,8 @@ async def create_user_if_not_exists(
     user_id: str,
     email: str,
     session: AsyncSession,
+    display_name: Optional[str] = None,
+    avatar_url: Optional[str] = None,
 ) -> User:
     """
     Create user record if it doesn't exist.
@@ -106,6 +108,8 @@ async def create_user_if_not_exists(
     Args:
         user_id: Supabase user UUID
         email: User email
+        display_name: User display name from OAuth provider
+        avatar_url: User avatar URL from OAuth provider
         session: Database session
 
     Returns:
@@ -116,13 +120,29 @@ async def create_user_if_not_exists(
     user = result.scalar_one_or_none()
 
     if user:
+        # Update existing user with new profile data if provided
+        updated = False
+        if display_name and not user.display_name:
+            user.display_name = display_name
+            updated = True
+        if avatar_url and not user.avatar_url:
+            user.avatar_url = avatar_url
+            updated = True
+
+        if updated:
+            session.add(user)
+            await session.commit()
+            await session.refresh(user)
+
         return user
 
     # Create new user
     user = User(
         id=user_id,
         email=email,
-        display_name=email.split("@")[0],  # Default display name from email
+        display_name=display_name
+        or email.split("@")[0],  # Use provided name or default from email
+        avatar_url=avatar_url,
     )
     session.add(user)
     await session.commit()

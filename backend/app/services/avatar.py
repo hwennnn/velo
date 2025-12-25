@@ -174,9 +174,12 @@ def get_avatar_for_member(
     Returns:
         Dict with avatar_url, fallback_color, and initials
     """
+    # Use user's avatar URL if available (not None and not empty string)
+    has_user_avatar = user_avatar_url and user_avatar_url.strip()
+    
     return {
-        "avatar_url": user_avatar_url or generate_avatar_url(member_id, nickname, style),
+        "avatar_url": user_avatar_url if has_user_avatar else generate_avatar_url(member_id, nickname, style),
         "fallback_color": get_member_color_class(member_id),
         "initials": get_member_initials(nickname),
-        "is_generated": user_avatar_url is None
+        "is_generated": not has_user_avatar
     }

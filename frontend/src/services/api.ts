@@ -96,7 +96,7 @@ export const api = {
 
   // User
   user: {
-    register: (data: { user_id: string; email: string }) => apiClient.post('/users/register', data),
+    register: (data: { user_id: string; email: string; display_name?: string; avatar_url?: string }) => apiClient.post('/users/register', data),
     getProfile: () => apiClient.get('/users/me'),
     updateProfile: (data: any) => apiClient.put('/users/me', data),
   },

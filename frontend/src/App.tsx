@@ -16,6 +16,7 @@ const AuthCallback = lazy(() => import('./pages/AuthCallback'));
 const Home = lazy(() => import('./pages/Home'));
 const JoinTrip = lazy(() => import('./pages/JoinTrip'));
 const Login = lazy(() => import('./pages/Login'));
+const Profile = lazy(() => import('./pages/Profile'));
 const TripDetail = lazy(() => import('./pages/TripDetail'));
 
 // Custom loading component with brand styling
@@ -80,6 +81,14 @@ function App() {
                     element={
                       <ProtectedRoute>
                         <TripDetail />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/account"
+                    element={
+                      <ProtectedRoute>
+                        <Profile />
                       </ProtectedRoute>
                     }
                   />

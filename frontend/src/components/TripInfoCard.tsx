@@ -5,6 +5,7 @@
 import { Calendar, DollarSign, Receipt, Users } from 'lucide-react';
 import React from 'react';
 import type { TripMember } from '../types';
+import { getMemberColor, getMemberInitials } from '../utils/memberUtils';
 
 interface TripInfoCardProps {
   currency: string;
@@ -14,8 +15,6 @@ interface TripInfoCardProps {
   expenseCount: number;
   totalSpent: number;
   onMembersClick: () => void;
-  getMemberColor: (index: number) => string;
-  getMemberInitials: (nickname: string) => string;
 }
 
 export const TripInfoCard: React.FC<TripInfoCardProps> = ({
@@ -26,8 +25,6 @@ export const TripInfoCard: React.FC<TripInfoCardProps> = ({
   expenseCount,
   totalSpent,
   onMembersClick,
-  getMemberColor,
-  getMemberInitials,
 }) => {
   return (
     <div className="bg-gradient-to-br from-primary-500 to-primary-700 p-4 text-white">
@@ -80,7 +77,7 @@ export const TripInfoCard: React.FC<TripInfoCardProps> = ({
                 key={member.id}
                 className={`w-7 h-7 ${getMemberColor(index)} rounded-full flex items-center justify-center text-white text-xs font-semibold border-2 border-white`}
               >
-                {getMemberInitials(member.nickname)}
+                {getMemberInitials(member)}
               </div>
             ))}
             {memberCount > 4 && (

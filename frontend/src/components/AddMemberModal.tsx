@@ -7,6 +7,7 @@
 import React, { useState } from 'react';
 import { X, User, UserPlus, Mail, Shield } from 'lucide-react';
 import type { AddMemberInput, TripMember } from '../types';
+import { getMemberInitials } from '../utils/memberUtils';
 
 interface AddMemberModalProps {
   isOpen: boolean;
@@ -28,33 +29,6 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Helper functions for avatar preview
-  const getMemberInitials = (name: string) => {
-    if (!name) return '?';
-    
-    const words = name.trim().split(' ');
-    if (!words.length) return '?';
-    
-    let initials = '';
-    for (const word of words) {
-      if (word && word[0] && /[a-zA-Z]/.test(word[0])) {
-        initials += word[0].toUpperCase();
-        if (initials.length >= 2) break;
-      }
-    }
-    
-    if (initials.length === 0) {
-      for (const char of name) {
-        if (/[a-zA-Z]/.test(char)) {
-          initials = char.toUpperCase();
-          break;
-        }
-      }
-      if (!initials) initials = '?';
-    }
-    
-    return initials.slice(0, 2);
-  };
 
   const getPreviewColor = () => {
     // Use a hash of the nickname to get consistent color

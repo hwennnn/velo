@@ -63,3 +63,4 @@ export function getCurrencySymbol(currencyCode: string): string {
 export function getCurrencyName(currencyCode: string): string {
   return getCurrencyInfo(currencyCode).name;
 }
+

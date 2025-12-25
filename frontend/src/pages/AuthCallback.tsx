@@ -17,11 +17,18 @@ export default function AuthCallback() {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session?.user) {
+          // Extract profile information from OAuth providers
+          const userMetadata = session.user.user_metadata;
+          const displayName = userMetadata?.full_name || userMetadata?.name || session.user.email?.split('@')[0];
+          const avatarUrl = userMetadata?.avatar_url || userMetadata?.picture;
+
           // Register user in our database (will be skipped if already exists)
           try {
             await api.user.register({
               user_id: session.user.id,
               email: session.user.email!,
+              display_name: displayName,
+              avatar_url: avatarUrl,
             });
           } catch (error) {
             // Ignore registration errors (user might already exist)

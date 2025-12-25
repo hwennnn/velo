@@ -6,10 +6,11 @@ import { format } from 'date-fns';
 import { List, MapPin, Plus, Settings, User, Users } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Avatar } from '../components/Avatar';
 import CreateTripModal from '../components/CreateTripModal';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { useCreateTrip, useTrips } from '../hooks/useTrips';
-import type { CreateTripInput, TripMember } from '../types';
+import type { CreateTripInput } from '../types';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -48,29 +49,6 @@ export default function Home() {
     });
     
     return `${symbol}${formatted}`;
-  };
-
-  const getMemberColor = (index: number) => {
-    const colors = [
-      'bg-blue-500',
-      'bg-green-500',
-      'bg-purple-500',
-      'bg-pink-500',
-      'bg-yellow-500',
-      'bg-orange-500',
-      'bg-red-500',
-      'bg-indigo-500',
-      'bg-teal-500',
-      'bg-cyan-500',
-    ];
-    return colors[index % colors.length];
-  };
-
-  const getMemberInitials = (member: TripMember) => {
-    if (member.display_name) {
-      return member.display_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-    }
-    return member.nickname.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
   return (
@@ -147,13 +125,13 @@ export default function Home() {
                   <div className="flex items-center">
                     {trip.members && trip.members.length > 0 ? (
                       <div className="flex -space-x-2">
-                        {trip.members.slice(0, 4).map((member, idx) => (
-                          <div
+                        {trip.members.slice(0, 4).map((member) => (
+                          <Avatar
                             key={member.id}
-                            className={`w-8 h-8 rounded-full ${getMemberColor(idx)} flex items-center justify-center text-white text-xs font-bold border-2 border-white`}
-                          >
-                            {getMemberInitials(member)}
-                          </div>
+                            member={member}
+                            size="sm"
+                            className="border-2 border-white"
+                          />
                         ))}
                         {trip.members.length > 4 && (
                           <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-gray-700 text-xs font-bold border-2 border-white">

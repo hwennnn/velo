@@ -7,6 +7,7 @@ import { ArrowLeft, Plus, Settings, TrendingUp, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AddMemberModal } from '../components/AddMemberModal';
+import { Avatar } from '../components/Avatar';
 import { BalancesModal } from '../components/BalancesModal';
 import { CreateExpenseModal } from '../components/CreateExpenseModal';
 import { ExpenseList } from '../components/ExpenseList';
@@ -24,7 +25,7 @@ import { useCreateExpense, useExpenses, type ExpenseFilters } from '../hooks/use
 import { useAddMember, useClaimMember, useLeaveTrip, useRemoveMember, useUpdateMember } from '../hooks/useMembers';
 import { useGenerateInvite, useTrip } from '../hooks/useTrips';
 import type { AddMemberInput, CreateExpenseInput, TripMember } from '../types';
-import { getMemberColor, getMemberInitials } from '../utils/memberUtils';
+import { getMemberColor } from '../utils/memberUtils';
 
 export default function TripDetail() {
   const { tripId } = useParams<{ tripId: string }>();
@@ -295,13 +296,13 @@ export default function TripDetail() {
                 onClick={() => setShowMembersModal(true)}
                 className="flex -space-x-2 hover:opacity-80 transition-opacity"
               >
-                {trip.members?.slice(0, 4).map((member, index) => (
-                  <div
+                {trip.members?.slice(0, 4).map((member) => (
+                  <Avatar
                     key={member.id}
-                    className={`w-8 h-8 ${getMemberColor(index)} rounded-full flex items-center justify-center text-white text-xs font-bold border-2 border-white`}
-                  >
-                    {getMemberInitials(member.nickname)}
-                  </div>
+                    member={member}
+                    size="sm"
+                    className="border-2 border-white"
+                  />
                 ))}
                 {(trip.member_count || 0) > 4 && (
                   <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-gray-700 text-xs font-bold border-2 border-white">

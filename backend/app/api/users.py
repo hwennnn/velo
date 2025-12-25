@@ -19,6 +19,8 @@ class UserRegister(BaseModel):
 
     user_id: str
     email: EmailStr
+    display_name: str | None = None
+    avatar_url: str | None = None
 
 
 class UserUpdate(BaseModel):
@@ -55,6 +57,8 @@ async def register_user(
         user_id=user_data.user_id,
         email=user_data.email,
         session=session,
+        display_name=user_data.display_name,
+        avatar_url=user_data.avatar_url,
     )
     return user
 

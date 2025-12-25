@@ -8,6 +8,7 @@ import { Calendar, Check, DollarSign, FileText, Receipt, Users, X } from 'lucide
 import React, { useEffect, useState } from 'react';
 import { SUPPORTED_CURRENCIES } from '../config/currencies';
 import type { CreateExpenseInput, SplitInput, TripMember } from '../types';
+import { getMemberInitials } from '../utils/memberUtils';
 
 interface CreateExpenseModalProps {
   isOpen: boolean;
@@ -214,14 +215,6 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
     return colors[index % colors.length];
   };
 
-  const getMemberInitials = (nickname: string) => {
-    return nickname
-      .split(' ')
-      .map(n => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
 
   if (!isOpen) return null;
 
@@ -348,7 +341,7 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
                     <div
                       className={`w-8 h-8 ${getMemberColor(index)} rounded-full flex items-center justify-center text-white font-semibold text-xs flex-shrink-0`}
                     >
-                      {getMemberInitials(member.nickname)}
+                      {getMemberInitials(member)}
                     </div>
                     <div className="flex-1 text-left min-w-0">
                       <div className="text-sm font-medium text-gray-900 truncate">
@@ -464,7 +457,7 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
                           !isSelected && 'opacity-40'
                         }`}
                       >
-                        {getMemberInitials(member.nickname)}
+                        {getMemberInitials(member)}
                       </div>
                       <div className="flex-1 text-left min-w-0">
                         <div className={`text-sm font-medium truncate ${

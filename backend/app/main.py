@@ -1,6 +1,7 @@
 """
 FastAPI application entry point for Velo Travel Expense Tracker.
 """
+
 from app.api import trips, users, members, expenses, balances
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -70,20 +71,16 @@ async def health_check():
 
 # API routes
 
-app.include_router(
-    users.router, prefix=f"{settings.api_prefix}/users", tags=["users"])
-app.include_router(
-    trips.router, prefix=f"{settings.api_prefix}/trips", tags=["trips"])
-app.include_router(
-    members.router, prefix=f"{settings.api_prefix}", tags=["members"])
-app.include_router(
-    expenses.router, prefix=f"{settings.api_prefix}", tags=["expenses"])
-app.include_router(
-    balances.router, prefix=f"{settings.api_prefix}", tags=["balances"])
+app.include_router(users.router, prefix=f"{settings.api_prefix}/users", tags=["users"])
+app.include_router(trips.router, prefix=f"{settings.api_prefix}/trips", tags=["trips"])
+app.include_router(members.router, prefix=f"{settings.api_prefix}", tags=["members"])
+app.include_router(expenses.router, prefix=f"{settings.api_prefix}", tags=["expenses"])
+app.include_router(balances.router, prefix=f"{settings.api_prefix}", tags=["balances"])
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",

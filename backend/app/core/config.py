@@ -52,26 +52,10 @@ class Settings(BaseSettings):
     currency_api_key: Optional[str] = Field(
         default=None, description="Currency exchange API key"
     )
-    currency_api_url: str = Field(
-        default="https://api.exchangerate-api.com/v4/latest/USD",
-        description="Currency exchange API endpoint",
-    )
-    currency_cache_ttl: int = Field(
-        default=3600, description="Currency cache TTL in seconds (1 hour)"
-    )
 
     # Pagination defaults
     default_page_size: int = Field(default=20, description="Default items per page")
     max_page_size: int = Field(default=100, description="Maximum items per page")
-
-    # Server configuration
-    uvicorn_workers: int = Field(
-        default=4, description="Number of uvicorn worker processes"
-    )
-    uvicorn_limit_concurrency: int = Field(
-        default=1000, description="Maximum concurrent connections"
-    )
-    uvicorn_backlog: int = Field(default=2048, description="Maximum queued connections")
 
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"

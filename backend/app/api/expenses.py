@@ -24,6 +24,7 @@ from app.schemas.expense import (
     ExpenseListResponse,
     SplitResponse,
 )
+from app.services.exchange_rate import get_exchange_rate
 
 router = APIRouter()
 
@@ -61,40 +62,6 @@ async def check_trip_access(
         )
 
     return trip, member
-
-
-async def get_exchange_rate(from_currency: str, to_currency: str) -> Decimal:
-    """
-    Get exchange rate from one currency to another.
-    In a real app, this would call an external API.
-    For now, returns 1.0 if currencies are the same.
-    """
-    if from_currency == to_currency:
-        return Decimal("1.0")
-
-    # TODO: Implement real exchange rate API
-    # For now, use hardcoded rates (should be from an API like exchangerate-api.com)
-    # This is a simplified example
-    rates_to_usd = {
-        "USD": Decimal("1.0"),
-        "EUR": Decimal("1.18"),
-        "GBP": Decimal("1.37"),
-        "JPY": Decimal("0.0091"),
-        "CAD": Decimal("0.80"),
-        "AUD": Decimal("0.76"),
-        "CHF": Decimal("1.12"),
-        "CNY": Decimal("0.15"),
-        "INR": Decimal("0.013"),
-    }
-
-    # Convert through USD
-    if from_currency in rates_to_usd and to_currency in rates_to_usd:
-        rate_from = rates_to_usd[from_currency]
-        rate_to = rates_to_usd[to_currency]
-        return rate_to / rate_from
-
-    # Default to 1.0 if currencies not found
-    return Decimal("1.0")
 
 
 @router.post(

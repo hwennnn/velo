@@ -481,6 +481,7 @@ export default function TripDetail() {
         isOpen={showSettlementsModal}
         tripId={tripId!}
         currency={trip.base_currency}
+        members={trip.members}
         getMemberColor={(memberId) => {
           const index = trip.members?.findIndex(m => m.id === memberId) || 0;
           return getMemberColor(index);

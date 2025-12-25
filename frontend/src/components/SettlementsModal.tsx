@@ -4,16 +4,99 @@
  * Supports currency conversion for settlements and grouping by payer-payee pairs
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Check, CheckCircle2, ChevronDown, ChevronUp, Layers, RefreshCw, X } from 'lucide-react';
+import { ArrowRight, Check, CheckCircle2, ChevronDown, ChevronUp, Layers, RefreshCw, User, X } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { SUPPORTED_CURRENCIES } from '../config/currencies';
 import { useAlert } from '../contexts/AlertContext';
+import { useAuth } from '../hooks/useAuth';
 import { balanceKeys, useSettlements } from '../hooks/useBalances';
 import { calculateCrossRate, useExchangeRates } from '../hooks/useExchangeRates';
 import { api } from '../services/api';
-import type { GroupedSettlement, Settlement, SettlementInput } from '../types';
+import type { GroupedSettlement, Settlement, SettlementInput, TripMember } from '../types';
 import { groupSettlementsByPair } from '../utils/settlements';
 import { Shimmer } from './Shimmer';
+
+// Reusable component for individual settlement items
+interface SettlementCardProps {
+  settlement: Settlement;
+  group: GroupedSettlement;
+  recordingSettlements: Set<string>;
+  currency: string;
+  onRecordSettlement: (settlement: Settlement) => void;
+  onShowMergeModal: (group: GroupedSettlement, settlement: Settlement) => void;
+  showConfirm: (message: string, options?: { title?: string; confirmText?: string; cancelText?: string }) => Promise<boolean>;
+}
+
+const SettlementCard: React.FC<SettlementCardProps> = ({
+  settlement,
+  group,
+  recordingSettlements,
+  currency,
+  onRecordSettlement,
+  onShowMergeModal,
+  showConfirm,
+}) => {
+  const settlementKey = `${settlement.from_member_id}-${settlement.to_member_id}-${settlement.currency}`;
+  const isRecording = recordingSettlements.has(settlementKey);
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div className="text-lg font-bold text-gray-900">
+            {Number(settlement.amount).toFixed(2)}
+          </div>
+          <div className="text-sm text-gray-500">{settlement.currency}</div>
+        </div>
+        <button
+          onClick={() => onShowMergeModal(group, settlement)}
+          className={`text-xs font-medium flex items-center gap-1 transition-all ${
+            settlement.currency !== currency
+              ? 'text-white bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded-md shadow-sm'
+              : 'text-blue-600 hover:text-blue-700 bg-gray-100 px-2 py-1 rounded-md shadow-sm'
+          }`}
+          title={
+            settlement.currency !== currency
+              ? `Convert ${settlement.currency} to ${currency} for easier payment`
+              : 'Convert this debt to a different currency'
+          }
+        >
+          <RefreshCw className="w-3 h-3" />
+          <span>{ settlement.currency !== currency ? "Convert" : "Convert to different currency" }</span>
+        </button>
+      </div>
+      <button
+        onClick={async () => {
+          const confirmed = await showConfirm(
+            `Mark ${settlement.amount.toFixed(2)} ${settlement.currency} payment from ${settlement.from_nickname} to ${settlement.to_nickname} as paid?`,
+            {
+              title: 'Confirm Payment',
+              confirmText: 'Mark as Paid',
+              cancelText: 'Cancel'
+            }
+          );
+          if (confirmed) {
+            onRecordSettlement(settlement);
+          }
+        }}
+        disabled={isRecording}
+        className="w-full flex items-center justify-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
+      >
+        {isRecording ? (
+          <>
+            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            <span>Recording...</span>
+          </>
+        ) : (
+          <>
+            <Check className="w-4 h-4" />
+            <span>Mark as Paid</span>
+          </>
+        )}
+      </button>
+    </div>
+  );
+};
 
 
 interface SettlementsModalProps {
@@ -21,6 +104,7 @@ interface SettlementsModalProps {
   tripId: string;
   currency: string;
   getMemberColor: (memberId: number) => string;
+  members?: TripMember[];
   onClose: () => void;
 }
 
@@ -29,6 +113,7 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
   tripId,
   currency,
   getMemberColor,
+  members = [],
   onClose,
 }) => {
   // Fetch settlements only when modal is open
@@ -46,18 +131,33 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
   } | null>(null);
   const [mergeToCurrency, setMergeToCurrency] = useState<string>('');
   const [customConversionRate, setCustomConversionRate] = useState<string>('');
+  const [filterMyDebts, setFilterMyDebts] = useState(false);
   const queryClient = useQueryClient();
-  const { showAlert } = useAlert();
+  const { showAlert, showConfirm } = useAlert();
+  const { user } = useAuth();
 
   // Get exchange rates or use fallback (memoized to prevent re-renders)
   const exchangeRates = useMemo(() => {
     return exchangeRatesData?.rates || { [currency]: 1 };
   }, [exchangeRatesData?.rates, currency]);
 
+  // Get current user's member ID
+  const currentUserMemberId = useMemo(() => {
+    return members.find(m => m.user_id === user?.id)?.id;
+  }, [members, user?.id]);
+
+  // Filter settlements based on current user's debts
+  const filteredSettlements = useMemo(() => {
+    if (!filterMyDebts || !currentUserMemberId) {
+      return settlements;
+    }
+    return settlements.filter(s => s.from_member_id === currentUserMemberId);
+  }, [settlements, filterMyDebts, currentUserMemberId]);
+
   // Group settlements by payer-payee pairs
   const groupedSettlements = useMemo(() => {
-    return groupSettlementsByPair(settlements, currency, exchangeRates);
-  }, [settlements, currency, exchangeRates]);
+    return groupSettlementsByPair(filteredSettlements, currency, exchangeRates);
+  }, [filteredSettlements, currency, exchangeRates]);
 
   // Mutation for recording settlements
   const recordSettlementMutation = useMutation({
@@ -150,6 +250,19 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
   const handleMergeSettlement = async () => {
     if (!showMergeModal || !customConversionRate) return;
 
+    const confirmed = await showConfirm(
+      `Convert ${showMergeModal.settlement.amount.toFixed(2)} ${showMergeModal.settlement.currency} debt from ${showMergeModal.settlement.from_nickname} to ${showMergeModal.settlement.to_nickname}?`,
+      {
+        title: 'Convert Currency',
+        confirmText: 'Convert',
+        cancelText: 'Cancel'
+      }
+    );
+    
+    if (!confirmed) {
+      return;
+    }
+
     const { settlement } = showMergeModal;
     
     // Use the custom conversion rate (user can edit it)
@@ -215,29 +328,46 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
           
           {/* View Mode Toggle */}
           {settlements.length > 0 && (
-            <div className="flex gap-2">
-              <button
-                onClick={() => setViewMode('grouped')}
-                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  viewMode === 'grouped'
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                <Layers className="w-4 h-4" />
-                <span>Grouped</span>
-              </button>
-              <button
-                onClick={() => setViewMode('individual')}
-                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  viewMode === 'individual'
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                <span>Individual</span>
-              </button>
-            </div>
+            <>
+              <div className="flex gap-2 mb-2">
+                <button
+                  onClick={() => setViewMode('grouped')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    viewMode === 'grouped'
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <Layers className="w-4 h-4" />
+                  <span>Grouped</span>
+                </button>
+                <button
+                  onClick={() => setViewMode('individual')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    viewMode === 'individual'
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <span>Individual</span>
+                </button>
+              </div>
+              
+              {/* Filter Button */}
+              {currentUserMemberId && (
+                <button
+                  onClick={() => setFilterMyDebts(!filterMyDebts)}
+                  className={`w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    filterMyDebts
+                      ? 'bg-orange-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <User className="w-4 h-4" />
+                  <span>{filterMyDebts ? 'Showing My Debts' : 'Show My Debts Only'}</span>
+                </button>
+              )}
+            </>
           )}
         </div>
 
@@ -274,13 +404,24 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
             <h4 className="text-xl font-semibold text-gray-900 mb-2">All Balanced!</h4>
             <p className="text-gray-600">All expenses are settled. No payments needed.</p>
           </div>
+        ) : filteredSettlements.length === 0 && filterMyDebts ? (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-8 text-center">
+            <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
+            <h4 className="text-xl font-semibold text-gray-900 mb-2">You're All Set!</h4>
+            <p className="text-gray-600">You don't owe anyone. Great job staying on top of expenses!</p>
+          </div>
         ) : viewMode === 'grouped' ? (
           /* Grouped View */
           <div className="space-y-4">
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
               <p className="text-sm text-blue-900">
                 <strong>{groupedSettlements.length}</strong> payment pair{groupedSettlements.length !== 1 ? 's' : ''}{' '}
-                ({settlements.length} total transaction{settlements.length !== 1 ? 's' : ''})
+                ({filteredSettlements.length} total transaction{filteredSettlements.length !== 1 ? 's' : ''})
+                {filterMyDebts && currentUserMemberId && (
+                  <span className="block mt-1 text-orange-700 font-medium">
+                    Showing only payments you need to make
+                  </span>
+                )}
               </p>
             </div>
 
@@ -353,59 +494,19 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
 
                   {/* Expanded Details */}
                   {(isExpanded || !hasMultipleCurrencies) && (
-                    <div className="border-t border-gray-200 bg-gray-50">
-                      {group.settlements.map((settlement, idx) => {
-                        const settlementKey = `${settlement.from_member_id}-${settlement.to_member_id}-${settlement.currency}`;
-                        const isRecording = recordingSettlements.has(settlementKey);
-
-                        return (
-                          <div key={idx} className="p-4 border-b border-gray-200 last:border-b-0">
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-2">
-                                <div className="text-lg font-bold text-gray-900">
-                                  {Number(settlement.amount).toFixed(2)}
-                                </div>
-                                <div className="text-sm text-gray-500">{settlement.currency}</div>
-                              </div>
-                              {settlement.currency !== currency && (
-                                <button
-                                  onClick={() => handleShowMergeModal(group, settlement)}
-                                  className={`text-xs font-medium flex items-center gap-1 transition-all ${
-                                    settlement.currency !== currency
-                                      ? 'text-white bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded-md shadow-sm'
-                                      : 'text-blue-600 hover:text-blue-700'
-                                  }`}
-                                  title={
-                                    settlement.currency !== currency
-                                      ? `Convert ${settlement.currency} to ${currency} for easier payment`
-                                      : 'Convert this debt to a different currency'
-                                  }
-                                >
-                                  <RefreshCw className="w-3 h-3" />
-                                  <span>Convert</span>
-                                </button>
-                              )}
-                            </div>
-                            <button
-                              onClick={() => handleRecordSettlement(settlement)}
-                              disabled={isRecording}
-                              className="w-full flex items-center justify-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
-                            >
-                              {isRecording ? (
-                                <>
-                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                  <span>Recording...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Check className="w-4 h-4" />
-                                  <span>Mark as Paid</span>
-                                </>
-                              )}
-                            </button>
-                          </div>
-                        );
-                      })}
+                    <div className="border-t border-gray-200 bg-gray-50 p-4 space-y-4">
+                      {group.settlements.map((settlement, idx) => (
+                        <SettlementCard
+                          key={idx}
+                          settlement={settlement}
+                          group={group}
+                          recordingSettlements={recordingSettlements}
+                          currency={currency}
+                          onRecordSettlement={handleRecordSettlement}
+                          onShowMergeModal={handleShowMergeModal}
+                          showConfirm={showConfirm}
+                        />
+                      ))}
                     </div>
                   )}
                 </div>
@@ -417,106 +518,38 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
           <div className="space-y-4">
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
               <p className="text-sm text-blue-900">
-                <strong>{settlements.length}</strong> payment{settlements.length !== 1 ? 's' : ''}{' '}
+                <strong>{filteredSettlements.length}</strong> payment{filteredSettlements.length !== 1 ? 's' : ''}{' '}
                 needed to settle all expenses
+                {filterMyDebts && currentUserMemberId && (
+                  <span className="block mt-1 text-orange-700 font-medium">
+                    Showing only payments you need to make
+                  </span>
+                )}
               </p>
             </div>
 
-            {settlements.map((settlement, index) => {
-              const fromColor = getMemberColor(settlement.from_member_id);
-              const toColor = getMemberColor(settlement.to_member_id);
-              const settlementKey = `${settlement.from_member_id}-${settlement.to_member_id}-${settlement.currency}`;
-              const isRecording = recordingSettlements.has(settlementKey);
-              
+            {filteredSettlements.map((settlement, index) => {
+              // Create a temporary group for this single settlement
+              const tempGroup: GroupedSettlement = {
+                from_member_id: settlement.from_member_id,
+                to_member_id: settlement.to_member_id,
+                from_nickname: settlement.from_nickname,
+                to_nickname: settlement.to_nickname,
+                settlements: [settlement],
+                total_in_base: 0,
+              };
+
               return (
-                <div
+                <SettlementCard
                   key={index}
-                  className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow"
-                >
-                  <div className="flex items-center gap-3">
-                    {/* From Member */}
-                    <div className="flex items-center gap-2 flex-1">
-                      <div className={`w-10 h-10 rounded-full ${fromColor} flex items-center justify-center`}>
-                        <span className="text-white font-semibold text-sm">
-                          {settlement.from_nickname.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                      <span className="font-medium text-gray-900 text-sm">{settlement.from_nickname}</span>
-                    </div>
-
-                    {/* Arrow and Amount */}
-                    <div className="flex flex-col items-center gap-1">
-                      <ArrowRight className="w-5 h-5 text-primary-600" />
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-gray-900">
-                          {Number(settlement.amount).toFixed(2)}
-                        </div>
-                        <div className="text-xs text-gray-500">{settlement.currency}</div>
-                      </div>
-                    </div>
-
-                    {/* To Member */}
-                    <div className="flex items-center gap-2 flex-1 justify-end">
-                      <span className="font-medium text-gray-900 text-sm">{settlement.to_nickname}</span>
-                      <div className={`w-10 h-10 rounded-full ${toColor} flex items-center justify-center`}>
-                        <span className="text-white font-semibold text-sm">
-                          {settlement.to_nickname.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Payment Instructions and Record Button */}
-                  <div className="mt-3 pt-3 border-t border-gray-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm text-gray-600">
-                        <strong>{settlement.from_nickname}</strong> pays{' '}
-                        <strong>{settlement.to_nickname}</strong>{' '}
-                        <strong className="text-primary-600">
-                          {Number(settlement.amount).toFixed(2)} {settlement.currency}
-                        </strong>
-                      </p>
-                      {settlement.currency !== currency && (
-                        <button
-                          onClick={() => {
-                            // Create a temporary group for this single settlement
-                            const tempGroup: GroupedSettlement = {
-                              from_member_id: settlement.from_member_id,
-                              to_member_id: settlement.to_member_id,
-                              from_nickname: settlement.from_nickname,
-                              to_nickname: settlement.to_nickname,
-                              settlements: [settlement],
-                              total_in_base: 0,
-                            };
-                            handleShowMergeModal(tempGroup, settlement);
-                          }}
-                          className="text-xs font-medium flex items-center gap-1 transition-all text-white bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded-md shadow-sm"
-                          title={`Convert ${settlement.currency} to ${currency} for easier payment`}
-                        >
-                          <RefreshCw className="w-3 h-3" />
-                          <span>Convert</span>
-                        </button>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => handleRecordSettlement(settlement)}
-                      disabled={isRecording}
-                      className="w-full flex items-center justify-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
-                    >
-                      {isRecording ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          <span>Recording...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Check className="w-4 h-4" />
-                          <span>Mark as Paid</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
+                  settlement={settlement}
+                  group={tempGroup}
+                  recordingSettlements={recordingSettlements}
+                  currency={currency}
+                  onRecordSettlement={handleRecordSettlement}
+                  onShowMergeModal={handleShowMergeModal}
+                  showConfirm={showConfirm}
+                />
               );
             })}
           </div>

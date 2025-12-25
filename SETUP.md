@@ -345,12 +345,11 @@ npm run dev
 
 Once setup is complete, you can:
 
-1. ✅ Create trips with the modal
-2. ✅ View trip list
-3. ✅ View trip details with members
-4. 🚧 Add members (coming in Increment 2)
-5. 🚧 Add expenses (coming in Increment 2)
-6. 🚧 View balances and settlements (coming in Increment 2)
+1. ✅ Create and manage trips
+2. ✅ Add real users or fictional members to trips
+3. ✅ Track expenses with multi-currency support
+4. ✅ View balances and optimal settlement plans
+5. ✅ Record settlements between members
 
 ## Production Deployment
 

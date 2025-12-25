@@ -210,14 +210,15 @@ Make sure you've created `.env.local` and added your Supabase credentials.
 2. Check `VITE_API_BASE_URL` matches your backend URL
 3. Verify CORS is properly configured in backend
 
-## Next Steps
+## Features Implemented
 
-- [ ] Implement trip management UI
-- [ ] Add expense entry forms
-- [ ] Create balances and settlement views
-- [ ] Add member management
-- [ ] Implement offline support
-- [ ] Add push notifications
+- ✅ **Trip Management** - Create, view, and manage trips
+- ✅ **Member Management** - Add real users or fictional members, claim later
+- ✅ **Expense Tracking** - Multi-currency expenses with flexible splitting
+- ✅ **Balance Calculations** - Real-time balance tracking per currency
+- ✅ **Settlement System** - Optimal settlement plans and payment recording
+- ✅ **Responsive Design** - Mobile-first with desktop container
+- ✅ **OAuth Authentication** - Google & GitHub sign-in
 
 ## License
 

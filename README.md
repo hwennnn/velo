@@ -1,213 +1,103 @@
-# Velo - Travel Expense Tracker 🚀
+# Velo
 
-**Velo** (meaning "fast") is a mobile-first travel expense tracker with multi-currency support, fictional member placeholders, and optimal debt settlement algorithms.
+A travel expense tracking application built with React and FastAPI, featuring multi-currency support and automated debt settlement calculations.
 
-## 🎯 Features
+## Features
 
-- 📱 **Mobile-First Design** - Fixed mobile container on all screen sizes
-- 🔐 **OAuth Authentication** - Google & GitHub sign-in via Supabase
-- 💱 **Multi-Currency Support** - Track expenses in any currency
-- 👥 **Fictional Members** - Add members before they join, claim later
-- 🧮 **Smart Debt Settlement** - Optimal payment calculation algorithm
-- ⚡ **Fast & Modern** - React + FastAPI + PostgreSQL stack
+- Multi-currency expense tracking with real-time exchange rates
+- Fictional member management (add members before they join)
+- Optimal debt settlement algorithms
+- Mobile-first responsive design
+- OAuth authentication (Google, GitHub) via Supabase
 
-## 📁 Project Structure
-
-```
-velo/
-├── backend/          # FastAPI + SQLModel + PostgreSQL
-│   ├── app/
-│   │   ├── core/         # Config & database
-│   │   ├── models/       # Database models
-│   │   ├── api/          # API routes
-│   │   └── services/     # Business logic
-│   ├── tests/            # Pytest tests
-│   └── requirements.txt
-│
-├── frontend/         # React + TypeScript + Tailwind
-│   ├── src/
-│   │   ├── components/   # UI components
-│   │   ├── pages/        # Page components
-│   │   ├── services/     # API & Supabase clients
-│   │   ├── hooks/        # Custom hooks (useAuth)
-│   │   └── types/        # TypeScript definitions
-│   └── package.json
-│
-└── README.md        # This file
-```
-
-## 🚀 Quick Start
+## Installation
 
 ### Prerequisites
 
-- **Backend**: Python 3.11+, PostgreSQL (or use SQLite for local dev)
-- **Frontend**: Node.js 18+, npm
-- **Supabase Account**: https://app.supabase.com (for authentication)
+- Python 3.11+
+- Node.js 18+
+- Supabase account
 
-### 1. Backend Setup
+### Setup
+
+1. Clone the repository
+2. Configure Supabase project with OAuth providers
+3. Set up environment variables
+4. Run the applications
 
 ```bash
+# Backend
 cd backend
+cp .env.example .env  # Set up your environment variables
+./start.sh
 
-# Run setup script
-./setup.sh
-
-# Or manually:
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your credentials
-
-# Run the server
-python app/main.py
-# Backend available at http://localhost:8000
-```
-
-The backend comes pre-configured with SQLite for local development. See `backend/README.md` for PostgreSQL/Supabase setup.
-
-### 2. Frontend Setup
-
-```bash
+# Frontend
 cd frontend
-
-# Run setup script
-./setup.sh
-
-# Or manually:
+cp .env.example .env.local  # Set up your environment variables
 npm install
-
-# Configure environment
-cp .env.example .env.local
-# Edit .env.local with your Supabase credentials
-
-# Run the dev server
 npm run dev
-# Frontend available at http://localhost:5173
 ```
 
-### 3. Configure Supabase
-
-1. Create a project at https://app.supabase.com
-2. Enable OAuth providers (Google & GitHub):
-   - Go to **Authentication** → **Providers**
-   - Enable and configure each provider
-3. Set up redirect URLs:
-   - Site URL: `http://localhost:5173`
-   - Redirect URLs: `http://localhost:5173/auth/callback`
-4. Copy credentials to frontend `.env.local`
-
-## 🏗️ Tech Stack
+## Tech Stack
 
 ### Backend
 
-- **FastAPI** - Modern Python web framework
-- **SQLModel** - SQL ORM with Pydantic validation
-- **PostgreSQL / SQLite** - Database
-- **Supabase Auth** - JWT verification
-- **Pytest** - Testing framework
+- FastAPI
+- SQLModel
+- PostgreSQL/SQLite
+- Supabase (auth & database)
+- Pytest
 
 ### Frontend
 
-- **React 19** - UI library
-- **TypeScript** - Type safety
-- **Vite** - Build tool
-- **Tailwind CSS** - Styling
-- **React Router** - Routing
-- **Supabase** - Authentication
-- **Axios** - HTTP client
-- **Zustand** - State management
-- **Lucide React** - Icons
+- React 19
+- TypeScript
+- Vite
+- Tailwind CSS
+- React Router
+- Supabase
+- Axios
+- Zustand
 
-## 📱 Mobile-First Design
+## Architecture
 
-The app uses a **MobileContainer** component that:
+### Mobile-First Design
 
-- Shows a **centered phone container** (max-width: 28rem) on desktop
-- Uses **full screen width** on mobile devices
-- Has **rounded corners and shadow** on desktop
-- Supports **safe area insets** for iOS notches
-- Provides a **native app feel** across all devices
+Uses a responsive container component that:
 
-## 🔐 Authentication Flow
+- Centers content with max-width on desktop (28rem)
+- Uses full viewport width on mobile
+- Includes safe area insets for notched devices
+- Maintains consistent touch targets (44px minimum)
 
-1. User signs in with Google or GitHub OAuth
-2. Supabase handles authentication
-3. JWT token stored in localStorage
-4. Token automatically attached to backend API requests
-5. Backend verifies token with Supabase
-6. Protected routes require valid session
+### Authentication
 
-## 📚 Documentation
+- OAuth integration with Google and GitHub via Supabase
+- JWT tokens stored in localStorage
+- Automatic token refresh and API request headers
+- Route protection with redirect to login on unauthorized access
 
-- [Backend Documentation](./backend/README.md) - API setup, database, testing
-- [Frontend Documentation](./frontend/README.md) - React app, components, routing
+## Documentation
 
-## 🧪 Testing
+- [Backend](./backend/README.md) - API endpoints, database schema, migrations
+- [Frontend](./frontend/README.md) - Component architecture, routing, state management
+- [Setup Guide](./SETUP.md) - Detailed installation and configuration
+- [Deployment](./DEPLOYMENT_GUIDE.md) - Production deployment options
 
-### Backend Tests
+## Testing
 
 ```bash
-cd backend
-pytest
-pytest --cov=app --cov-report=html
+# Backend tests
+cd backend && pytest
+
+# Frontend tests (planned)
+cd frontend && npm test
 ```
 
-### Frontend Tests
+## Deployment
 
-```bash
-cd frontend
-npm run test  # Coming soon
-```
+See [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) for production deployment guides.
 
-## 🐳 Docker Deployment
-
-```bash
-# Coming soon
-docker-compose up -d
-```
-
-## 🗺️ Roadmap
-
-### ✅ Completed (Increment 1)
-
-- [x] Backend setup with FastAPI
-- [x] Frontend setup with React
-- [x] Supabase authentication (Google & GitHub)
-- [x] Mobile-first container layout
-- [x] API client and backend integration
-- [x] **Database models (Users, Trips, Members, Expenses, Splits)**
-- [x] **Trip management UI & API (Create, List, View)**
-- [x] **Beautiful animated trip creation modal**
-- [x] **Trip detail page with member display**
-
-### 🚧 In Progress (Increment 2)
-
-- [ ] Member management API (add/remove/claim fictional)
-- [ ] Add member modal UI
-- [ ] Expense entry API with multi-currency
-- [ ] Expense creation form UI
-- [ ] Expense list page with filters
-
-### 📋 Upcoming
-
-- [ ] Balance calculation engine
-- [ ] Optimal settlement algorithm
-- [ ] Settlement UI
-- [ ] Currency exchange rate integration
-- [ ] Testing suite
-- [ ] Docker deployment
-
-## 📄 License
+## License
 
 MIT
-
-## 🤝 Contributing
-
-Contributions welcome! Please read the documentation and submit PRs.
-
----
-
-Built with ❤️ for travelers who want to split expenses easily.

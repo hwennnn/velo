@@ -1,11 +1,13 @@
 """
 Authentication and authorization utilities
 """
+
 from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
-from sqlmodel import Session, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
 
 from app.core.config import settings
 from app.core.database import get_session
@@ -39,7 +41,7 @@ async def get_current_user_id(
             settings.jwt_secret,
             algorithms=[settings.jwt_algorithm],
             # Supabase tokens don't always have aud
-            options={"verify_aud": False}
+            options={"verify_aud": False},
         )
 
         user_id: Optional[str] = payload.get("sub")
@@ -60,7 +62,7 @@ async def get_current_user_id(
 
 async def get_current_user(
     user_id: str = Depends(get_current_user_id),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_session),
 ) -> User:
     """
     Get the current authenticated user from database.
@@ -78,7 +80,8 @@ async def get_current_user(
     """
     # Try to get existing user
     statement = select(User).where(User.id == user_id)
-    user = session.exec(statement).first()
+    result = await session.execute(statement)
+    user = result.scalar_one_or_none()
 
     if user:
         return user
@@ -91,10 +94,10 @@ async def get_current_user(
     )
 
 
-def create_user_if_not_exists(
+async def create_user_if_not_exists(
     user_id: str,
     email: str,
-    session: Session,
+    session: AsyncSession,
 ) -> User:
     """
     Create user record if it doesn't exist.
@@ -109,7 +112,8 @@ def create_user_if_not_exists(
         User model instance (existing or newly created)
     """
     statement = select(User).where(User.id == user_id)
-    user = session.exec(statement).first()
+    result = await session.execute(statement)
+    user = result.scalar_one_or_none()
 
     if user:
         return user
@@ -121,7 +125,7 @@ def create_user_if_not_exists(
         display_name=email.split("@")[0],  # Default display name from email
     )
     session.add(user)
-    session.commit()
-    session.refresh(user)
+    await session.commit()
+    await session.refresh(user)
 
     return user

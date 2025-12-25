@@ -1,12 +1,14 @@
 """
 Expense API endpoints for expense tracking
 """
+
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 import random
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlmodel import Session, select, func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select, func
 
 from app.core.auth import get_current_user
 from app.core.database import get_session
@@ -26,10 +28,10 @@ from app.schemas.expense import (
 router = APIRouter()
 
 
-def check_trip_access(
+async def check_trip_access(
     trip_id: int,
     user: User,
-    session: Session,
+    session: AsyncSession,
 ) -> tuple[Trip, TripMember]:
     """
     Check if user has access to trip.
@@ -37,7 +39,7 @@ def check_trip_access(
     Raises HTTPException if not.
     """
     # Check if trip exists
-    trip = session.get(Trip, trip_id)
+    trip = await session.get(Trip, trip_id)
     if not trip or trip.is_deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -49,7 +51,8 @@ def check_trip_access(
         TripMember.trip_id == trip_id,
         TripMember.user_id == user.id,
     )
-    member = session.exec(member_statement).first()
+    result = await session.execute(member_statement)
+    member = result.scalar_one_or_none()
 
     if not member:
         raise HTTPException(
@@ -94,22 +97,26 @@ async def get_exchange_rate(from_currency: str, to_currency: str) -> Decimal:
     return Decimal("1.0")
 
 
-@router.post("/trips/{trip_id}/expenses", response_model=ExpenseResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/trips/{trip_id}/expenses",
+    response_model=ExpenseResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_expense(
     trip_id: int,
     expense_data: ExpenseCreate,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_session),
 ) -> ExpenseResponse:
     """
     Create a new expense in a trip.
     User must be a member of the trip.
     """
     # Check access
-    trip, _ = check_trip_access(trip_id, current_user, session)
+    trip, _ = await check_trip_access(trip_id, current_user, session)
 
     # Verify paid_by_member exists and belongs to this trip
-    paid_by_member = session.get(TripMember, expense_data.paid_by_member_id)
+    paid_by_member = await session.get(TripMember, expense_data.paid_by_member_id)
     if not paid_by_member or paid_by_member.trip_id != trip_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -135,8 +142,8 @@ async def create_expense(
     )
 
     session.add(expense)
-    session.commit()
-    session.refresh(expense)
+    await session.commit()
+    await session.refresh(expense)
 
     # Calculate amount in base currency
     amount_in_base = expense.amount * exchange_rate
@@ -150,36 +157,36 @@ async def create_expense(
             member_ids = [split.member_id for split in expense_data.splits]
         else:
             # Fallback: Get all trip members
-            members_statement = select(TripMember).where(
-                TripMember.trip_id == trip_id)
-            members = session.exec(members_statement).all()
+            members_statement = select(TripMember).where(TripMember.trip_id == trip_id)
+            result = await session.execute(members_statement)
+            members = result.scalars().all()
             member_ids = [member.id for member in members]
 
         # Calculate equal splits with rounding fix
         num_members = len(member_ids)
-        split_amount = (amount_in_base / num_members).quantize(Decimal('0.01'))
-        split_percentage = (Decimal("100.0") /
-                            num_members).quantize(Decimal('0.01'))
+        split_amount = (amount_in_base / num_members).quantize(Decimal("0.01"))
+        split_percentage = (Decimal("100.0") / num_members).quantize(Decimal("0.01"))
 
         # Calculate total and remainder
         total_split = split_amount * num_members
         remainder = amount_in_base - total_split
 
         # Assign remainder to a random member
-        lucky_index = random.randint(
-            0, num_members - 1) if remainder != 0 else -1
+        lucky_index = random.randint(0, num_members - 1) if remainder != 0 else -1
 
         for idx, member_id in enumerate(member_ids):
             amount = split_amount
             if idx == lucky_index:
                 amount += remainder
 
-            splits_to_create.append(Split(
-                expense_id=expense.id,
-                member_id=member_id,
-                amount=amount,
-                percentage=split_percentage,
-            ))
+            splits_to_create.append(
+                Split(
+                    expense_id=expense.id,
+                    member_id=member_id,
+                    amount=amount,
+                    percentage=split_percentage,
+                )
+            )
 
     elif expense_data.split_type == "percentage":
         # Calculate splits with rounding fix
@@ -187,30 +194,35 @@ async def create_expense(
         lucky_index = random.randint(0, len(expense_data.splits) - 1)
 
         for idx, split_data in enumerate(expense_data.splits):
-            split_amount = (
-                amount_in_base * (split_data.percentage / 100)).quantize(Decimal('0.01'))
+            split_amount = (amount_in_base * (split_data.percentage / 100)).quantize(
+                Decimal("0.01")
+            )
             total_assigned += split_amount
 
-            splits_to_create.append({
-                'member_id': split_data.member_id,
-                'amount': split_amount,
-                'percentage': split_data.percentage,
-                'index': idx
-            })
+            splits_to_create.append(
+                {
+                    "member_id": split_data.member_id,
+                    "amount": split_amount,
+                    "percentage": split_data.percentage,
+                    "index": idx,
+                }
+            )
 
         # Assign remainder to random member
         remainder = amount_in_base - total_assigned
         if remainder != 0:
-            splits_to_create[lucky_index]['amount'] += remainder
+            splits_to_create[lucky_index]["amount"] += remainder
 
         # Create split objects
         for split_data in splits_to_create:
-            session.add(Split(
-                expense_id=expense.id,
-                member_id=split_data['member_id'],
-                amount=split_data['amount'],
-                percentage=split_data['percentage'],
-            ))
+            session.add(
+                Split(
+                    expense_id=expense.id,
+                    member_id=split_data["member_id"],
+                    amount=split_data["amount"],
+                    percentage=split_data["percentage"],
+                )
+            )
         splits_to_create = []  # Clear since we already added them
 
     elif expense_data.split_type == "custom":
@@ -219,70 +231,81 @@ async def create_expense(
         lucky_index = random.randint(0, len(expense_data.splits) - 1)
 
         for idx, split_data in enumerate(expense_data.splits):
-            split_amount_in_base = (
-                split_data.amount * exchange_rate).quantize(Decimal('0.01'))
-            split_percentage = (
-                (split_amount_in_base / amount_in_base) * 100).quantize(Decimal('0.01'))
+            split_amount_in_base = (split_data.amount * exchange_rate).quantize(
+                Decimal("0.01")
+            )
+            split_percentage = ((split_amount_in_base / amount_in_base) * 100).quantize(
+                Decimal("0.01")
+            )
             total_assigned += split_amount_in_base
 
-            splits_to_create.append({
-                'member_id': split_data.member_id,
-                'amount': split_amount_in_base,
-                'percentage': split_percentage,
-                'index': idx
-            })
+            splits_to_create.append(
+                {
+                    "member_id": split_data.member_id,
+                    "amount": split_amount_in_base,
+                    "percentage": split_percentage,
+                    "index": idx,
+                }
+            )
 
         # Assign remainder to random member
         remainder = amount_in_base - total_assigned
         if remainder != 0:
-            splits_to_create[lucky_index]['amount'] += remainder
+            splits_to_create[lucky_index]["amount"] += remainder
 
         # Create split objects
         for split_data in splits_to_create:
-            session.add(Split(
-                expense_id=expense.id,
-                member_id=split_data['member_id'],
-                amount=split_data['amount'],
-                percentage=split_data['percentage'],
-            ))
+            session.add(
+                Split(
+                    expense_id=expense.id,
+                    member_id=split_data["member_id"],
+                    amount=split_data["amount"],
+                    percentage=split_data["percentage"],
+                )
+            )
         splits_to_create = []  # Clear since we already added them
 
     # Add remaining splits (for equal type)
     for split in splits_to_create:
         session.add(split)
 
-    session.commit()
+    await session.commit()
 
     # Update trip metadata
     trip.total_spent += amount_in_base
     trip.expense_count += 1
     trip.updated_at = datetime.utcnow()
     session.add(trip)
-    session.commit()
+    await session.commit()
 
     # Build response
     return await get_expense_response(expense, session)
 
 
-async def get_expense_response(expense: Expense, session: Session) -> ExpenseResponse:
+async def get_expense_response(
+    expense: Expense, session: AsyncSession
+) -> ExpenseResponse:
     """Build expense response with splits"""
     # Get paid by member
-    paid_by_member = session.get(TripMember, expense.paid_by_member_id)
+    paid_by_member = await session.get(TripMember, expense.paid_by_member_id)
 
     # Get splits
     splits_statement = select(Split).where(Split.expense_id == expense.id)
-    splits = session.exec(splits_statement).all()
+    result = await session.execute(splits_statement)
+    splits = result.scalars().all()
 
     split_responses = []
     for split in splits:
-        member = session.get(TripMember, split.member_id)
-        split_responses.append(SplitResponse(
-            id=split.id,
-            member_id=split.member_id,
-            member_nickname=member.nickname if member else "Unknown",
-            amount=split.amount,
-            percentage=split.percentage,
-        ))
+        member = await session.get(TripMember, split.member_id)
+        split_responses.append(
+            SplitResponse(
+                id=split.id,
+                member_id=split.member_id,
+                member_nickname=member.nickname if member else "Unknown",
+                amount=split.amount,
+                percentage=split.percentage,
+            )
+        )
 
     return ExpenseResponse(
         id=expense.id,
@@ -307,21 +330,20 @@ async def get_expense_response(expense: Expense, session: Session) -> ExpenseRes
 async def list_expenses(
     trip_id: int,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_session),
     page: int = Query(default=1, ge=1, description="Page number"),
-    page_size: int = Query(default=20, ge=1, le=100,
-                           description="Items per page"),
-    category: Optional[str] = Query(
-        default=None, description="Filter by category"),
+    page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
+    category: Optional[str] = Query(default=None, description="Filter by category"),
     paid_by_member_id: Optional[int] = Query(
-        default=None, description="Filter by payer"),
+        default=None, description="Filter by payer"
+    ),
 ) -> ExpenseListResponse:
     """
     List expenses for a trip with optional filters.
     User must be a member of the trip.
     """
     # Check access
-    check_trip_access(trip_id, current_user, session)
+    await check_trip_access(trip_id, current_user, session)
 
     # Build query
     statement = select(Expense).where(Expense.trip_id == trip_id)
@@ -330,29 +352,28 @@ async def list_expenses(
         statement = statement.where(Expense.category == category.lower())
 
     if paid_by_member_id:
-        statement = statement.where(
-            Expense.paid_by_member_id == paid_by_member_id)
+        statement = statement.where(Expense.paid_by_member_id == paid_by_member_id)
 
     # Order by date descending
-    statement = statement.order_by(
-        Expense.expense_date.desc(), Expense.id.desc())
+    statement = statement.order_by(Expense.expense_date.desc(), Expense.id.desc())
 
     # Get total count
-    count_statement = select(func.count(Expense.id)).where(
-        Expense.trip_id == trip_id)
+    count_statement = select(func.count(Expense.id)).where(Expense.trip_id == trip_id)
     if category:
-        count_statement = count_statement.where(
-            Expense.category == category.lower())
+        count_statement = count_statement.where(Expense.category == category.lower())
     if paid_by_member_id:
         count_statement = count_statement.where(
-            Expense.paid_by_member_id == paid_by_member_id)
+            Expense.paid_by_member_id == paid_by_member_id
+        )
 
-    total = session.exec(count_statement).one()
+    result = await session.execute(count_statement)
+    total = result.scalar_one()
 
     # Apply pagination
     statement = statement.offset((page - 1) * page_size).limit(page_size)
 
-    expenses = session.exec(statement).all()
+    result = await session.execute(statement)
+    expenses = result.scalars().all()
 
     # Build responses
     expense_responses = []
@@ -373,17 +394,17 @@ async def get_expense(
     trip_id: int,
     expense_id: int,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_session),
 ) -> ExpenseResponse:
     """
     Get a specific expense.
     User must be a member of the trip.
     """
     # Check access
-    check_trip_access(trip_id, current_user, session)
+    await check_trip_access(trip_id, current_user, session)
 
     # Get expense
-    expense = session.get(Expense, expense_id)
+    expense = await session.get(Expense, expense_id)
     if not expense or expense.trip_id != trip_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -399,7 +420,7 @@ async def update_expense(
     expense_id: int,
     expense_data: ExpenseUpdate,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_session),
 ) -> ExpenseResponse:
     """
     Update an expense.
@@ -407,10 +428,10 @@ async def update_expense(
     Note: This does not update splits. Delete and recreate if splits need to change.
     """
     # Check access
-    check_trip_access(trip_id, current_user, session)
+    await check_trip_access(trip_id, current_user, session)
 
     # Get expense
-    expense = session.get(Expense, expense_id)
+    expense = await session.get(Expense, expense_id)
     if not expense or expense.trip_id != trip_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -429,8 +450,10 @@ async def update_expense(
 
     # If currency changed, update exchange rate
     if "currency" in update_data:
-        trip = session.get(Trip, trip_id)
-        exchange_rate = await get_exchange_rate(update_data["currency"], trip.base_currency)
+        trip = await session.get(Trip, trip_id)
+        exchange_rate = await get_exchange_rate(
+            update_data["currency"], trip.base_currency
+        )
         expense.exchange_rate_to_base = exchange_rate
 
     for field, value in update_data.items():
@@ -439,28 +462,30 @@ async def update_expense(
     expense.updated_at = datetime.utcnow()
 
     session.add(expense)
-    session.commit()
-    session.refresh(expense)
+    await session.commit()
+    await session.refresh(expense)
 
     return await get_expense_response(expense, session)
 
 
-@router.delete("/trips/{trip_id}/expenses/{expense_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/trips/{trip_id}/expenses/{expense_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 async def delete_expense(
     trip_id: int,
     expense_id: int,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_session),
 ) -> None:
     """
     Delete an expense and all its splits.
     Only the creator or trip admins can delete an expense.
     """
     # Check access and get member info
-    trip, member = check_trip_access(trip_id, current_user, session)
+    trip, member = await check_trip_access(trip_id, current_user, session)
 
     # Get expense
-    expense = session.get(Expense, expense_id)
+    expense = await session.get(Expense, expense_id)
     if not expense or expense.trip_id != trip_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -479,12 +504,13 @@ async def delete_expense(
 
     # Delete all splits first (will cascade with new migration)
     splits_statement = select(Split).where(Split.expense_id == expense.id)
-    splits = session.exec(splits_statement).all()
+    result = await session.execute(splits_statement)
+    splits = result.scalars().all()
     for split in splits:
-        session.delete(split)
+        await session.delete(split)
 
     # Delete expense
-    session.delete(expense)
+    await session.delete(expense)
 
     # Update trip metadata
     trip.total_spent -= amount_in_base
@@ -492,4 +518,4 @@ async def delete_expense(
     trip.updated_at = datetime.utcnow()
     session.add(trip)
 
-    session.commit()
+    await session.commit()

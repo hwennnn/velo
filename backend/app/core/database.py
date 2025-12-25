@@ -1,62 +1,75 @@
 """
-Database connection and session management using SQLModel.
+Database connection and session management using SQLModel with async support.
 """
-from typing import Generator
-from sqlmodel import create_engine, Session, SQLModel
-from sqlalchemy.pool import QueuePool
+
+from typing import AsyncGenerator
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlmodel import SQLModel
+from sqlalchemy.pool import NullPool
 from app.core.config import settings
 
 
-# Create database engine with connection pooling
-engine = create_engine(
-    settings.database_url,
+# Create async database engine
+# Note: Use postgresql+asyncpg:// for async connections
+async_database_url = settings.database_url.replace(
+    "postgresql://", "postgresql+asyncpg://"
+).replace("postgresql+psycopg2://", "postgresql+asyncpg://")
+
+engine = create_async_engine(
+    async_database_url,
     echo=settings.db_echo,
-    poolclass=QueuePool,
-    pool_size=settings.db_pool_size,
-    max_overflow=settings.db_max_overflow,
-    pool_pre_ping=True,  # Verify connections before using them
-    pool_recycle=3600,   # Recycle connections after 1 hour
+    poolclass=NullPool if settings.database_url.startswith("sqlite") else None,
+    pool_pre_ping=True,
+    pool_size=(
+        settings.db_pool_size
+        if not settings.database_url.startswith("sqlite")
+        else None
+    ),
+    max_overflow=(
+        settings.db_max_overflow
+        if not settings.database_url.startswith("sqlite")
+        else None
+    ),
+)
+
+# Create async session factory
+async_session_maker = async_sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
 )
 
 
-def create_db_and_tables() -> None:
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """
-    Create all database tables.
-    This is typically used in development or for initial setup.
-    In production, use Alembic migrations instead.
-    """
-    SQLModel.metadata.create_all(engine)
-
-
-def get_session() -> Generator[Session, None, None]:
-    """
-    Dependency function to get a database session.
+    Dependency function to get an async database session.
 
     Usage in FastAPI routes:
         @app.get("/items")
-        def get_items(session: Session = Depends(get_session)):
-            # Use session here
-            pass
+        async def get_items(session: AsyncSession = Depends(get_session)):
+            result = await session.execute(select(Item))
+            items = result.scalars().all()
+            return items
 
     Yields:
-        Session: SQLModel database session
+        AsyncSession: SQLAlchemy async database session
     """
-    with Session(engine) as session:
+    async with async_session_maker() as session:
         try:
             yield session
+            await session.commit()
         except Exception:
-            session.rollback()
+            await session.rollback()
             raise
         finally:
-            session.close()
+            await session.close()
 
 
-def init_db() -> None:
+async def init_db() -> None:
     """
     Initialize database on application startup.
 
     IMPORTANT: In production, use Alembic migrations instead of auto-creating tables.
-    The create_db_and_tables() approach is only for quick local SQLite development.
 
     For Supabase PostgreSQL:
     1. Generate migration: alembic revision --autogenerate -m "description"
@@ -70,11 +83,7 @@ def init_db() -> None:
     from app.models.expense import Expense
     from app.models.split import Split
 
-    # Only auto-create tables for local SQLite development
-    if settings.is_development and settings.database_url.startswith("sqlite"):
-        print("⚠️  Auto-creating tables (SQLite development mode)")
-        create_db_and_tables()
-    elif settings.is_development:
+    if settings.is_development:
         print("ℹ️  Using PostgreSQL - please run Alembic migrations")
     else:
         print("✓ Production mode - ensure Alembic migrations are up to date")

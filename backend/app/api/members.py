@@ -1,10 +1,12 @@
 """
 Member API endpoints for trip member management
 """
+
 from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
 
 from app.core.auth import get_current_user
 from app.core.database import get_session
@@ -24,7 +26,9 @@ from app.schemas.member import (
 router = APIRouter()
 
 
-def build_member_response(member: TripMember, session: Session) -> MemberResponse:
+async def build_member_response(
+    member: TripMember, session: AsyncSession
+) -> MemberResponse:
     """
     Build a MemberResponse with user details if the member has a user_id.
     """
@@ -39,7 +43,7 @@ def build_member_response(member: TripMember, session: Session) -> MemberRespons
 
     # Add user details if real member
     if member.user_id:
-        user = session.get(User, member.user_id)
+        user = await session.get(User, member.user_id)
         if user:
             response.email = user.email
             response.display_name = user.display_name
@@ -48,11 +52,8 @@ def build_member_response(member: TripMember, session: Session) -> MemberRespons
     return response
 
 
-def check_trip_access(
-    trip_id: int,
-    user: User,
-    session: Session,
-    require_admin: bool = False
+async def check_trip_access(
+    trip_id: int, user: User, session: AsyncSession, require_admin: bool = False
 ) -> tuple[Trip, TripMember]:
     """
     Check if user has access to trip.
@@ -60,7 +61,7 @@ def check_trip_access(
     Raises HTTPException if not.
     """
     # Check if trip exists
-    trip = session.get(Trip, trip_id)
+    trip = await session.get(Trip, trip_id)
     if not trip or trip.is_deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -72,7 +73,8 @@ def check_trip_access(
         TripMember.trip_id == trip_id,
         TripMember.user_id == user.id,
     )
-    member = session.exec(member_statement).first()
+    result = await session.execute(member_statement)
+    member = result.scalar_one_or_none()
 
     if not member:
         raise HTTPException(
@@ -90,12 +92,16 @@ def check_trip_access(
     return trip, member
 
 
-@router.post("/trips/{trip_id}/members", response_model=MemberResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/trips/{trip_id}/members",
+    response_model=MemberResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def add_member(
     trip_id: int,
     member_data: MemberAdd,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_session),
 ) -> MemberResponse:
     """
     Add a member to a trip.
@@ -103,15 +109,16 @@ async def add_member(
     Only trip admins can add members.
     """
     # Check admin access
-    trip, _ = check_trip_access(
-        trip_id, current_user, session, require_admin=True)
+    trip, _ = await check_trip_access(
+        trip_id, current_user, session, require_admin=True
+    )
 
     # If adding a real user, find them by email
     user_id = None
     if not member_data.is_fictional:
-        user_statement = select(User).where(
-            User.email == member_data.user_email)
-        user = session.exec(user_statement).first()
+        user_statement = select(User).where(User.email == member_data.user_email)
+        result = await session.execute(user_statement)
+        user = result.scalar_one_or_none()
 
         if not user:
             raise HTTPException(
@@ -126,7 +133,8 @@ async def add_member(
             TripMember.trip_id == trip_id,
             TripMember.user_id == user_id,
         )
-        existing_member = session.exec(existing_member_statement).first()
+        result = await session.execute(existing_member_statement)
+        existing_member = result.scalar_one_or_none()
 
         if existing_member:
             raise HTTPException(
@@ -147,32 +155,33 @@ async def add_member(
         member.joined_at = datetime.utcnow()
 
     session.add(member)
-    session.commit()
-    session.refresh(member)
+    await session.commit()
+    await session.refresh(member)
 
     # Build response
-    return build_member_response(member, session)
+    return await build_member_response(member, session)
 
 
 @router.get("/trips/{trip_id}/members", response_model=list[MemberResponse])
 async def list_members(
     trip_id: int,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_session),
 ) -> list[MemberResponse]:
     """
     List all members of a trip.
     User must be a member of the trip.
     """
     # Check access
-    check_trip_access(trip_id, current_user, session)
+    await check_trip_access(trip_id, current_user, session)
 
     # Get all members
     members_statement = select(TripMember).where(TripMember.trip_id == trip_id)
-    members = session.exec(members_statement).all()
+    result = await session.execute(members_statement)
+    members = result.scalars().all()
 
     # Build responses
-    responses = [build_member_response(member, session) for member in members]
+    responses = [await build_member_response(member, session) for member in members]
     return responses
 
 
@@ -182,17 +191,17 @@ async def update_member(
     member_id: int,
     member_data: MemberUpdate,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_session),
 ) -> MemberResponse:
     """
     Update a trip member.
     Only trip admins can update members.
     """
     # Check admin access
-    check_trip_access(trip_id, current_user, session, require_admin=True)
+    await check_trip_access(trip_id, current_user, session, require_admin=True)
 
     # Get member
-    member = session.get(TripMember, member_id)
+    member = await session.get(TripMember, member_id)
     if not member or member.trip_id != trip_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -205,19 +214,21 @@ async def update_member(
         setattr(member, field, value)
 
     session.add(member)
-    session.commit()
-    session.refresh(member)
+    await session.commit()
+    await session.refresh(member)
 
     # Build response
-    return build_member_response(member, session)
+    return await build_member_response(member, session)
 
 
-@router.delete("/trips/{trip_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/trips/{trip_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 async def remove_member(
     trip_id: int,
     member_id: int,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_session),
 ) -> None:
     """
     Remove a member from a trip.
@@ -225,10 +236,10 @@ async def remove_member(
     Cannot remove the last admin.
     """
     # Check admin access
-    check_trip_access(trip_id, current_user, session, require_admin=True)
+    await check_trip_access(trip_id, current_user, session, require_admin=True)
 
     # Get member
-    member = session.get(TripMember, member_id)
+    member = await session.get(TripMember, member_id)
     if not member or member.trip_id != trip_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -241,7 +252,8 @@ async def remove_member(
             TripMember.trip_id == trip_id,
             TripMember.is_admin == True,
         )
-        admin_count = len(session.exec(admin_count_statement).all())
+        result = await session.execute(admin_count_statement)
+        admin_count = len(result.scalars().all())
 
         if admin_count <= 1:
             raise HTTPException(
@@ -250,17 +262,19 @@ async def remove_member(
             )
 
     # Delete member
-    session.delete(member)
-    session.commit()
+    await session.delete(member)
+    await session.commit()
 
 
-@router.post("/trips/{trip_id}/members/{member_id}/claim", response_model=MemberResponse)
+@router.post(
+    "/trips/{trip_id}/members/{member_id}/claim", response_model=MemberResponse
+)
 async def claim_member(
     trip_id: int,
     member_id: int,
     claim_data: MemberClaimRequest,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_session),
 ) -> MemberResponse:
     """
     Claim a fictional member.
@@ -270,7 +284,7 @@ async def claim_member(
     will be transferred to the claimed member, and their old membership will be deleted.
     """
     # Check if trip exists
-    trip = session.get(Trip, trip_id)
+    trip = await session.get(Trip, trip_id)
     if not trip or trip.is_deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -278,7 +292,7 @@ async def claim_member(
         )
 
     # Get fictional member to claim
-    fictional_member = session.get(TripMember, member_id)
+    fictional_member = await session.get(TripMember, member_id)
     if not fictional_member or fictional_member.trip_id != trip_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -297,7 +311,8 @@ async def claim_member(
         TripMember.trip_id == trip_id,
         TripMember.user_id == current_user.id,
     )
-    existing_member = session.exec(existing_member_statement).first()
+    result = await session.execute(existing_member_statement)
+    existing_member = result.scalar_one_or_none()
 
     if existing_member:
         # User already has a membership - merge it into the fictional member
@@ -307,7 +322,8 @@ async def claim_member(
             Expense.trip_id == trip_id,
             Expense.paid_by_member_id == existing_member.id,
         )
-        expenses = session.exec(expenses_statement).all()
+        result = await session.execute(expenses_statement)
+        expenses = result.scalars().all()
         for expense in expenses:
             expense.paid_by_member_id = fictional_member.id
             session.add(expense)
@@ -316,7 +332,8 @@ async def claim_member(
         splits_statement = select(Split).where(
             Split.member_id == existing_member.id,
         )
-        splits = session.exec(splits_statement).all()
+        result = await session.execute(splits_statement)
+        splits = result.scalars().all()
         for split in splits:
             split.member_id = fictional_member.id
             session.add(split)
@@ -326,7 +343,7 @@ async def claim_member(
             fictional_member.is_admin = True
 
         # Delete the existing member
-        session.delete(existing_member)
+        await session.delete(existing_member)
 
     # Claim the fictional member
     fictional_member.user_id = current_user.id
@@ -334,26 +351,27 @@ async def claim_member(
     fictional_member.joined_at = datetime.utcnow()
 
     session.add(fictional_member)
-    session.commit()
-    session.refresh(fictional_member)
+    await session.commit()
+    await session.refresh(fictional_member)
 
     # Build response
-    return build_member_response(fictional_member, session)
+    return await build_member_response(fictional_member, session)
 
 
 @router.post("/trips/{trip_id}/invite", response_model=InviteLinkResponse)
 async def generate_invite_link(
     trip_id: int,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_session),
 ) -> InviteLinkResponse:
     """
     Generate an invite link for a trip.
     Only trip admins can generate invite links.
     """
     # Check admin access
-    trip, _ = check_trip_access(
-        trip_id, current_user, session, require_admin=True)
+    trip, _ = await check_trip_access(
+        trip_id, current_user, session, require_admin=True
+    )
 
     # Generate invite code (simple implementation - use trip_id)
     # In production, you'd want to use a more secure token
@@ -379,14 +397,14 @@ async def generate_invite_link(
 async def leave_trip(
     trip_id: int,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_session),
 ) -> None:
     """
     Leave a trip (remove yourself as a member).
     Any member can leave, but cannot leave if you're the last admin.
     """
     # Check if trip exists
-    trip = session.get(Trip, trip_id)
+    trip = await session.get(Trip, trip_id)
     if not trip or trip.is_deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -398,7 +416,8 @@ async def leave_trip(
         TripMember.trip_id == trip_id,
         TripMember.user_id == current_user.id,
     )
-    member = session.exec(member_statement).first()
+    result = await session.execute(member_statement)
+    member = result.scalar_one_or_none()
 
     if not member:
         raise HTTPException(
@@ -412,7 +431,8 @@ async def leave_trip(
             TripMember.trip_id == trip_id,
             TripMember.is_admin == True,
         )
-        admin_count = len(session.exec(admin_count_statement).all())
+        result = await session.execute(admin_count_statement)
+        admin_count = len(result.scalars().all())
 
         if admin_count <= 1:
             raise HTTPException(
@@ -421,22 +441,22 @@ async def leave_trip(
             )
 
     # Delete member
-    session.delete(member)
-    session.commit()
+    await session.delete(member)
+    await session.commit()
 
 
 @router.post("/trips/{trip_id}/join", response_model=MemberResponse)
 async def join_trip_via_invite(
     trip_id: int,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_session),
 ) -> MemberResponse:
     """
     Join a trip via invite link.
     Adds the current user as a member if they're not already in the trip.
     """
     # Check if trip exists
-    trip = session.get(Trip, trip_id)
+    trip = await session.get(Trip, trip_id)
     if not trip or trip.is_deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -448,11 +468,12 @@ async def join_trip_via_invite(
         TripMember.trip_id == trip_id,
         TripMember.user_id == current_user.id,
     )
-    existing_member = session.exec(existing_member_statement).first()
+    result = await session.execute(existing_member_statement)
+    existing_member = result.scalar_one_or_none()
 
     if existing_member:
         # User is already a member - return their membership
-        return build_member_response(existing_member, session)
+        return await build_member_response(existing_member, session)
 
     # Add user as a new member
     member = TripMember(
@@ -465,8 +486,8 @@ async def join_trip_via_invite(
     member.joined_at = datetime.utcnow()
 
     session.add(member)
-    session.commit()
-    session.refresh(member)
+    await session.commit()
+    await session.refresh(member)
 
     # Build response
-    return build_member_response(member, session)
+    return await build_member_response(member, session)

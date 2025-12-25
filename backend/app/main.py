@@ -19,7 +19,7 @@ async def lifespan(app: FastAPI):
     # Startup
     print(f"Starting {settings.app_name} v{settings.app_version}")
     print(f"Environment: {settings.environment}")
-    init_db()
+    await init_db()
     print("Database initialized")
 
     yield
@@ -89,4 +89,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=settings.is_development,
+        loop="asyncio",
     )

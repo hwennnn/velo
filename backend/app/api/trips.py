@@ -1,10 +1,12 @@
 """
 Trip API endpoints
 """
+
 from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlmodel import Session, select, func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select, func
 
 from app.core.auth import get_current_user
 from app.core.database import get_session
@@ -26,7 +28,7 @@ router = APIRouter()
 async def create_trip(
     trip_data: TripCreate,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_session),
 ) -> Trip:
     """
     Create a new trip.
@@ -43,8 +45,8 @@ async def create_trip(
     )
 
     session.add(trip)
-    session.commit()
-    session.refresh(trip)
+    await session.commit()
+    await session.refresh(trip)
 
     # Add creator as first member (admin)
     member = TripMember(
@@ -57,7 +59,7 @@ async def create_trip(
     member.joined_at = datetime.utcnow()
 
     session.add(member)
-    session.commit()
+    await session.commit()
 
     # Return trip with member count
     response = TripResponse.model_validate(trip)
@@ -69,10 +71,9 @@ async def create_trip(
 @router.get("/", response_model=TripListResponse)
 async def list_trips(
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_session),
     page: int = Query(default=1, ge=1, description="Page number"),
-    page_size: int = Query(default=20, ge=1, le=100,
-                           description="Items per page"),
+    page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
 ) -> TripListResponse:
     """
     List all trips the current user is a member of.
@@ -82,7 +83,8 @@ async def list_trips(
     member_statement = select(TripMember.trip_id).where(
         TripMember.user_id == current_user.id
     )
-    trip_ids = session.exec(member_statement).all()
+    result = await session.execute(member_statement)
+    trip_ids = result.scalars().all()
 
     if not trip_ids:
         return TripListResponse(trips=[], total=0, page=page, page_size=page_size)
@@ -97,7 +99,8 @@ async def list_trips(
         .limit(page_size)
     )
 
-    trips = session.exec(statement).all()
+    result = await session.execute(statement)
+    trips = result.scalars().all()
 
     # Get total count
     count_statement = (
@@ -105,7 +108,8 @@ async def list_trips(
         .where(Trip.id.in_(trip_ids))
         .where(Trip.is_deleted == False)
     )
-    total = session.exec(count_statement).one()
+    result = await session.execute(count_statement)
+    total = result.scalar_one()
 
     # Enhance trips with member counts
     trip_responses = []
@@ -113,7 +117,8 @@ async def list_trips(
         member_count_statement = select(func.count(TripMember.id)).where(
             TripMember.trip_id == trip.id
         )
-        member_count = session.exec(member_count_statement).one()
+        result = await session.execute(member_count_statement)
+        member_count = result.scalar_one()
 
         trip_response = TripResponse.model_validate(trip)
         trip_response.member_count = member_count
@@ -131,14 +136,14 @@ async def list_trips(
 async def get_trip(
     trip_id: int,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_session),
 ) -> TripResponse:
     """
     Get details of a specific trip, including all members.
     User must be a member of the trip.
     """
     # Check if trip exists
-    trip = session.get(Trip, trip_id)
+    trip = await session.get(Trip, trip_id)
     if not trip or trip.is_deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -150,7 +155,8 @@ async def get_trip(
         TripMember.trip_id == trip_id,
         TripMember.user_id == current_user.id,
     )
-    member = session.exec(member_statement).first()
+    result = await session.execute(member_statement)
+    member = result.scalar_one_or_none()
 
     if not member:
         raise HTTPException(
@@ -160,7 +166,8 @@ async def get_trip(
 
     # Get all members
     members_statement = select(TripMember).where(TripMember.trip_id == trip_id)
-    members = session.exec(members_statement).all()
+    result = await session.execute(members_statement)
+    members = result.scalars().all()
 
     # Build response
     trip_response = TripResponse.model_validate(trip)
@@ -184,14 +191,14 @@ async def update_trip(
     trip_id: int,
     trip_data: TripUpdate,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_session),
 ) -> TripResponse:
     """
     Update trip details.
     Only trip admins can update trips.
     """
     # Get trip
-    trip = session.get(Trip, trip_id)
+    trip = await session.get(Trip, trip_id)
     if not trip or trip.is_deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -204,7 +211,8 @@ async def update_trip(
         TripMember.user_id == current_user.id,
         TripMember.is_admin == True,
     )
-    member = session.exec(member_statement).first()
+    result = await session.execute(member_statement)
+    member = result.scalar_one_or_none()
 
     if not member:
         raise HTTPException(
@@ -228,14 +236,15 @@ async def update_trip(
     trip.updated_at = datetime.utcnow()
 
     session.add(trip)
-    session.commit()
-    session.refresh(trip)
+    await session.commit()
+    await session.refresh(trip)
 
     # Get member count
     member_count_statement = select(func.count(TripMember.id)).where(
         TripMember.trip_id == trip_id
     )
-    member_count = session.exec(member_count_statement).one()
+    result = await session.execute(member_count_statement)
+    member_count = result.scalar_one()
 
     trip_response = TripResponse.model_validate(trip)
     trip_response.member_count = member_count
@@ -247,14 +256,14 @@ async def update_trip(
 async def delete_trip(
     trip_id: int,
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
+    session: AsyncSession = Depends(get_session),
 ) -> None:
     """
     Soft delete a trip.
     Only trip admins can delete trips.
     """
     # Get trip
-    trip = session.get(Trip, trip_id)
+    trip = await session.get(Trip, trip_id)
     if not trip or trip.is_deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -267,7 +276,8 @@ async def delete_trip(
         TripMember.user_id == current_user.id,
         TripMember.is_admin == True,
     )
-    member = session.exec(member_statement).first()
+    result = await session.execute(member_statement)
+    member = result.scalar_one_or_none()
 
     if not member:
         raise HTTPException(
@@ -280,4 +290,4 @@ async def delete_trip(
     trip.deleted_at = datetime.utcnow()
 
     session.add(trip)
-    session.commit()
+    await session.commit()

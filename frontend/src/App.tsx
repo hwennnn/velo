@@ -62,7 +62,7 @@ function App() {
               <Suspense fallback={<PageLoader />}>
                 <Routes>
                   {/* Public routes */}
-                  <Route path="/" element={<Login />} />
+                  <Route path="/auth/login" element={<Login />} />
                   <Route path="/auth/callback" element={<AuthCallback />} />
                   <Route path="/join" element={<JoinTrip />} />
                   <Route path="/privacy-policy" element={<PrivacyPolicy />} />

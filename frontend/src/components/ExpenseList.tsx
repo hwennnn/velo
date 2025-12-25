@@ -129,7 +129,9 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
   };
 
   const handleDelete = async (expenseId: number) => {
-    const confirmed = await showConfirm('Are you sure you want to delete this expense?', {
+    const confirmed = await showConfirm(
+      'Are you sure you want to delete this expense? This cannot be undone and may affect balances if already settled.',
+    {
       title: 'Delete Expense',
       confirmText: 'Delete',
       confirmButtonClass: 'bg-red-600 hover:bg-red-700',

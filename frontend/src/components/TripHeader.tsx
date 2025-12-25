@@ -9,12 +9,14 @@ interface TripHeaderProps {
   tripName: string;
   isLoading?: boolean;
   onBack: () => void;
+  onSettings: () => void;
 }
 
 export const TripHeader: React.FC<TripHeaderProps> = ({
   tripName,
   isLoading = false,
   onBack,
+  onSettings,
 }) => {
   return (
     <header className="bg-white px-4 py-3 border-b border-gray-200 sticky top-0 z-10">
@@ -36,6 +38,7 @@ export const TripHeader: React.FC<TripHeaderProps> = ({
           )}
         </div>
         <button
+          onClick={onSettings}
           className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
           aria-label="Trip settings"
         >

@@ -19,6 +19,7 @@ import { SettlementsModal } from '../components/SettlementsModal';
 import { TripDetailSkeleton } from '../components/TripDetailSkeleton';
 import { TripHeader } from '../components/TripHeader';
 import { TripInfoCard } from '../components/TripInfoCard';
+import { TripSettingsModal } from '../components/TripSettingsModal';
 import { useAlert } from '../contexts/AlertContext';
 import { useAuth } from '../hooks/useAuth';
 import { useCreateExpense, useExpenses, type ExpenseFilters } from '../hooks/useExpenses';
@@ -47,6 +48,7 @@ export default function TripDetail() {
   const [showMemberDetail, setShowMemberDetail] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedMemberFilter, setSelectedMemberFilter] = useState<number | null>(null);
+  const [showTripSettingsModal, setShowTripSettingsModal] = useState(false);
 
   const { data: trip, isLoading: tripLoading, isFetching: tripFetching } = useTrip(tripId);
   
@@ -244,6 +246,7 @@ export default function TripDetail() {
         tripName={trip.name}
         isLoading={tripFetching}
         onBack={() => navigate('/trips')}
+        onSettings={() => setShowTripSettingsModal(true)}
       />
 
       {/* Content */}
@@ -400,6 +403,20 @@ export default function TripDetail() {
           return getMemberColor(index);
         }}
         onClose={() => setShowSettlementsModal(false)}
+      />
+
+      <TripSettingsModal
+        isOpen={showTripSettingsModal}
+        onClose={() => setShowTripSettingsModal(false)}
+        trip={trip}
+        onTripUpdated={() => {
+          // The trip data will be automatically updated via React Query
+          setShowTripSettingsModal(false);
+        }}
+        onTripLeft={() => {
+          navigate('/trips');
+        }}
+        isAdmin={isCurrentUserAdmin}
       />
     </div>
   );

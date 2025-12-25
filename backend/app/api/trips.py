@@ -304,3 +304,56 @@ async def delete_trip(
 
     session.add(trip)
     await session.commit()
+
+
+@router.post("/{trip_id}/leave", status_code=status.HTTP_204_NO_CONTENT)
+async def leave_trip(
+    trip_id: int,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """
+    Leave a trip (remove yourself as a member).
+    Any member can leave, but cannot leave if you're the last admin.
+    This is a convenience endpoint that mirrors the one in members.py
+    """
+    # Check if trip exists
+    trip = await session.get(Trip, trip_id)
+    if not trip or trip.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trip not found",
+        )
+
+    # Find current user's membership
+    member_statement = select(TripMember).where(
+        TripMember.trip_id == trip_id,
+        TripMember.user_id == current_user.id,
+    )
+    result = await session.execute(member_statement)
+    member = result.scalar_one_or_none()
+
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="You are not a member of this trip",
+        )
+
+    # Check if this is the last admin
+    if member.is_admin:
+        admin_count_statement = select(TripMember).where(
+            TripMember.trip_id == trip_id,
+            TripMember.is_admin == True,
+        )
+        result = await session.execute(admin_count_statement)
+        admin_count = len(result.scalars().all())
+
+        if admin_count <= 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot leave as the last admin. Promote another member first.",
+            )
+
+    # Delete member
+    await session.delete(member)
+    await session.commit()

@@ -52,6 +52,22 @@ export function useCreateTrip() {
   });
 }
 
+// Update trip mutation
+export function useUpdateTrip(tripId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: Record<string, unknown>) => {
+      const response = await api.trips.update(tripId, data);
+      return response.data as Trip;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
+      queryClient.invalidateQueries({ queryKey: tripKeys.lists() });
+    },
+  });
+}
+
 // Delete trip mutation
 export function useDeleteTrip() {
   const queryClient = useQueryClient();

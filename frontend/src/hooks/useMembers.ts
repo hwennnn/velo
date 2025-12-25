@@ -69,7 +69,7 @@ export function useLeaveTrip(tripId: string) {
 
   return useMutation({
     mutationFn: async () => {
-      await api.members.leave(tripId);
+    await api.trips.leave(tripId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: tripKeys.lists() });

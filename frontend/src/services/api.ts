@@ -57,6 +57,7 @@ export const api = {
     delete: (id: string) => apiClient.delete(`/trips/${id}`),
     generateInvite: (tripId: string) => apiClient.post(`/trips/${tripId}/invite`),
     joinViaInvite: (tripId: string) => apiClient.post(`/trips/${tripId}/join`),
+    leave: (id: string) => apiClient.post(`/trips/${id}/leave`),
   },
 
   // Members
@@ -67,8 +68,7 @@ export const api = {
     claim: (tripId: string, memberId: string, data?: any) => 
       apiClient.post(`/trips/${tripId}/members/${memberId}/claim`, data || {}),
     remove: (tripId: string, memberId: string) => 
-      apiClient.delete(`/trips/${tripId}/members/${memberId}`),
-    leave: (tripId: string) => apiClient.post(`/trips/${tripId}/leave`),
+      apiClient.delete(`/trips/${tripId}/members/${memberId}`)
   },
 
   // Expenses
@@ -93,6 +93,7 @@ export const api = {
     getProfile: () => apiClient.get('/users/me'),
     updateProfile: (data: any) => apiClient.put('/users/me', data),
   },
+
 };
 
 export default apiClient;

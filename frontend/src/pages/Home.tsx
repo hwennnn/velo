@@ -3,10 +3,11 @@
  * Shows all user trips and allows creating new ones
  */
 import { format } from 'date-fns';
-import { List, MapPin, Plus, Settings, User, Users } from 'lucide-react';
+import { MapPin, Plus, Settings, Users } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Avatar } from '../components/Avatar';
+import BottomNavbar from '../components/BottomNavbar';
 import CreateTripModal from '../components/CreateTripModal';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { useCreateTrip, useTrips } from '../hooks/useTrips';
@@ -171,21 +172,7 @@ export default function Home() {
       </button>
 
       {/* Bottom Navigation */}
-      <nav className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 safe-bottom shadow-lg z-20">
-        <div className="grid grid-cols-2 gap-1 px-4 py-2">
-          <button className="flex flex-col items-center gap-1 py-2 text-primary-600 transition-colors">
-            <List className="w-5 h-5" />
-            <span className="text-xs font-medium">Trips</span>
-          </button>
-          <button 
-            onClick={() => navigate('/account')}
-            className="flex flex-col items-center gap-1 py-2 text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <User className="w-5 h-5" />
-            <span className="text-xs font-medium">Account</span>
-          </button>
-        </div>
-      </nav>
+      <BottomNavbar />
 
       {/* Create Trip Modal */}
       <CreateTripModal

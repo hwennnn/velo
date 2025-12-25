@@ -3,10 +3,11 @@
  * User profile management and settings
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Camera, Edit2, LogOut, Save, X } from 'lucide-react';
+import { Camera, Edit2, LogOut, Save, X } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Avatar } from '../components/Avatar';
+import BottomNavbar from '../components/BottomNavbar';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { useAlert } from '../contexts/AlertContext';
 import { useAuth } from '../hooks/useAuth';
@@ -100,22 +101,13 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col relative">
       {/* Header */}
       <header className="bg-white px-5 py-4 safe-top shadow-sm border-b border-gray-100">
-        <div className="flex items-center justify-between mt-4 mb-2">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/trips')}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              aria-label="Back to trips"
-            >
-              <ArrowLeft className="w-5 h-5 text-gray-600" />
-            </button>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">Profile</h1>
-              <p className="text-gray-500 text-sm">Manage your account</p>
-            </div>
+        <div className="flex items-start justify-between mt-4 mb-2">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-0.5">Profile</h1>
+            <p className="text-gray-500 text-sm">Manage your account</p>
           </div>
           
           {!isEditing ? (
@@ -153,7 +145,7 @@ export default function Profile() {
       </header>
 
       {/* Content */}
-      <main className="px-5 pt-6 pb-20">
+      <main className="flex-1 px-5 pt-6 pb-20 overflow-y-auto">
         {/* Profile Card */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
           {/* Avatar Section */}
@@ -293,6 +285,9 @@ export default function Profile() {
           </div>
         )}
       </main>
+
+      {/* Bottom Navigation */}
+      <BottomNavbar />
     </div>
   );
 }

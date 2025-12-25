@@ -186,10 +186,10 @@ export default function Home() {
       {/* Floating Action Button */}
       <button
         onClick={() => setIsModalOpen(true)}
-        className="absolute bottom-20 right-5 w-12 h-12 bg-primary-500 hover:bg-primary-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all flex items-center justify-center z-10"
+        className="absolute bottom-20 right-5 w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 text-white rounded-full hover:from-primary-600 hover:to-primary-700 transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center z-10 shadow-lg hover:shadow-xl"
         aria-label="Create trip"
       >
-        <Plus className="w-5 h-5" />
+        <Plus className="w-7 h-7" />
       </button>
 
       {/* Bottom Navigation */}

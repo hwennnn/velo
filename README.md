@@ -44,9 +44,11 @@ npm run dev
 
 - FastAPI
 - SQLModel
-- PostgreSQL/SQLite
-- Supabase (auth & database)
-- Pytest
+- PostgreSQL
+- Supabase
+- Alembic
+- httpx
+- pytest
 
 ### Frontend
 
@@ -55,27 +57,9 @@ npm run dev
 - Vite
 - Tailwind CSS
 - React Router
+- TanStack Query
 - Supabase
-- Axios
 - Zustand
-
-## Architecture
-
-### Mobile-First Design
-
-Uses a responsive container component that:
-
-- Centers content with max-width on desktop (28rem)
-- Uses full viewport width on mobile
-- Includes safe area insets for notched devices
-- Maintains consistent touch targets (44px minimum)
-
-### Authentication
-
-- OAuth integration with Google and GitHub via Supabase
-- JWT tokens stored in localStorage
-- Automatic token refresh and API request headers
-- Route protection with redirect to login on unauthorized access
 
 ## Documentation
 

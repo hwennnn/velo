@@ -20,19 +20,21 @@ export default function MobileContainer({ children, className = '' }: MobileCont
         className={`
           w-full 
           max-w-md 
-          min-h-screen 
-          md:min-h-[calc(100vh-2rem)] 
+          h-screen 
+          md:h-[calc(100vh-2rem)] 
           md:max-h-[900px]
           bg-white 
           md:rounded-3xl 
           md:shadow-2xl 
           overflow-hidden 
           relative
+          flex
+          flex-col
           ${className}
         `}
       >
         {/* Safe area aware content */}
-        <div className="h-full w-full safe-top safe-bottom">
+        <div className="flex-1 w-full safe-top safe-bottom flex flex-col overflow-hidden">
           {children}
         </div>
       </div>

@@ -1,7 +1,7 @@
 /**
  * React Query hooks for Expense operations
  */
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api';
 import type { CreateExpenseInput, Expense } from '../types';
 import { tripKeys } from './useTrips';
@@ -10,20 +10,45 @@ import { tripKeys } from './useTrips';
 export const expenseKeys = {
   all: ['expenses'] as const,
   lists: () => [...expenseKeys.all, 'list'] as const,
-  list: (tripId: string, filters?: any) => [...expenseKeys.lists(), tripId, filters] as const,
+  list: (tripId: string, filters?: ExpenseFilters) => [...expenseKeys.lists(), tripId, filters] as const,
+  infinite: (tripId: string, filters?: ExpenseFilters) => [...expenseKeys.lists(), tripId, 'infinite', filters] as const,
   details: () => [...expenseKeys.all, 'detail'] as const,
   detail: (tripId: string, id: number) => [...expenseKeys.details(), tripId, id] as const,
 };
 
-// Fetch expenses for a trip
-export function useExpenses(tripId: string | undefined) {
-  return useQuery({
-    queryKey: expenseKeys.list(tripId!),
-    queryFn: async () => {
-      const response = await api.expenses.getAll(tripId!);
-      return response.data.expenses as Expense[];
+// Types for pagination
+export interface ExpenseFilters {
+  category?: string;
+  member_id?: number;
+}
+
+export interface ExpensePage {
+  expenses: Expense[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+// Fetch expenses for a trip with infinite scrolling
+export function useExpenses(tripId: string | undefined, filters?: ExpenseFilters) {
+  return useInfiniteQuery({
+    queryKey: expenseKeys.infinite(tripId!, filters),
+    queryFn: async ({ pageParam = 1 }) => {
+      const params = {
+        page: pageParam,
+        page_size: 20,
+        ...filters,
+      };
+      const response = await api.expenses.getAll(tripId!, params);
+      return response.data as ExpensePage;
     },
     enabled: !!tripId,
+    getNextPageParam: (lastPage) => {
+      const hasMore = lastPage.expenses.length === lastPage.page_size && 
+                     (lastPage.page * lastPage.page_size) < lastPage.total;
+      return hasMore ? lastPage.page + 1 : undefined;
+    },
+    initialPageParam: 1,
   });
 }
 
@@ -38,7 +63,7 @@ export function useCreateExpense(tripId: string) {
     },
     onSuccess: () => {
       // Invalidate both expenses and trip data (for totals)
-      queryClient.invalidateQueries({ queryKey: expenseKeys.list(tripId) });
+      queryClient.invalidateQueries({ queryKey: expenseKeys.lists() });
       queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
     },
   });
@@ -53,7 +78,7 @@ export function useDeleteExpense(tripId: string) {
       await api.expenses.delete(tripId, expenseId);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: expenseKeys.list(tripId) });
+      queryClient.invalidateQueries({ queryKey: expenseKeys.lists() });
       queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
     },
   });

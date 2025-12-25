@@ -4,15 +4,20 @@
  * Displays a list of expenses grouped by date with timeline headers.
  */
 import { format, isToday, isYesterday, parseISO } from 'date-fns';
-import { Calendar, ChevronDown, Filter, Receipt, Tag, Trash2, User } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import { Calendar, ChevronDown, Filter, Loader2, Receipt, Tag, Trash2, User } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAlert } from '../contexts/AlertContext';
-import { useDeleteExpense, useExpenses } from '../hooks/useExpenses';
+import { useDeleteExpense } from '../hooks/useExpenses';
 import type { Expense, TripMember } from '../types';
 import { ExpenseListSkeleton } from './ExpenseListSkeleton';
 
 interface ExpenseListProps {
   tripId: string;
+  expenses: Expense[];
+  isLoading: boolean;
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  onLoadMore?: () => void;
   members: TripMember[];
   baseCurrency: string;
   currentUserId?: string;
@@ -34,6 +39,11 @@ const CATEGORIES = [
 
 export const ExpenseList: React.FC<ExpenseListProps> = ({
   tripId,
+  expenses,
+  isLoading,
+  hasNextPage,
+  isFetchingNextPage,
+  onLoadMore,
   baseCurrency,
   currentUserId,
   isCurrentUserAdmin = false,
@@ -44,23 +54,39 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
   const { showAlert, showConfirm } = useAlert();
   const [expandedExpense, setExpandedExpense] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
-  // Fetch expenses
-  const { data: expenses = [], isLoading: expensesLoading } = useExpenses(tripId);
   const deleteExpenseMutation = useDeleteExpense(tripId);
 
-  // Filter expenses
-  const filteredExpenses = useMemo(() => {
-    return expenses.filter((expense) => {
-      if (selectedCategory !== 'all' && expense.category !== selectedCategory) {
-        return false;
-      }
-      if (selectedMember !== null && expense.paid_by_member_id !== selectedMember) {
-        return false;
-      }
-      return true;
+  // Intersection Observer for infinite scrolling
+  const handleIntersection = useCallback((entries: IntersectionObserverEntry[]) => {
+    const [entry] = entries;
+    if (entry.isIntersecting && hasNextPage && !isFetchingNextPage && onLoadMore) {
+      onLoadMore();
+    }
+  }, [hasNextPage, isFetchingNextPage, onLoadMore]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(handleIntersection, {
+      threshold: 0.1,
+      rootMargin: '100px',
     });
-  }, [expenses, selectedCategory, selectedMember]);
+
+    const currentRef = loadMoreRef.current;
+    if (currentRef) {
+      observer.observe(currentRef);
+    }
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+    };
+  }, [handleIntersection]);
+
+  // Since filtering is now done on the backend via the API, we don't need to filter here
+  // The expenses prop already contains the filtered results
+  const filteredExpenses = expenses;
 
   // Group expenses by date
   const groupedExpenses = useMemo(() => {
@@ -84,7 +110,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
   }, [filteredExpenses]);
 
   // Show skeleton while loading and no expenses
-  if (expensesLoading && expenses.length === 0) {
+  if (isLoading && expenses.length === 0) {
     return <ExpenseListSkeleton />;
   }
 
@@ -141,18 +167,16 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
           <Filter className="w-4 h-4" />
           <span className="text-sm">Filters</span>
           {hasActiveFilters && (
-            <span className="ml-1 px-1.5 py-0.5 bg-white/20 rounded-full text-xs font-semibold">
-              •
-            </span>
+            <span className="ml-1 w-2 h-2 bg-red-500 rounded-full inline-block"></span>
           )}
         </button>
         
         <div className="text-sm text-gray-600">
           <span className="font-medium text-gray-900">{filteredExpenses.length}</span>
-          {filteredExpenses.length !== expenses.length && (
-            <span> of {expenses.length}</span>
-          )}
           {filteredExpenses.length === 1 ? ' expense' : ' expenses'}
+          {hasActiveFilters && (
+            <span className="text-xs text-gray-500 ml-1">(filtered)</span>
+          )}
         </div>
       </div>
 
@@ -294,6 +318,25 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Infinite scroll trigger */}
+      {hasNextPage && (
+        <div ref={loadMoreRef} className="flex justify-center py-4">
+          {isFetchingNextPage ? (
+            <div className="flex items-center gap-2 text-gray-500">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="text-sm">Loading more expenses...</span>
+            </div>
+          ) : (
+            <button
+              onClick={onLoadMore}
+              className="px-4 py-2 text-sm text-primary-600 hover:text-primary-700 font-medium"
+            >
+              Load more expenses
+            </button>
+          )}
         </div>
       )}
     </div>

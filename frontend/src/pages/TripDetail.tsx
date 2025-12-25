@@ -21,7 +21,7 @@ import { TripHeader } from '../components/TripHeader';
 import { TripInfoCard } from '../components/TripInfoCard';
 import { useAlert } from '../contexts/AlertContext';
 import { useAuth } from '../hooks/useAuth';
-import { useCreateExpense } from '../hooks/useExpenses';
+import { useCreateExpense, useExpenses, type ExpenseFilters } from '../hooks/useExpenses';
 import { useAddMember, useClaimMember, useLeaveTrip, useRemoveMember, useUpdateMember } from '../hooks/useMembers';
 import { useGenerateInvite, useTrip } from '../hooks/useTrips';
 import type { AddMemberInput, CreateExpenseInput, TripMember } from '../types';
@@ -50,6 +50,22 @@ export default function TripDetail() {
 
   const { data: trip, isLoading: tripLoading, isFetching: tripFetching } = useTrip(tripId);
   
+  // Create filters object for expenses
+  const expenseFilters: ExpenseFilters = {
+    ...(selectedCategory !== 'all' && { category: selectedCategory }),
+    ...(selectedMemberFilter && { member_id: selectedMemberFilter }),
+  };
+  
+  const { 
+    data: expensesData, 
+    isLoading: expensesLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useExpenses(tripId, expenseFilters);
+  
+  // Flatten all expenses from all pages
+  const expenses = expensesData?.pages.flatMap(page => page.expenses) || [];
   
   const createExpenseMutation = useCreateExpense(tripId!);
   const addMemberMutation = useAddMember(tripId!);
@@ -231,7 +247,7 @@ export default function TripDetail() {
       />
 
       {/* Content */}
-      <main className="flex-1 overflow-y-auto pb-24 md:pb-28">
+      <main className="flex-1 flex flex-col overflow-hidden">
         {/* Trip Info Card */}
         <TripInfoCard
           currency={trip.base_currency}
@@ -252,24 +268,36 @@ export default function TripDetail() {
         />
 
         {/* Main Content - Expenses List */}
-        <div className="px-4 pb-6">
-          <ExpenseList
-            tripId={tripId!}
-            members={trip.members || []}
-            baseCurrency={trip.base_currency}
-            currentUserId={user?.id}
-            isCurrentUserAdmin={isCurrentUserAdmin}
-            selectedCategory={selectedCategory}
-            selectedMember={selectedMemberFilter}
-            onFilterClick={() => setShowFilterModal(true)}
-          />
+        <div className="flex-1 overflow-hidden px-4">
+          <div className="h-full overflow-y-auto">
+            <div className="pb-20">
+              <ExpenseList
+                tripId={tripId!}
+                expenses={expenses}
+                isLoading={expensesLoading}
+                hasNextPage={hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+                onLoadMore={fetchNextPage}
+                members={trip.members || []}
+                baseCurrency={trip.base_currency}
+                currentUserId={user?.id}
+                isCurrentUserAdmin={isCurrentUserAdmin}
+                selectedCategory={selectedCategory}
+                selectedMember={selectedMemberFilter}
+                onFilterClick={() => setShowFilterModal(true)}
+              />
+            </div>
+          </div>
         </div>
       </main>
 
       {/* Floating Action Button */}
       <button
         onClick={() => setShowAddExpenseModal(true)}
-        className="absolute bottom-6 md:bottom-10 right-6 w-14 h-14 bg-primary-600 text-white rounded-full shadow-lg hover:bg-primary-700 transition-all hover:scale-110 flex items-center justify-center z-20"
+        className="absolute bottom-4 right-6 w-14 h-14 bg-primary-600 text-white rounded-full hover:bg-primary-700 transition-all hover:scale-110 flex items-center justify-center z-50"
+        style={{ 
+          boxShadow: '0 8px 25px rgba(0, 0, 0, 0.15), 0 4px 10px rgba(0, 0, 0, 0.1)' 
+        }}
         aria-label="Add expense"
       >
         <Plus className="w-6 h-6" />

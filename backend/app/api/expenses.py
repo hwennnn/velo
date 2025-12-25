@@ -250,6 +250,8 @@ async def create_expense(
     # Update member debts (only for regular expenses, not settlements)
     if expense.expense_type == "expense":
         await update_debts_for_expense(expense, all_splits, session)
+        # Note: TripMember balance updates are handled within update_debts_for_expense
+        # when debts are created/modified
 
     # Update trip metadata
     trip.total_spent += amount_in_base
@@ -507,6 +509,10 @@ async def delete_expense(
     # Delete all debts created by this expense (only for regular expenses)
     if expense.expense_type == "expense":
         await delete_debts_for_expense(expense.id, session)
+        # Update TripMember balance fields to reflect debt deletion
+        from app.services.debt import update_trip_member_balances_for_expense_deletion
+
+        await update_trip_member_balances_for_expense_deletion(expense.id, session)
 
     # Delete all splits first (will cascade with new migration)
     splits_statement = select(Split).where(Split.expense_id == expense.id)

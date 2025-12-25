@@ -22,6 +22,8 @@ interface SettlementCardProps {
   group: GroupedSettlement;
   recordingSettlements: Set<string>;
   currency: string;
+  getMemberColor: (memberId: number) => string;
+  showPayerPayee?: boolean; // Show payer/payee info (for individual view)
   onRecordSettlement: (settlement: Settlement) => void;
   onShowMergeModal: (group: GroupedSettlement, settlement: Settlement) => void;
   showConfirm: (message: string, options?: { title?: string; confirmText?: string; cancelText?: string }) => Promise<boolean>;
@@ -32,15 +34,50 @@ const SettlementCard: React.FC<SettlementCardProps> = ({
   group,
   recordingSettlements,
   currency,
+  getMemberColor,
+  showPayerPayee = false,
   onRecordSettlement,
   onShowMergeModal,
   showConfirm,
 }) => {
   const settlementKey = `${settlement.from_member_id}-${settlement.to_member_id}-${settlement.currency}`;
   const isRecording = recordingSettlements.has(settlementKey);
+  const fromColor = getMemberColor(settlement.from_member_id);
+  const toColor = getMemberColor(settlement.to_member_id);
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-4">
+      {/* Payer/Payee Information - Only show in individual view */}
+      {showPayerPayee && (
+        <div className="flex items-center gap-3 mb-4">
+          {/* From Member */}
+          <div className="flex items-center gap-2 flex-1">
+            <div className={`w-10 h-10 rounded-full ${fromColor} flex items-center justify-center`}>
+              <span className="text-white font-semibold text-sm">
+                {settlement.from_nickname.charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <span className="font-medium text-gray-900 text-sm">{settlement.from_nickname}</span>
+          </div>
+
+          {/* Arrow */}
+          <div className="flex flex-col items-center">
+            <ArrowRight className="w-5 h-5 text-primary-600" />
+          </div>
+
+          {/* To Member */}
+          <div className="flex items-center gap-2 flex-1 justify-end">
+            <span className="font-medium text-gray-900 text-sm">{settlement.to_nickname}</span>
+            <div className={`w-10 h-10 rounded-full ${toColor} flex items-center justify-center`}>
+              <span className="text-white font-semibold text-sm">
+                {settlement.to_nickname.charAt(0).toUpperCase()}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Amount and Actions */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <div className="text-lg font-bold text-gray-900">
@@ -502,6 +539,8 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
                           group={group}
                           recordingSettlements={recordingSettlements}
                           currency={currency}
+                          getMemberColor={getMemberColor}
+                          showPayerPayee={false}
                           onRecordSettlement={handleRecordSettlement}
                           onShowMergeModal={handleShowMergeModal}
                           showConfirm={showConfirm}
@@ -546,6 +585,8 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
                   group={tempGroup}
                   recordingSettlements={recordingSettlements}
                   currency={currency}
+                  getMemberColor={getMemberColor}
+                  showPayerPayee={true}
                   onRecordSettlement={handleRecordSettlement}
                   onShowMergeModal={handleShowMergeModal}
                   showConfirm={showConfirm}

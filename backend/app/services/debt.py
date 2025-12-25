@@ -542,3 +542,75 @@ async def merge_debt_currency(
         "old_target_amount": float(old_amount),
         "new_target_amount": float(new_amount),
     }
+
+
+async def update_trip_member_balances_for_debt(
+    debtor_member_id: int,
+    creditor_member_id: int,
+    amount_in_base: Decimal,
+    session: AsyncSession,
+    operation: str = "add",  # "add" or "subtract"
+) -> None:
+    """
+    Update cached balance fields on TripMember records when debt amounts change.
+
+    Args:
+        debtor_member_id: Member who owes money
+        creditor_member_id: Member who is owed money
+        amount_in_base: Amount in base currency
+        session: Database session
+        operation: "add" to increase debt, "subtract" to decrease debt
+    """
+    multiplier = 1 if operation == "add" else -1
+
+    # Update debtor's total_owed_base
+    debtor = await session.get(TripMember, debtor_member_id)
+    if debtor:
+        debtor.total_owed_base += amount_in_base * multiplier
+        session.add(debtor)
+
+    # Update creditor's total_owed_to_base
+    creditor = await session.get(TripMember, creditor_member_id)
+    if creditor:
+        creditor.total_owed_to_base += amount_in_base * multiplier
+        session.add(creditor)
+
+
+async def update_trip_member_balances_for_expense_deletion(
+    expense_id: int, session: AsyncSession
+) -> None:
+    """
+    Update TripMember balance fields when an expense (and its debts) is deleted.
+
+    This subtracts the debt amounts from the cached balance fields.
+    """
+    # Get all debts for this expense
+    debts_statement = select(MemberDebt).where(
+        MemberDebt.source_expense_id == expense_id
+    )
+    result = await session.execute(debts_statement)
+    debts = result.scalars().all()
+
+    # Get trip base currency
+    if debts:
+        trip = await session.get(Trip, debts[0].trip_id)
+        base_currency = trip.base_currency
+    else:
+        return  # No debts to update
+
+    # Update balances for each debt (subtract since we're deleting)
+    for debt in debts:
+        if debt.amount < Decimal("0.01"):
+            continue  # Skip negligible amounts
+
+        # Get exchange rate
+        exchange_rate = await get_exchange_rate(debt.currency, base_currency)
+        amount_in_base = debt.amount * exchange_rate
+
+        await update_trip_member_balances_for_debt(
+            debt.debtor_member_id,
+            debt.creditor_member_id,
+            amount_in_base,
+            session,
+            operation="subtract",
+        )

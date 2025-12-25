@@ -27,7 +27,7 @@ class Expense(SQLModel, table=True):
         sa_column=Column(Numeric(12, 2)),
         description="Expense amount in original currency",
     )
-    currency: str = Field(default="USD", description="Currency code (ISO 4217)")
+    currency: str = Field(default="SGD", description="Currency code (ISO 4217)")
 
     # Exchange rate at time of entry
     exchange_rate_to_base: Decimal = Field(
@@ -63,7 +63,7 @@ class Expense(SQLModel, table=True):
                 "trip_id": 1,
                 "description": "Dinner at sushi restaurant",
                 "amount": "85.50",
-                "currency": "USD",
+                "currency": "SGD",
                 "exchange_rate_to_base": "1.0",
                 "paid_by_member_id": 1,
                 "expense_date": "2024-03-16",

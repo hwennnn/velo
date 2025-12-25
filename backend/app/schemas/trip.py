@@ -6,6 +6,7 @@ from datetime import date, datetime
 from typing import Optional
 from decimal import Decimal
 from pydantic import BaseModel, Field, model_validator
+from ..core.currencies import is_supported_currency, DEFAULT_CURRENCY
 
 
 class TripCreate(BaseModel):
@@ -16,7 +17,10 @@ class TripCreate(BaseModel):
         None, max_length=1000, description="Trip description"
     )
     base_currency: str = Field(
-        default="USD", min_length=3, max_length=3, description="ISO 4217 currency code"
+        default=DEFAULT_CURRENCY,
+        min_length=3,
+        max_length=3,
+        description="ISO 4217 currency code",
     )
     start_date: Optional[date] = Field(None, description="Trip start date")
     end_date: Optional[date] = Field(None, description="Trip end date")
@@ -44,6 +48,8 @@ class TripCreate(BaseModel):
                 )
             if not self.base_currency.isalpha():
                 raise ValueError("Currency code must contain only letters")
+            if not is_supported_currency(self.base_currency):
+                raise ValueError(f"Currency {self.base_currency} is not supported")
 
         # Clean description
         if self.description:
@@ -92,6 +98,8 @@ class TripUpdate(BaseModel):
                 )
             if not self.base_currency.isalpha():
                 raise ValueError("Currency code must contain only letters")
+            if not is_supported_currency(self.base_currency):
+                raise ValueError(f"Currency {self.base_currency} is not supported")
 
         # Clean description
         if self.description is not None:

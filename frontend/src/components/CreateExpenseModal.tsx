@@ -6,6 +6,7 @@
  */
 import { Calendar, Check, DollarSign, FileText, Receipt, Users, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
+import { SUPPORTED_CURRENCIES } from '../config/currencies';
 import type { CreateExpenseInput, SplitInput, TripMember } from '../types';
 
 interface CreateExpenseModalProps {
@@ -16,18 +17,6 @@ interface CreateExpenseModalProps {
   baseCurrency: string;
 }
 
-const CURRENCIES = [
-  { code: 'USD', symbol: '$', name: 'US Dollar' },
-  { code: 'EUR', symbol: '€', name: 'Euro' },
-  { code: 'GBP', symbol: '£', name: 'British Pound' },
-  { code: 'JPY', symbol: '¥', name: 'Japanese Yen' },
-  { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar' },
-  { code: 'AUD', symbol: 'A$', name: 'Australian Dollar' },
-  { code: 'CHF', symbol: 'CHF', name: 'Swiss Franc' },
-  { code: 'CNY', symbol: '¥', name: 'Chinese Yuan' },
-  { code: 'INR', symbol: '₹', name: 'Indian Rupee' },
-  { code: 'SGD', symbol: 'S$', name: 'Singapore Dollar' },
-];
 
 const CATEGORIES = [
   { value: 'food', label: 'Food & Drinks', emoji: '🍽️' },
@@ -328,7 +317,7 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 disabled={isLoading}
               >
-                {CURRENCIES.map((curr) => (
+                {SUPPORTED_CURRENCIES.map((curr) => (
                   <option key={curr.code} value={curr.code}>
                     {curr.code} ({curr.symbol})
                   </option>

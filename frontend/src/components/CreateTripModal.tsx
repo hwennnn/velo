@@ -4,6 +4,7 @@
  */
 import { Calendar, DollarSign, FileText, MapPin, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { DEFAULT_CURRENCY, SUPPORTED_CURRENCIES } from '../config/currencies';
 import type { CreateTripInput } from '../types';
 
 interface CreateTripModalProps {
@@ -12,24 +13,12 @@ interface CreateTripModalProps {
   onCreate: (trip: CreateTripInput) => Promise<void>;
 }
 
-const CURRENCIES = [
-  { code: 'SGD', symbol: 'S$', name: 'Singapore Dollar' },
-  { code: 'USD', symbol: '$', name: 'US Dollar' },
-  { code: 'EUR', symbol: '€', name: 'Euro' },
-  { code: 'GBP', symbol: '£', name: 'British Pound' },
-  { code: 'JPY', symbol: '¥', name: 'Japanese Yen' },
-  { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar' },
-  { code: 'AUD', symbol: 'A$', name: 'Australian Dollar' },
-  { code: 'CHF', symbol: 'CHF', name: 'Swiss Franc' },
-  { code: 'CNY', symbol: '¥', name: 'Chinese Yuan' },
-  { code: 'INR', symbol: '₹', name: 'Indian Rupee' },
-];
 
 export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTripModalProps) {
   const [formData, setFormData] = useState<CreateTripInput>({
     name: '',
     description: '',
-    base_currency: 'SGD',
+    base_currency: DEFAULT_CURRENCY,
     start_date: '',
     end_date: '',
   });
@@ -42,7 +31,7 @@ export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTri
       setFormData({
         name: '',
         description: '',
-        base_currency: 'SGD',
+        base_currency: DEFAULT_CURRENCY,
         start_date: '',
         end_date: '',
       });
@@ -249,7 +238,7 @@ export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTri
                 onChange={(e) => setFormData({ ...formData, base_currency: e.target.value })}
                 className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow appearance-none bg-white"
               >
-                {CURRENCIES.map((currency) => (
+                {SUPPORTED_CURRENCIES.map((currency) => (
                   <option key={currency.code} value={currency.code}>
                     {currency.symbol} {currency.code} - {currency.name}
                   </option>

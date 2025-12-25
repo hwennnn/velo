@@ -3,7 +3,7 @@
  * Shows all user trips and allows creating new ones
  */
 import { format } from 'date-fns';
-import { Calendar, LogOut, MapPin, Plus, Users } from 'lucide-react';
+import { Calendar, DollarSign, Home as HomeIcon, LogOut, MapPin, Plus, Receipt, User, Users } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CreateTripModal from '../components/CreateTripModal';
@@ -138,23 +138,23 @@ export default function Home() {
         )}
       </main>
 
-      {/* Bottom Navigation (placeholder) */}
+      {/* Bottom Navigation */}
       <nav className="bg-white border-t border-gray-200 safe-bottom shadow-sm">
-        <div className="grid grid-cols-4 gap-2 px-4 py-3">
-          <button className="flex flex-col items-center gap-1 text-primary-600">
-            <div className="w-6 h-6 bg-primary-100 rounded-lg"></div>
+        <div className="grid grid-cols-4 gap-1 px-4 py-2">
+          <button className="flex flex-col items-center gap-1.5 py-2 text-primary-600 transition-colors">
+            <HomeIcon className="w-5 h-5" />
             <span className="text-xs font-medium">Trips</span>
           </button>
-          <button className="flex flex-col items-center gap-1 text-gray-400 hover:text-gray-600">
-            <div className="w-6 h-6 bg-gray-100 rounded-lg"></div>
+          <button className="flex flex-col items-center gap-1.5 py-2 text-gray-400 hover:text-gray-600 transition-colors">
+            <Receipt className="w-5 h-5" />
             <span className="text-xs font-medium">Expenses</span>
           </button>
-          <button className="flex flex-col items-center gap-1 text-gray-400 hover:text-gray-600">
-            <div className="w-6 h-6 bg-gray-100 rounded-lg"></div>
+          <button className="flex flex-col items-center gap-1.5 py-2 text-gray-400 hover:text-gray-600 transition-colors">
+            <DollarSign className="w-5 h-5" />
             <span className="text-xs font-medium">Balances</span>
           </button>
-          <button className="flex flex-col items-center gap-1 text-gray-400 hover:text-gray-600">
-            <div className="w-6 h-6 bg-gray-100 rounded-lg"></div>
+          <button className="flex flex-col items-center gap-1.5 py-2 text-gray-400 hover:text-gray-600 transition-colors">
+            <User className="w-5 h-5" />
             <span className="text-xs font-medium">Profile</span>
           </button>
         </div>

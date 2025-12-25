@@ -5,7 +5,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Camera, Edit2, LogOut, Save, X } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Avatar } from '../components/Avatar';
 import BottomNavbar from '../components/BottomNavbar';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -269,6 +269,25 @@ export default function Profile() {
             <LogOut className="w-5 h-5" />
             <span className="font-medium">Sign Out</span>
           </button>
+        </div>
+
+        {/* Legal Links */}
+        <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Legal</h3>
+          <div className="space-y-3">
+            <Link
+                to="/privacy-policy"
+                className="block text-primary-600 hover:text-primary-700 underline text-sm"
+              >
+                Privacy Policy
+              </Link>
+            <Link
+              to="/terms-of-service"
+              className="block text-primary-600 hover:text-primary-700 underline text-sm"
+            >
+              Terms of Service
+            </Link>
+          </div>
         </div>
 
         {/* Account Info */}

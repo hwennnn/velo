@@ -3,7 +3,7 @@
  * Optimized with React Query, broken into smaller components
  */
 import { format } from 'date-fns';
-import { ArrowLeft, Plus, Settings, TrendingUp, Wallet } from 'lucide-react';
+import { ArrowLeft, Filter, Plus, Settings, TrendingUp, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AddMemberModal } from '../components/AddMemberModal';
@@ -46,6 +46,7 @@ export default function TripDetail() {
   const [showMemberDetail, setShowMemberDetail] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedMemberFilter, setSelectedMemberFilter] = useState<number | null>(null);
+  const [selectedExpenseType, setSelectedExpenseType] = useState('all');
   const [showTripSettingsModal, setShowTripSettingsModal] = useState(false);
 
   const { data: trip, isLoading: tripLoading } = useTrip(tripId);
@@ -53,7 +54,8 @@ export default function TripDetail() {
   // Create filters object for expenses
   const expenseFilters: ExpenseFilters = {
     ...(selectedCategory !== 'all' && { category: selectedCategory }),
-    ...(selectedMemberFilter && { member_id: selectedMemberFilter }),
+    ...(selectedMemberFilter && { paid_by_member_id: selectedMemberFilter }),
+    ...(selectedExpenseType !== 'all' && { expense_type: selectedExpenseType }),
   };
   
   const { 
@@ -365,9 +367,10 @@ export default function TripDetail() {
             <h3 className="text-lg font-bold text-gray-900">Recent Activity</h3>
             <button
               onClick={() => setShowFilterModal(true)}
-              className="text-sm text-primary-600 font-medium hover:text-primary-700"
+              className="flex items-center gap-1 px-3 py-1.5 text-sm text-primary-600 font-medium hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
             >
-              View all
+              <Filter className="w-4 h-4" />
+              Filter
             </button>
           </div>
 
@@ -450,10 +453,12 @@ export default function TripDetail() {
         isOpen={showFilterModal}
         selectedCategory={selectedCategory}
         selectedMember={selectedMemberFilter}
+        selectedExpenseType={selectedExpenseType}
         members={trip.members || []}
         onClose={() => setShowFilterModal(false)}
         onCategoryChange={setSelectedCategory}
         onMemberChange={setSelectedMemberFilter}
+        onExpenseTypeChange={setSelectedExpenseType}
       />
 
       <MemberDetailModal

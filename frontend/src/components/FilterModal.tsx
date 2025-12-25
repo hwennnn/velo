@@ -10,10 +10,12 @@ interface FilterModalProps {
   isOpen: boolean;
   selectedCategory: string;
   selectedMember: number | null;
+  selectedExpenseType: string;
   members: TripMember[];
   onClose: () => void;
   onCategoryChange: (category: string) => void;
   onMemberChange: (memberId: number | null) => void;
+  onExpenseTypeChange: (expenseType: string) => void;
 }
 
 const CATEGORIES = [
@@ -26,22 +28,31 @@ const CATEGORIES = [
   { value: 'other', label: 'Other', emoji: '📦' },
 ];
 
+const EXPENSE_TYPES = [
+  { value: 'all', label: 'All Types', emoji: '📋' },
+  { value: 'expenses', label: 'Expenses', emoji: '💰' },
+  { value: 'settlements', label: 'Settlements', emoji: '🤝' },
+];
+
 export const FilterModal: React.FC<FilterModalProps> = ({
   isOpen,
   selectedCategory,
   selectedMember,
+  selectedExpenseType,
   members,
   onClose,
   onCategoryChange,
   onMemberChange,
+  onExpenseTypeChange,
 }) => {
   if (!isOpen) return null;
 
-  const hasActiveFilters = selectedCategory !== 'all' || selectedMember !== null;
+  const hasActiveFilters = selectedCategory !== 'all' || selectedMember !== null || selectedExpenseType !== 'all';
 
   const handleClearFilters = () => {
     onCategoryChange('all');
     onMemberChange(null);
+    onExpenseTypeChange('all');
   };
 
   return (
@@ -65,6 +76,27 @@ export const FilterModal: React.FC<FilterModalProps> = ({
         </div>
 
         <div className="p-4 space-y-4">
+          {/* Expense Type Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
+            <div className="grid grid-cols-3 gap-2">
+              {EXPENSE_TYPES.map((type) => (
+                <button
+                  key={type.value}
+                  onClick={() => onExpenseTypeChange(type.value)}
+                  className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                    selectedExpenseType === type.value
+                      ? 'bg-primary-600 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <span className="mr-1.5">{type.emoji}</span>
+                  {type.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Category Filter */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>

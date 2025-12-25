@@ -320,6 +320,10 @@ async def list_expenses(
     paid_by_member_id: Optional[int] = Query(
         default=None, description="Filter by payer"
     ),
+    expense_type: Optional[str] = Query(
+        default=None,
+        description="Filter by expense type: 'expenses', 'settlements', or 'all'",
+    ),
 ) -> ExpenseListResponse:
     """
     List expenses for a trip with optional filters.
@@ -337,6 +341,13 @@ async def list_expenses(
     if paid_by_member_id:
         statement = statement.where(Expense.paid_by_member_id == paid_by_member_id)
 
+    if expense_type:
+        if expense_type == "expenses":
+            statement = statement.where(Expense.expense_type == "expense")
+        elif expense_type == "settlements":
+            statement = statement.where(Expense.expense_type == "settlement")
+        # For "all", don't add any filter
+
     # Order by date descending
     statement = statement.order_by(Expense.expense_date.desc(), Expense.id.desc())
 
@@ -348,6 +359,14 @@ async def list_expenses(
         count_statement = count_statement.where(
             Expense.paid_by_member_id == paid_by_member_id
         )
+    if expense_type:
+        if expense_type == "expenses":
+            count_statement = count_statement.where(Expense.expense_type == "expense")
+        elif expense_type == "settlements":
+            count_statement = count_statement.where(
+                Expense.expense_type == "settlement"
+            )
+        # For "all", don't add any filter
 
     result = await session.execute(count_statement)
     total = result.scalar_one()

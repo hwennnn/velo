@@ -4,8 +4,8 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api';
 import type { CreateExpenseInput, Expense } from '../types';
-import { tripKeys } from './useTrips';
 import { balanceKeys } from './useBalances';
+import { tripKeys } from './useTrips';
 
 // Query Keys
 export const expenseKeys = {
@@ -20,7 +20,8 @@ export const expenseKeys = {
 // Types for pagination
 export interface ExpenseFilters {
   category?: string;
-  member_id?: number;
+  paid_by_member_id?: number;
+  expense_type?: string;
 }
 
 export interface ExpensePage {

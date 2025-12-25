@@ -50,7 +50,7 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
 
   // Calculate what the user needs to pay or will get back
   const calculateUserBalance = () => {
-    if (!currentUserMemberId || isSettlement) return null;
+    if (currentUserMemberId === null || isSettlement) return null;
 
     const userSplit = expense.splits.find(s => s.member_id === currentUserMemberId);
     if (!userSplit) return null;
@@ -59,13 +59,13 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
     
     if (isPaidByUser) {
       // User paid: they will get back (total - their share)
-      const amountToGetBack = expense.amount_in_base_currency - userSplit.amount;
+      const amountToGetBack = expense.amount - userSplit.amount;
       if (amountToGetBack <= 0) return null; // Don't show if nothing to get back
       
       return {
         type: 'get_back' as const,
-        amount: amountToGetBack,
-        amountInOriginal: amountToGetBack / expense.exchange_rate_to_base,
+        amount: amountToGetBack * expense.exchange_rate_to_base,
+        amountInOriginal: amountToGetBack,
       };
     } else {
       // User didn't pay: they need to pay their share
@@ -73,8 +73,8 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
       
       return {
         type: 'pay_back' as const,
-        amount: userSplit.amount,
-        amountInOriginal: userSplit.amount / expense.exchange_rate_to_base,
+        amount: userSplit.amount * expense.exchange_rate_to_base,
+        amountInOriginal: userSplit.amount,
       };
     }
   };

@@ -24,16 +24,13 @@ function PageLoader() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-primary-50 flex items-center justify-center">
       <div className="flex flex-col items-center gap-6">
-        {/* Animated logo/icon */}
+        {/* Velo logo */}
         <div className="relative">
-          {/* Outer ring */}
-          <div className="w-20 h-20 border-4 border-primary-200 rounded-full animate-spin"></div>
-          {/* Inner spinning circle */}
-          <div className="absolute inset-0 w-20 h-20 border-4 border-transparent border-t-primary-600 rounded-full animate-spin" style={{ animationDuration: '0.8s' }}></div>
-          {/* Center dot with pulse */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-3 h-3 bg-primary-600 rounded-full animate-pulse"></div>
-          </div>
+          <img
+            src="/public/velo.svg"
+            alt="Velo"
+            className="w-20 h-20 animate-pulse"
+          />
         </div>
         
         {/* Loading text with fade animation */}

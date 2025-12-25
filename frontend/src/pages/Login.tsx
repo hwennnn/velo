@@ -43,11 +43,13 @@ export default function Login() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-gradient-to-br from-primary-50 to-primary-100">
       {/* Logo & Title */}
-      <div className="text-center mb-12">
+      <div className="text-center mb-12 flex flex-col items-center">
         <div className="mb-4">
-          <div className="w-20 h-20 mx-auto bg-primary-600 rounded-3xl flex items-center justify-center shadow-lg">
-            <span className="text-4xl font-bold text-white">V</span>
-          </div>
+          <img
+            src="/public/velo.svg"
+            alt="Velo"
+            className="w-20 h-20"
+          />
         </div>
         <h1 className="text-4xl font-bold text-gray-900 mb-2">Velo</h1>
         <p className="text-gray-600">Fast expense tracking on the go</p>

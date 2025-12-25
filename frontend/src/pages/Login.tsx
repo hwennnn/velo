@@ -41,7 +41,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-gradient-to-br from-primary-50 to-primary-100">
+    <div className="min-h-screen flex flex-col items-center justify-center px-8 pt-8 pb-16 bg-gradient-to-br from-primary-50 to-primary-100">
       {/* Logo & Title */}
       <div className="text-center mb-12 flex flex-col items-center">
         <div className="mb-4">

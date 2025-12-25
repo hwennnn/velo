@@ -9,7 +9,7 @@ export default function PrivacyPolicy() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex flex-col pb-20">
       {/* Header */}
       <header className="bg-white px-5 py-4 safe-top shadow-sm border-b border-gray-100 sticky top-0 z-10">
         <div className="flex items-center gap-4 mt-4 mb-2">
@@ -28,7 +28,7 @@ export default function PrivacyPolicy() {
       </header>
 
       {/* Content */}
-      <main className="flex-1 px-5 py-6 pb-20 overflow-y-auto max-w-4xl mx-auto w-full">
+      <main className="px-5 py-6 pb-20 overflow-y-auto max-w-4xl mx-auto w-full max-h-[calc(100vh-120px)]">
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 md:p-8">
           <div className="prose prose-sm max-w-none">
             <section className="mb-8">

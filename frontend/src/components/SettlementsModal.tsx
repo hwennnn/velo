@@ -4,6 +4,7 @@
  */
 import { ArrowRight, CheckCircle2, X } from 'lucide-react';
 import React from 'react';
+import { useSettlements } from '../hooks/useBalances';
 import { Shimmer } from './Shimmer';
 
 interface Settlement {
@@ -16,8 +17,7 @@ interface Settlement {
 
 interface SettlementsModalProps {
   isOpen: boolean;
-  settlements: Settlement[];
-  isLoading: boolean;
+  tripId: string;
   currency: string;
   getMemberColor: (memberId: number) => string;
   onClose: () => void;
@@ -25,12 +25,14 @@ interface SettlementsModalProps {
 
 export const SettlementsModal: React.FC<SettlementsModalProps> = ({
   isOpen,
-  settlements,
-  isLoading,
+  tripId,
   currency,
   getMemberColor,
   onClose,
 }) => {
+  // Fetch settlements only when modal is open
+  const { data: settlements = [], isLoading } = useSettlements(isOpen ? tripId : undefined);
+
   if (!isOpen) return null;
 
   return (

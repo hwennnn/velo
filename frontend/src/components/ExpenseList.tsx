@@ -7,18 +7,18 @@ import { format, isToday, isYesterday, parseISO } from 'date-fns';
 import { Calendar, ChevronDown, Filter, Receipt, Tag, Trash2, User } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { useAlert } from '../contexts/AlertContext';
+import { useDeleteExpense, useExpenses } from '../hooks/useExpenses';
 import type { Expense, TripMember } from '../types';
+import { ExpenseListSkeleton } from './ExpenseListSkeleton';
 
 interface ExpenseListProps {
-  expenses: Expense[];
+  tripId: string;
   members: TripMember[];
   baseCurrency: string;
   currentUserId?: string;
   isCurrentUserAdmin?: boolean;
   selectedCategory: string;
   selectedMember: number | null;
-  onDelete: (expenseId: number) => Promise<void>;
-  onRefresh: () => void;
   onFilterClick: () => void;
 }
 
@@ -33,19 +33,21 @@ const CATEGORIES = [
 ];
 
 export const ExpenseList: React.FC<ExpenseListProps> = ({
-  expenses,
+  tripId,
   baseCurrency,
   currentUserId,
   isCurrentUserAdmin = false,
   selectedCategory,
   selectedMember,
-  onDelete,
-  onRefresh,
   onFilterClick,
 }) => {
   const { showAlert, showConfirm } = useAlert();
   const [expandedExpense, setExpandedExpense] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  // Fetch expenses
+  const { data: expenses = [], isLoading: expensesLoading } = useExpenses(tripId);
+  const deleteExpenseMutation = useDeleteExpense(tripId);
 
   // Filter expenses
   const filteredExpenses = useMemo(() => {
@@ -81,6 +83,11 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
     }));
   }, [filteredExpenses]);
 
+  // Show skeleton while loading and no expenses
+  if (expensesLoading && expenses.length === 0) {
+    return <ExpenseListSkeleton />;
+  }
+
   const getDateLabel = (dateString: string) => {
     const date = parseISO(dateString);
     if (isToday(date)) return 'Today';
@@ -99,8 +106,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
 
     setDeletingId(expenseId);
     try {
-      await onDelete(expenseId);
-      onRefresh();
+      await deleteExpenseMutation.mutateAsync(expenseId);
     } catch (err) {
       console.error('Failed to delete expense:', err);
       showAlert('Failed to delete expense', { type: 'error' });

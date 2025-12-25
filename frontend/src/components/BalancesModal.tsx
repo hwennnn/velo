@@ -4,6 +4,7 @@
  */
 import { DollarSign, TrendingDown, TrendingUp, X } from 'lucide-react';
 import React from 'react';
+import { useBalances } from '../hooks/useBalances';
 import { Shimmer } from './Shimmer';
 
 interface Balance {
@@ -16,8 +17,7 @@ interface Balance {
 
 interface BalancesModalProps {
   isOpen: boolean;
-  balances: Balance[];
-  isLoading: boolean;
+  tripId: string;
   currency: string;
   getMemberColor: (memberId: number) => string;
   onClose: () => void;
@@ -25,12 +25,14 @@ interface BalancesModalProps {
 
 export const BalancesModal: React.FC<BalancesModalProps> = ({
   isOpen,
-  balances,
-  isLoading,
+  tripId,
   currency,
   getMemberColor,
   onClose,
 }) => {
+  // Fetch balances only when modal is open
+  const { data: balances = [], isLoading } = useBalances(isOpen ? tripId : undefined);
+
   if (!isOpen) return null;
 
   return (

@@ -11,7 +11,6 @@ import { AddMemberModal } from '../components/AddMemberModal';
 import { BalancesModal } from '../components/BalancesModal';
 import { CreateExpenseModal } from '../components/CreateExpenseModal';
 import { ExpenseList } from '../components/ExpenseList';
-import { ExpenseListSkeleton } from '../components/ExpenseListSkeleton';
 import { FilterModal } from '../components/FilterModal';
 import { InviteModal } from '../components/InviteModal';
 import { MemberDetailModal } from '../components/MemberDetailModal';
@@ -22,8 +21,7 @@ import { TripHeader } from '../components/TripHeader';
 import { TripInfoCard } from '../components/TripInfoCard';
 import { useAlert } from '../contexts/AlertContext';
 import { useAuth } from '../hooks/useAuth';
-import { useBalances, useSettlements } from '../hooks/useBalances';
-import { useCreateExpense, useDeleteExpense, useExpenses } from '../hooks/useExpenses';
+import { useCreateExpense } from '../hooks/useExpenses';
 import { useAddMember, useClaimMember, useLeaveTrip, useRemoveMember, useUpdateMember } from '../hooks/useMembers';
 import { useGenerateInvite, useTrip } from '../hooks/useTrips';
 import type { AddMemberInput, CreateExpenseInput, TripMember } from '../types';
@@ -50,16 +48,10 @@ export default function TripDetail() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedMemberFilter, setSelectedMemberFilter] = useState<number | null>(null);
 
-  // React Query hooks - Parallel fetching for optimal performance
   const { data: trip, isLoading: tripLoading, isFetching: tripFetching } = useTrip(tripId);
-  const { data: expenses = [], isLoading: expensesLoading } = useExpenses(tripId);
   
-  // Lazy load balances and settlements - only fetch when modals are opened
-  const { data: balances = [], isLoading: balancesLoading } = useBalances(showBalancesModal ? tripId : undefined);
-  const { data: settlements = [], isLoading: settlementsLoading } = useSettlements(showSettlementsModal ? tripId : undefined);
   
   const createExpenseMutation = useCreateExpense(tripId!);
-  const deleteExpenseMutation = useDeleteExpense(tripId!);
   const addMemberMutation = useAddMember(tripId!);
   const removeMemberMutation = useRemoveMember(tripId!);
   const claimMemberMutation = useClaimMember(tripId!);
@@ -77,9 +69,6 @@ export default function TripDetail() {
     setShowAddExpenseModal(false);
   };
 
-  const handleDeleteExpense = async (expenseId: number) => {
-    await deleteExpenseMutation.mutateAsync(expenseId);
-  };
 
   const handleRemoveMember = async (memberId: number, memberName: string) => {
     const confirmed = await showConfirm(`Remove ${memberName} from this trip?`, {
@@ -207,7 +196,7 @@ export default function TripDetail() {
   };
 
   // Show loading skeleton only on initial load (no cached data)
-  if ((tripLoading || expensesLoading) && !trip && expenses.length === 0) {
+  if (tripLoading && !trip) {
     return <TripDetailSkeleton />;
   }
 
@@ -237,7 +226,7 @@ export default function TripDetail() {
       {/* Header */}
       <TripHeader
         tripName={trip.name}
-        isLoading={tripFetching || expensesLoading}
+        isLoading={tripFetching}
         onBack={() => navigate('/trips')}
       />
 
@@ -264,22 +253,16 @@ export default function TripDetail() {
 
         {/* Main Content - Expenses List */}
         <div className="px-4 pb-6">
-          {expensesLoading && expenses.length === 0 ? (
-            <ExpenseListSkeleton />
-          ) : (
-            <ExpenseList
-              expenses={expenses}
-              members={trip.members || []}
-              baseCurrency={trip.base_currency}
-              currentUserId={user?.id}
-              isCurrentUserAdmin={isCurrentUserAdmin}
-              selectedCategory={selectedCategory}
-              selectedMember={selectedMemberFilter}
-              onDelete={handleDeleteExpense}
-              onRefresh={() => {}}
-              onFilterClick={() => setShowFilterModal(true)}
-            />
-          )}
+          <ExpenseList
+            tripId={tripId!}
+            members={trip.members || []}
+            baseCurrency={trip.base_currency}
+            currentUserId={user?.id}
+            isCurrentUserAdmin={isCurrentUserAdmin}
+            selectedCategory={selectedCategory}
+            selectedMember={selectedMemberFilter}
+            onFilterClick={() => setShowFilterModal(true)}
+          />
         </div>
       </main>
 
@@ -370,8 +353,7 @@ export default function TripDetail() {
       {/* Balances Modal */}
       <BalancesModal
         isOpen={showBalancesModal}
-        balances={balances}
-        isLoading={balancesLoading}
+        tripId={tripId!}
         currency={trip.base_currency}
         getMemberColor={(memberId) => {
           const index = trip.members?.findIndex(m => m.id === memberId) || 0;
@@ -383,8 +365,7 @@ export default function TripDetail() {
       {/* Settlements Modal */}
       <SettlementsModal
         isOpen={showSettlementsModal}
-        settlements={settlements}
-        isLoading={settlementsLoading}
+        tripId={tripId!}
         currency={trip.base_currency}
         getMemberColor={(memberId) => {
           const index = trip.members?.findIndex(m => m.id === memberId) || 0;

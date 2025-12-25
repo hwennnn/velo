@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Camera, Edit2, LogOut, Save, X } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Avatar } from '../components/Avatar';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { useAlert } from '../contexts/AlertContext';
 import { useAuth } from '../hooks/useAuth';
@@ -81,16 +82,6 @@ export default function Profile() {
     } catch {
       showAlert('Failed to sign out', { type: 'error' });
     }
-  };
-
-  const getInitials = (name?: string, email?: string) => {
-    if (name) {
-      return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-    }
-    if (email) {
-      return email.slice(0, 2).toUpperCase();
-    }
-    return 'U';
   };
 
   const getAvatarUrl = () => {
@@ -180,15 +171,18 @@ export default function Profile() {
                     target.nextElementSibling?.classList.remove('hidden');
                   }}
                 />
-              ) : null}
-              
-              <div
-                className={`w-24 h-24 rounded-full border-4 border-white shadow-lg flex items-center justify-center text-white text-xl font-bold bg-gradient-to-br from-primary-500 to-primary-600 ${
-                  getAvatarUrl() ? 'hidden' : ''
-                }`}
-              >
-                {getInitials(userProfile?.display_name, userProfile?.email)}
-              </div>
+              ) : (
+                <Avatar
+                  member={{
+                    id: userProfile?.id ? parseInt(userProfile.id.slice(0, 8), 16) || 0 : 0,
+                    display_name: userProfile?.display_name,
+                    nickname: userProfile?.display_name || userProfile?.email?.split('@')[0] || 'User',
+                    avatar_url: userProfile?.avatar_url,
+                  }}
+                  size="xl"
+                  className="border-4 border-white shadow-lg"
+                />
+              )}
               
               {isEditing && (
                 <div className="absolute -bottom-2 -right-2 bg-primary-600 rounded-full p-2 shadow-lg">

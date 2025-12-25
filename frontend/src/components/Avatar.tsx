@@ -7,7 +7,7 @@ import type { TripMember } from '../types';
 import { getMemberInitials } from '../utils/memberUtils';
 
 interface AvatarProps {
-  member: TripMember;
+  member: Pick<TripMember, 'id' | 'display_name' | 'avatar_url' | 'nickname'>;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
   onClick?: () => void;
@@ -47,9 +47,9 @@ export const Avatar: React.FC<AvatarProps> = ({
   
   const sizeClass = sizeClasses[size];
   const colorClass = getMemberColor(member.id);
-  const initials = getMemberInitials(member);
+  const initials = getMemberInitials(member.display_name || member.nickname);
   
-  const hasAvatar = member.avatar_url && !imageError;
+  const hasAvatar = member.avatar_url !== null && member.avatar_url !== undefined && member.avatar_url.length > 0 && !imageError;
   
   const handleImageLoad = () => {
     setImageLoading(false);

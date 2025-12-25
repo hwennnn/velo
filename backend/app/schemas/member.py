@@ -1,32 +1,35 @@
 """
 Pydantic schemas for Member API endpoints
 """
+
 from typing import Optional
 from pydantic import BaseModel, Field, model_validator
 
 
 class MemberAdd(BaseModel):
     """Schema for adding a member to a trip"""
-    nickname: str = Field(..., min_length=1, max_length=100,
-                          description="Member display name")
-    is_fictional: bool = Field(
-        default=False, description="Is this a fictional member?")
+
+    nickname: str = Field(
+        ..., min_length=1, max_length=100, description="Member display name"
+    )
+    is_fictional: bool = Field(default=False, description="Is this a fictional member?")
     user_email: Optional[str] = Field(
-        None, description="Email to search for real user (if not fictional)")
+        None, description="Email to search for real user (if not fictional)"
+    )
     is_admin: bool = Field(default=False, description="Grant admin privileges")
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_member_data(self):
         """Validate member data"""
         # Clean nickname
         if self.nickname:
             self.nickname = self.nickname.strip()
             if not self.nickname:
-                raise ValueError('Nickname cannot be empty or just whitespace')
+                raise ValueError("Nickname cannot be empty or just whitespace")
 
         # For real members, email is required
         if not self.is_fictional and not self.user_email:
-            raise ValueError('Email is required for real members')
+            raise ValueError("Email is required for real members")
 
         # Clean email
         if self.user_email:
@@ -37,29 +40,33 @@ class MemberAdd(BaseModel):
 
 class MemberUpdate(BaseModel):
     """Schema for updating a member"""
+
     nickname: Optional[str] = Field(None, min_length=1, max_length=100)
     is_admin: Optional[bool] = None
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_member_data(self):
         """Validate member update data"""
         # Clean nickname
         if self.nickname is not None:
             self.nickname = self.nickname.strip()
             if not self.nickname:
-                raise ValueError('Nickname cannot be empty or just whitespace')
+                raise ValueError("Nickname cannot be empty or just whitespace")
 
         return self
 
 
 class MemberClaimRequest(BaseModel):
     """Schema for claiming a fictional member"""
+
     claim_code: Optional[str] = Field(
-        None, description="Optional claim code for verification")
+        None, description="Optional claim code for verification"
+    )
 
 
 class MemberResponse(BaseModel):
     """Schema for member in responses"""
+
     id: int
     trip_id: int
     nickname: str
@@ -70,6 +77,8 @@ class MemberResponse(BaseModel):
     # User's real name (for claimed members)
     display_name: Optional[str] = None
     avatar_url: Optional[str] = None  # Only for real members
+    created_at: Optional[str] = None  # When member was created/added
+    joined_at: Optional[str] = None  # When fictional member was claimed
 
     class Config:
         from_attributes = True
@@ -77,6 +86,7 @@ class MemberResponse(BaseModel):
 
 class InviteLinkResponse(BaseModel):
     """Schema for invite link response"""
+
     invite_code: str
     invite_url: str
     expires_at: Optional[str] = None

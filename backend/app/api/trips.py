@@ -169,18 +169,31 @@ async def get_trip(
     result = await session.execute(members_statement)
     members = result.scalars().all()
 
-    # Build response
+    # Build response with member details
     trip_response = TripResponse.model_validate(trip)
-    trip_response.members = [
-        TripMemberResponse(
+    member_responses = []
+    for m in members:
+        member_response = TripMemberResponse(
             id=m.id,
             nickname=m.nickname,
             is_fictional=m.is_fictional,
             is_admin=m.is_admin,
             user_id=m.user_id,
+            created_at=m.created_at.isoformat() if m.created_at else None,
+            joined_at=m.joined_at.isoformat() if m.joined_at else None,
         )
-        for m in members
-    ]
+
+        # Add user details if real member
+        if m.user_id:
+            user = await session.get(User, m.user_id)
+            if user:
+                member_response.email = user.email
+                member_response.display_name = user.display_name
+                member_response.avatar_url = user.avatar_url
+
+        member_responses.append(member_response)
+
+    trip_response.members = member_responses
     trip_response.member_count = len(members)
 
     return trip_response

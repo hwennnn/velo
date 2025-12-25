@@ -2,8 +2,8 @@
  * MemberDetailModal Component
  * Shows detailed information about a trip member
  */
-import { Calendar, Mail, Shield, User, UserCheck, X } from 'lucide-react';
 import { format } from 'date-fns';
+import { Calendar, Mail, Shield, User, UserCheck, X } from 'lucide-react';
 import type { TripMember } from '../types';
 
 interface MemberDetailModalProps {
@@ -75,6 +75,11 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
               {getMemberInitials(member.nickname)}
             </div>
             <h4 className="text-xl font-bold text-gray-900 mb-1">{member.nickname}</h4>
+            {member.display_name && member.display_name !== member.nickname && (
+              <div className="text-sm text-gray-600 mb-2">
+                {member.display_name}
+              </div>
+            )}
             {isCurrentUser && (
               <span className="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-medium rounded-full mb-2">
                 This is you
@@ -107,7 +112,7 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                     <div className="text-sm text-gray-900">{member.display_name}</div>
                     {member.display_name !== member.nickname && (
                       <div className="text-xs text-gray-500 mt-1">
-                        Using nickname: {member.nickname}
+                        Displayed as: {member.nickname}
                       </div>
                     )}
                   </div>
@@ -122,7 +127,7 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                   <Mail className="w-5 h-5 text-gray-400 mt-0.5" />
                   <div className="flex-1">
                     <div className="text-sm font-medium text-gray-700 mb-1">Email</div>
-                    <div className="text-sm text-gray-900">{member.email}</div>
+                    <div className="text-sm text-gray-900 break-all">{member.email}</div>
                   </div>
                 </div>
               </div>
@@ -182,18 +187,45 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
               </div>
             </div>
 
-            {/* Join Date */}
-            {member.created_at && (
+            {/* Join/Creation Dates */}
+            {(member.created_at || member.joined_at) && (
               <div className="p-4 bg-gray-50 rounded-lg">
                 <div className="flex items-start gap-3">
                   <Calendar className="w-5 h-5 text-gray-400 mt-0.5" />
                   <div className="flex-1">
-                    <div className="text-sm font-medium text-gray-700 mb-1">
-                      {member.is_fictional ? 'Created' : 'Joined'}
-                    </div>
-                    <div className="text-sm text-gray-900">
-                      {format(new Date(member.created_at), 'MMMM d, yyyy')}
-                    </div>
+                    {member.is_fictional ? (
+                      <>
+                        <div className="text-sm font-medium text-gray-700 mb-1">Created</div>
+                        {member.created_at && (
+                          <div className="text-sm text-gray-900">
+                            {format(new Date(member.created_at), 'MMMM d, yyyy')}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {member.joined_at ? (
+                          <>
+                            <div className="text-sm font-medium text-gray-700 mb-1">Joined</div>
+                            <div className="text-sm text-gray-900">
+                              {format(new Date(member.joined_at), 'MMMM d, yyyy')}
+                            </div>
+                            {member.created_at && member.created_at !== member.joined_at && (
+                              <div className="text-xs text-gray-500 mt-1">
+                                Originally created: {format(new Date(member.created_at), 'MMMM d, yyyy')}
+                              </div>
+                            )}
+                          </>
+                        ) : member.created_at ? (
+                          <>
+                            <div className="text-sm font-medium text-gray-700 mb-1">Added</div>
+                            <div className="text-sm text-gray-900">
+                              {format(new Date(member.created_at), 'MMMM d, yyyy')}
+                            </div>
+                          </>
+                        ) : null}
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

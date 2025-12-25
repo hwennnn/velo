@@ -70,7 +70,17 @@ export const MemberListItem: React.FC<MemberListItemProps> = ({
           {member.is_fictional ? (
             <div className="text-xs text-amber-600 font-medium">Fictional member</div>
           ) : (
-            <div className="text-xs text-gray-500 truncate">{member.email || 'Active member'}</div>
+            <div className="text-xs text-gray-500 space-y-0.5">
+              {member.display_name && member.display_name !== member.nickname && (
+                <div className="truncate">{member.display_name}</div>
+              )}
+              {member.email && (
+                <div className="truncate">{member.email}</div>
+              )}
+              {!member.email && !member.display_name && (
+                <div>Active member</div>
+              )}
+            </div>
           )}
         </div>
       </div>

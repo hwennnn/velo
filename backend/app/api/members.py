@@ -39,6 +39,8 @@ async def build_member_response(
         is_fictional=member.is_fictional,
         is_admin=member.is_admin,
         user_id=member.user_id,
+        created_at=member.created_at.isoformat() if member.created_at else None,
+        joined_at=member.joined_at.isoformat() if member.joined_at else None,
     )
 
     # Add user details if real member

@@ -1,6 +1,7 @@
 """
 Pydantic schemas for Trip API endpoints
 """
+
 from datetime import date, datetime
 from typing import Optional
 from decimal import Decimal
@@ -9,38 +10,40 @@ from pydantic import BaseModel, Field, model_validator
 
 class TripCreate(BaseModel):
     """Schema for creating a new trip"""
-    name: str = Field(..., min_length=1, max_length=200,
-                      description="Trip name")
+
+    name: str = Field(..., min_length=1, max_length=200, description="Trip name")
     description: Optional[str] = Field(
-        None, max_length=1000, description="Trip description")
+        None, max_length=1000, description="Trip description"
+    )
     base_currency: str = Field(
-        default="USD", min_length=3, max_length=3, description="ISO 4217 currency code")
+        default="USD", min_length=3, max_length=3, description="ISO 4217 currency code"
+    )
     start_date: Optional[date] = Field(None, description="Trip start date")
     end_date: Optional[date] = Field(None, description="Trip end date")
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_trip_data(self):
         """Validate trip data"""
         # Validate dates
         if self.start_date and self.end_date:
             if self.end_date < self.start_date:
-                raise ValueError('End date cannot be before start date')
+                raise ValueError("End date cannot be before start date")
 
         # Validate and clean name
         if self.name:
             self.name = self.name.strip()
             if not self.name:
-                raise ValueError(
-                    'Trip name cannot be empty or just whitespace')
+                raise ValueError("Trip name cannot be empty or just whitespace")
 
         # Validate and uppercase currency
         if self.base_currency:
             self.base_currency = self.base_currency.upper().strip()
             if len(self.base_currency) != 3:
                 raise ValueError(
-                    'Currency code must be exactly 3 characters (ISO 4217)')
+                    "Currency code must be exactly 3 characters (ISO 4217)"
+                )
             if not self.base_currency.isalpha():
-                raise ValueError('Currency code must contain only letters')
+                raise ValueError("Currency code must contain only letters")
 
         # Clean description
         if self.description:
@@ -64,30 +67,31 @@ class TripCreate(BaseModel):
 
 class TripUpdate(BaseModel):
     """Schema for updating a trip"""
+
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=1000)
     base_currency: Optional[str] = Field(None, min_length=3, max_length=3)
     start_date: Optional[date] = None
     end_date: Optional[date] = None
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_trip_data(self):
         """Validate trip update data"""
         # Validate and clean name
         if self.name is not None:
             self.name = self.name.strip()
             if not self.name:
-                raise ValueError(
-                    'Trip name cannot be empty or just whitespace')
+                raise ValueError("Trip name cannot be empty or just whitespace")
 
         # Validate and uppercase currency
         if self.base_currency is not None:
             self.base_currency = self.base_currency.upper().strip()
             if len(self.base_currency) != 3:
                 raise ValueError(
-                    'Currency code must be exactly 3 characters (ISO 4217)')
+                    "Currency code must be exactly 3 characters (ISO 4217)"
+                )
             if not self.base_currency.isalpha():
-                raise ValueError('Currency code must contain only letters')
+                raise ValueError("Currency code must contain only letters")
 
         # Clean description
         if self.description is not None:
@@ -103,15 +107,22 @@ class TripUpdate(BaseModel):
 
 class TripMemberResponse(BaseModel):
     """Schema for trip member in responses"""
+
     id: int
     nickname: str
     is_fictional: bool
     is_admin: bool
     user_id: Optional[str] = None
+    email: Optional[str] = None
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    created_at: Optional[str] = None
+    joined_at: Optional[str] = None
 
 
 class TripResponse(BaseModel):
     """Schema for trip in responses"""
+
     id: int
     name: str
     description: Optional[str]
@@ -123,8 +134,9 @@ class TripResponse(BaseModel):
     updated_at: datetime
 
     # Cached metadata
-    total_spent: Decimal = Field(default=Decimal(
-        "0.0"), description="Total spent in base currency")
+    total_spent: Decimal = Field(
+        default=Decimal("0.0"), description="Total spent in base currency"
+    )
     expense_count: int = Field(default=0, description="Number of expenses")
 
     # Optional: include member count or members list
@@ -137,6 +149,7 @@ class TripResponse(BaseModel):
 
 class TripListResponse(BaseModel):
     """Schema for trip list response"""
+
     trips: list[TripResponse]
     total: int
     page: int = 1

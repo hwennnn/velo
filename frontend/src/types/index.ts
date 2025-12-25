@@ -37,7 +37,8 @@ export interface TripMember {
   display_name?: string;  // User's real name (for claimed members)
   avatar_url?: string;
   color?: string;
-  created_at?: string;
+  created_at?: string;  // When member was created/added
+  joined_at?: string;   // When fictional member was claimed
 }
 
 export interface Expense {

@@ -38,9 +38,6 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
   const { data: exchangeRatesData, isLoading: ratesLoading } = useExchangeRates(isOpen ? currency : undefined);
   
   const [recordingSettlements, setRecordingSettlements] = useState<Set<string>>(new Set());
-  const [showConversionModal, setShowConversionModal] = useState<Settlement | null>(null);
-  const [convertToCurrency, setConvertToCurrency] = useState<string>('');
-  const [conversionRate, setConversionRate] = useState<string>('');
   const [viewMode, setViewMode] = useState<'individual' | 'grouped'>('grouped');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [showMergeModal, setShowMergeModal] = useState<{
@@ -48,6 +45,7 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
     settlement: Settlement;
   } | null>(null);
   const [mergeToCurrency, setMergeToCurrency] = useState<string>('');
+  const [customConversionRate, setCustomConversionRate] = useState<string>('');
   const queryClient = useQueryClient();
   const { showAlert } = useAlert();
 
@@ -80,7 +78,7 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
     },
   });
 
-  const handleRecordSettlement = async (settlement: Settlement, withConversion?: boolean) => {
+  const handleRecordSettlement = async (settlement: Settlement) => {
     const settlementKey = `${settlement.from_member_id}-${settlement.to_member_id}-${settlement.currency}`;
     
     if (recordingSettlements.has(settlementKey)) {
@@ -99,16 +97,7 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
         notes: `Settlement: ${settlement.from_nickname} → ${settlement.to_nickname}`,
       };
 
-      // Add conversion if specified
-      if (withConversion && convertToCurrency && conversionRate) {
-        settlementData.convert_to_currency = convertToCurrency;
-        settlementData.conversion_rate = parseFloat(conversionRate);
-      }
-
       await recordSettlementMutation.mutateAsync(settlementData);
-      setShowConversionModal(null);
-      setConvertToCurrency('');
-      setConversionRate('');
     } finally {
       setRecordingSettlements(prev => {
         const newSet = new Set(prev);
@@ -118,26 +107,18 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
     }
   };
 
-  const handleShowConversionModal = (settlement: Settlement) => {
-    setShowConversionModal(settlement);
-    setConvertToCurrency(currency); // Default to base currency
-    
-    // Calculate real exchange rate as default
-    const rate = calculateCrossRate(
+  const handleShowMergeModal = (group: GroupedSettlement, settlement: Settlement) => {
+    setShowMergeModal({ group, settlement });
+    // Default to base currency for easier payment
+    setMergeToCurrency(currency);
+    // Calculate and set default conversion rate
+    const defaultRate = calculateCrossRate(
       settlement.currency,
       currency,
       exchangeRates,
       currency
     );
-    setConversionRate(rate.toString());
-  };
-
-  const handleShowMergeModal = (group: GroupedSettlement, settlement: Settlement) => {
-    setShowMergeModal({ group, settlement });
-    // Default to base currency or the most common currency in the group
-    const currencies = group.settlements.map(s => s.currency);
-    const targetCurrency = currencies.includes(currency) ? currency : currencies[0];
-    setMergeToCurrency(targetCurrency);
+    setCustomConversionRate(defaultRate.toString());
   };
 
   // Mutation for merging debt currencies
@@ -167,17 +148,17 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
   });
 
   const handleMergeSettlement = async () => {
-    if (!showMergeModal) return;
+    if (!showMergeModal || !customConversionRate) return;
 
     const { settlement } = showMergeModal;
     
-    // Calculate exchange rate using real rates
-    const rate = calculateCrossRate(
-      settlement.currency,
-      mergeToCurrency,
-      exchangeRates,
-      currency
-    );
+    // Use the custom conversion rate (user can edit it)
+    const rate = parseFloat(customConversionRate);
+    
+    if (isNaN(rate) || rate <= 0) {
+      showAlert('Please enter a valid conversion rate', { type: 'error' });
+      return;
+    }
 
     // Merge the debt currency (without paying)
     const mergeData = {
@@ -193,6 +174,7 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
       await mergeDebtMutation.mutateAsync(mergeData);
       setShowMergeModal(null);
       setMergeToCurrency('');
+      setCustomConversionRate('');
     } catch {
       // Error handled by mutation
     }
@@ -385,44 +367,42 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
                                 </div>
                                 <div className="text-sm text-gray-500">{settlement.currency}</div>
                               </div>
-                              {hasMultipleCurrencies && (
-                                <button
-                                  onClick={() => handleShowMergeModal(group, settlement)}
-                                  className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
-                                >
-                                  <RefreshCw className="w-3 h-3" />
-                                  <span>Merge</span>
-                                </button>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleRecordSettlement(settlement, false)}
-                                disabled={isRecording}
-                                className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
-                              >
-                                {isRecording ? (
-                                  <>
-                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                    <span>Recording...</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Check className="w-4 h-4" />
-                                    <span>Paid</span>
-                                  </>
-                                )}
-                              </button>
                               {settlement.currency !== currency && (
                                 <button
-                                  onClick={() => handleShowConversionModal(settlement)}
-                                  disabled={isRecording}
-                                  className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
+                                  onClick={() => handleShowMergeModal(group, settlement)}
+                                  className={`text-xs font-medium flex items-center gap-1 transition-all ${
+                                    settlement.currency !== currency
+                                      ? 'text-white bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded-md shadow-sm'
+                                      : 'text-blue-600 hover:text-blue-700'
+                                  }`}
+                                  title={
+                                    settlement.currency !== currency
+                                      ? `Convert ${settlement.currency} to ${currency} for easier payment`
+                                      : 'Convert this debt to a different currency'
+                                  }
                                 >
-                                  <RefreshCw className="w-4 h-4" />
+                                  <RefreshCw className="w-3 h-3" />
+                                  <span>Convert</span>
                                 </button>
                               )}
                             </div>
+                            <button
+                              onClick={() => handleRecordSettlement(settlement)}
+                              disabled={isRecording}
+                              className="w-full flex items-center justify-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
+                            >
+                              {isRecording ? (
+                                <>
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  <span>Recording...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="w-4 h-4" />
+                                  <span>Mark as Paid</span>
+                                </>
+                              )}
+                            </button>
                           </div>
                         );
                       })}
@@ -486,45 +466,55 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Payment Instructions and Record Buttons */}
+                  {/* Payment Instructions and Record Button */}
                   <div className="mt-3 pt-3 border-t border-gray-200">
-                    <p className="text-sm text-gray-600 mb-2">
-                      <strong>{settlement.from_nickname}</strong> pays{' '}
-                      <strong>{settlement.to_nickname}</strong>{' '}
-                      <strong className="text-primary-600">
-                        {Number(settlement.amount).toFixed(2)} {settlement.currency}
-                      </strong>
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleRecordSettlement(settlement, false)}
-                        disabled={isRecording}
-                        className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
-                        title="Mark as paid in original currency"
-                      >
-                        {isRecording ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            <span>Recording...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Check className="w-4 h-4" />
-                            <span>Paid</span>
-                          </>
-                        )}
-                      </button>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm text-gray-600">
+                        <strong>{settlement.from_nickname}</strong> pays{' '}
+                        <strong>{settlement.to_nickname}</strong>{' '}
+                        <strong className="text-primary-600">
+                          {Number(settlement.amount).toFixed(2)} {settlement.currency}
+                        </strong>
+                      </p>
                       {settlement.currency !== currency && (
                         <button
-                          onClick={() => handleShowConversionModal(settlement)}
-                          disabled={isRecording}
-                          className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
-                          title="Pay in different currency"
+                          onClick={() => {
+                            // Create a temporary group for this single settlement
+                            const tempGroup: GroupedSettlement = {
+                              from_member_id: settlement.from_member_id,
+                              to_member_id: settlement.to_member_id,
+                              from_nickname: settlement.from_nickname,
+                              to_nickname: settlement.to_nickname,
+                              settlements: [settlement],
+                              total_in_base: 0,
+                            };
+                            handleShowMergeModal(tempGroup, settlement);
+                          }}
+                          className="text-xs font-medium flex items-center gap-1 transition-all text-white bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded-md shadow-sm"
+                          title={`Convert ${settlement.currency} to ${currency} for easier payment`}
                         >
-                          <RefreshCw className="w-4 h-4" />
+                          <RefreshCw className="w-3 h-3" />
+                          <span>Convert</span>
                         </button>
                       )}
                     </div>
+                    <button
+                      onClick={() => handleRecordSettlement(settlement)}
+                      disabled={isRecording}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
+                    >
+                      {isRecording ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <span>Recording...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4" />
+                          <span>Mark as Paid</span>
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
               );
@@ -534,116 +524,15 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
         </div>
       </div>
 
-      {/* Currency Conversion Modal */}
-      {showConversionModal && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
-            <h4 className="text-lg font-semibold text-gray-900 mb-4">
-              Pay in Different Currency
-            </h4>
-            <p className="text-sm text-gray-600 mb-4">
-              Settling <strong>{Number(showConversionModal.amount).toFixed(2)} {showConversionModal.currency}</strong> debt
-            </p>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Pay in Currency
-                </label>
-                <select
-                  value={convertToCurrency}
-                  onChange={(e) => {
-                    const newCurrency = e.target.value;
-                    setConvertToCurrency(newCurrency);
-                    // Auto-update conversion rate when currency changes
-                    const rate = calculateCrossRate(
-                      showConversionModal.currency,
-                      newCurrency,
-                      exchangeRates,
-                      currency
-                    );
-                    setConversionRate(rate.toString());
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                >
-                  {SUPPORTED_CURRENCIES.map((currency) => (
-                    <option key={currency.code} value={currency.code}>
-                      {currency.code} - {currency.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Conversion Rate (1 {showConversionModal.currency} = ? {convertToCurrency})
-                </label>
-                <div className="relative">
-                <input
-                  type="number"
-                  step="0.000001"
-                  value={conversionRate}
-                  onChange={(e) => setConversionRate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  placeholder="e.g., 0.0067"
-                />
-                  {ratesLoading && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                      <div className="w-4 h-4 border-2 border-gray-300 border-t-primary-600 rounded-full animate-spin" />
-                    </div>
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Rate auto-filled from current exchange rates. You can adjust if needed.
-                </p>
-              </div>
-
-              {conversionRate && parseFloat(conversionRate) > 0 && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <p className="text-sm text-blue-900">
-                    You will pay: <strong>
-                      {(showConversionModal.amount * parseFloat(conversionRate)).toFixed(2)} {convertToCurrency}
-                    </strong>
-                  </p>
-                  <p className="text-xs text-gray-600 mt-1">
-                    This will settle the {showConversionModal.amount.toFixed(2)} {showConversionModal.currency} debt
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => {
-                  setShowConversionModal(null);
-                  setConvertToCurrency('');
-                  setConversionRate('');
-                }}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleRecordSettlement(showConversionModal, true)}
-                disabled={!conversionRate || parseFloat(conversionRate) <= 0}
-                className="flex-1 px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white rounded-lg transition-colors"
-              >
-                Record Payment
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Currency Merge Modal */}
       {showMergeModal && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
             <h4 className="text-lg font-semibold text-gray-900 mb-4">
-              Merge Currency
+              Convert Debt Currency
             </h4>
             <p className="text-sm text-gray-600 mb-4">
-              Merge <strong>{Number(showMergeModal.settlement.amount).toFixed(2)} {showMergeModal.settlement.currency}</strong> debt into another currency for easier settlement
+              Convert <strong>{Number(showMergeModal.settlement.amount).toFixed(2)} {showMergeModal.settlement.currency}</strong> debt to another currency, then pay in that currency
             </p>
 
             <div className="space-y-4">
@@ -664,66 +553,89 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Merge into Currency
+                  Convert to Currency
                 </label>
                 <select
                   value={mergeToCurrency}
-                  onChange={(e) => setMergeToCurrency(e.target.value)}
+                  onChange={(e) => {
+                    const newCurrency = e.target.value;
+                    setMergeToCurrency(newCurrency);
+                    // Auto-update conversion rate when currency changes
+                    const rate = calculateCrossRate(
+                      showMergeModal.settlement.currency,
+                      newCurrency,
+                      exchangeRates,
+                      currency
+                    );
+                    setCustomConversionRate(rate.toString());
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
-                  {showMergeModal.group.settlements
-                    .map(s => s.currency)
-                    .filter((c, idx, arr) => arr.indexOf(c) === idx) // unique currencies
-                    .map((curr) => (
-                      <option key={curr} value={curr}>
-                        {curr}
-                      </option>
-                    ))}
-                  {!showMergeModal.group.settlements.some(s => s.currency === currency) && (
-                    <option value={currency}>{currency} (Base Currency)</option>
-                  )}
+                  {SUPPORTED_CURRENCIES.map((curr) => (
+                    <option key={curr.code} value={curr.code}>
+                      {curr.code} - {curr.name}
+                    </option>
+                  ))}
                 </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  After converting, you can pay in this currency
+                </p>
               </div>
 
-              {/* Show conversion rate and preview */}
+              {/* Editable conversion rate */}
               {mergeToCurrency && mergeToCurrency !== showMergeModal.settlement.currency && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Conversion Rate (1 {showMergeModal.settlement.currency} = ? {mergeToCurrency})
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.000001"
+                      value={customConversionRate}
+                      onChange={(e) => setCustomConversionRate(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono"
+                      placeholder="e.g., 0.0067"
+                    />
+                    {ratesLoading && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <div className="w-4 h-4 border-2 border-gray-300 border-t-primary-600 rounded-full animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Rate auto-filled from current exchange rates. You can adjust if needed.
+                  </p>
+                </div>
+              )}
+
+              {/* Show conversion preview */}
+              {mergeToCurrency && mergeToCurrency !== showMergeModal.settlement.currency && customConversionRate && parseFloat(customConversionRate) > 0 && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-700">Exchange Rate:</span>
-                    <span className="font-mono font-semibold text-gray-900">
-                      1 {showMergeModal.settlement.currency} = {calculateCrossRate(
-                        showMergeModal.settlement.currency,
-                        mergeToCurrency,
-                        exchangeRates,
-                        currency
-                      ).toFixed(6)} {mergeToCurrency}
+                    <span className="text-gray-700">Original Amount:</span>
+                    <span className="font-semibold text-gray-900">
+                      {showMergeModal.settlement.amount.toFixed(2)} {showMergeModal.settlement.currency}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-sm pt-2 border-t border-green-300">
                     <span className="text-gray-700">Converted Amount:</span>
                     <span className="font-bold text-green-700">
-                      {(showMergeModal.settlement.amount * calculateCrossRate(
-                        showMergeModal.settlement.currency,
-                        mergeToCurrency,
-                        exchangeRates,
-                        currency
-                      )).toFixed(2)} {mergeToCurrency}
+                      {(showMergeModal.settlement.amount * parseFloat(customConversionRate)).toFixed(2)} {mergeToCurrency}
                     </span>
                   </div>
-                  {ratesLoading && (
-                    <p className="text-xs text-gray-500 italic">Loading exchange rates...</p>
-                  )}
                 </div>
               )}
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <p className="text-xs text-blue-800 mb-2">
-                  💡 <strong>Tip:</strong> Merging will convert the debt to {mergeToCurrency}, 
-                  consolidating your debts in fewer currencies.
+                  💡 <strong>How it works:</strong>
                 </p>
-                <p className="text-xs text-blue-700">
-                  After merging, you'll have one combined debt in {mergeToCurrency} to settle.
-                </p>
+                <ol className="text-xs text-blue-700 space-y-1 ml-4 list-decimal">
+                  <li>Debt is converted to {mergeToCurrency} using current exchange rate</li>
+                  <li>Original {showMergeModal.settlement.currency} debt is removed</li>
+                  <li>You can then pay the debt in {mergeToCurrency}</li>
+                </ol>
               </div>
             </div>
 
@@ -732,6 +644,7 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
                 onClick={() => {
                   setShowMergeModal(null);
                   setMergeToCurrency('');
+                  setCustomConversionRate('');
                 }}
                 className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
               >
@@ -739,10 +652,15 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
               </button>
               <button
                 onClick={handleMergeSettlement}
-                disabled={!mergeToCurrency || mergeToCurrency === showMergeModal.settlement.currency}
+                disabled={
+                  !mergeToCurrency || 
+                  mergeToCurrency === showMergeModal.settlement.currency ||
+                  !customConversionRate ||
+                  parseFloat(customConversionRate) <= 0
+                }
                 className="flex-1 px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-400 text-white rounded-lg transition-colors"
               >
-                Merge to {mergeToCurrency}
+                Convert to {mergeToCurrency}
               </button>
             </div>
           </div>

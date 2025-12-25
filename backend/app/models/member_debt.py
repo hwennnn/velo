@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Optional
 from decimal import Decimal
 from sqlmodel import Field, SQLModel, Column
-from sqlalchemy import Numeric, Index
+from sqlalchemy import Numeric, Index, UniqueConstraint
 
 
 class MemberDebt(SQLModel, table=True):
@@ -22,9 +22,26 @@ class MemberDebt(SQLModel, table=True):
     - currency: JPY
 
     When Bob pays Alice back 50 JPY, this record is deleted or amount set to 0.
+    
+    Note: There can only be ONE debt record per (trip, debtor, creditor, currency) tuple.
+    This ensures debts are properly consolidated.
     """
 
     __tablename__ = "member_debts"
+    
+    __table_args__ = (
+        Index("idx_member_debts_trip", "trip_id"),
+        Index("idx_member_debts_debtor", "debtor_member_id"),
+        Index("idx_member_debts_creditor", "creditor_member_id"),
+        Index("idx_member_debts_trip_currency", "trip_id", "currency"),
+        UniqueConstraint(
+            "trip_id",
+            "debtor_member_id",
+            "creditor_member_id",
+            "currency",
+            name="uq_member_debts_trip_debtor_creditor_currency",
+        ),
+    )
 
     id: Optional[int] = Field(default=None, primary_key=True)
 
@@ -68,12 +85,3 @@ class MemberDebt(SQLModel, table=True):
                 "currency": "JPY",
             }
         }
-
-
-# Create indexes for efficient queries
-__table_args__ = (
-    Index("idx_member_debts_trip", "trip_id"),
-    Index("idx_member_debts_debtor", "debtor_member_id"),
-    Index("idx_member_debts_creditor", "creditor_member_id"),
-    Index("idx_member_debts_trip_currency", "trip_id", "currency"),
-)

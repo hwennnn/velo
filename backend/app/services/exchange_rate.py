@@ -92,7 +92,6 @@ async def get_exchange_rate(from_currency: str, to_currency: str) -> Decimal:
         # Fetch rates with base currency as 'from_currency'
         # This gives us direct conversion rates
         rates = await fetch_exchange_rates(from_currency)
-        print("Rates: ", rates)
 
         if to_currency not in rates:
             raise ExchangeRateError(f"Currency {to_currency} not supported")

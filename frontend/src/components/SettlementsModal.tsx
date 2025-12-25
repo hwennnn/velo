@@ -11,6 +11,8 @@ import { useAlert } from '../contexts/AlertContext';
 import { useAuth } from '../hooks/useAuth';
 import { balanceKeys, useSettlements } from '../hooks/useBalances';
 import { calculateCrossRate, useExchangeRates } from '../hooks/useExchangeRates';
+import { expenseKeys } from '../hooks/useExpenses';
+import { tripKeys } from '../hooks/useTrips';
 import { api } from '../services/api';
 import type { GroupedSettlement, Settlement, SettlementInput, TripMember } from '../types';
 import { groupSettlementsByPair } from '../utils/settlements';
@@ -201,7 +203,17 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
     mutationFn: (settlementData: SettlementInput) => 
       api.balances.recordSettlement(tripId, settlementData),
     onSuccess: () => {
-      // Invalidate and refetch balances and settlements
+      // Invalidate expense queries (settlement creates a settlement-type expense)
+      queryClient.invalidateQueries({ 
+        queryKey: expenseKeys.lists(),
+        predicate: (query) => {
+          // Match any expense query that includes this tripId
+          return query.queryKey.includes(tripId);
+        }
+      });
+      // Invalidate trip data (for totals and metadata)
+      queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
+      // Invalidate balances and settlements (debts changed)
       queryClient.invalidateQueries({ queryKey: balanceKeys.trip(tripId) });
       queryClient.invalidateQueries({ queryKey: balanceKeys.settlements(tripId) });
       showAlert('Settlement recorded successfully', { type: 'success' });
@@ -270,9 +282,11 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
     }) => 
       api.balances.mergeDebtCurrency(tripId, mergeData),
     onSuccess: () => {
-      // Invalidate and refetch balances and settlements
+      // Invalidate balances and settlements (debts changed)
       queryClient.invalidateQueries({ queryKey: balanceKeys.trip(tripId) });
       queryClient.invalidateQueries({ queryKey: balanceKeys.settlements(tripId) });
+      // Invalidate trip data (balances might affect trip totals)
+      queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
       showAlert('Debt currency merged successfully', { type: 'success' });
     },
     onError: (error: unknown) => {

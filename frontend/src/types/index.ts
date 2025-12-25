@@ -88,6 +88,15 @@ export interface Settlement {
   to_nickname: string;
 }
 
+export interface GroupedSettlement {
+  from_member_id: number;
+  to_member_id: number;
+  from_nickname: string;
+  to_nickname: string;
+  settlements: Settlement[]; // Multiple settlements in different currencies
+  total_in_base: number; // Total amount in base currency
+}
+
 export interface SettlementInput {
   from_member_id: number;
   to_member_id: number;

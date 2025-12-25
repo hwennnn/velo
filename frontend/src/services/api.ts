@@ -86,6 +86,12 @@ export const api = {
     getSettlements: (tripId: string) => apiClient.get(`/trips/${tripId}/settlements`),
     getMemberBalance: (tripId: string, memberId: number) => apiClient.get(`/trips/${tripId}/members/${memberId}/balance`),
     recordSettlement: (tripId: string, data: any) => apiClient.post(`/trips/${tripId}/settlements`, data),
+    mergeDebtCurrency: (tripId: string, data: any) => apiClient.post(`/trips/${tripId}/debts/merge`, data),
+  },
+
+  // Exchange Rates
+  exchangeRates: {
+    get: (baseCurrency: string) => apiClient.get(`/exchange-rates/${baseCurrency}`),
   },
 
   // User

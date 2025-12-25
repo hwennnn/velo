@@ -393,3 +393,116 @@ async def cleanup_zero_debts(trip_id: int, session: AsyncSession) -> int:
     )
     result = await session.execute(delete_statement)
     return result.rowcount
+
+
+async def merge_debt_currency(
+    trip_id: int,
+    debtor_member_id: int,
+    creditor_member_id: int,
+    amount: Decimal,
+    from_currency: str,
+    to_currency: str,
+    conversion_rate: Decimal,
+    session: AsyncSession,
+) -> Dict:
+    """
+    Merge a debt from one currency to another without paying it.
+    This consolidates debts in fewer currencies for easier settlement.
+    
+    Process:
+    1. Find the debt in from_currency
+    2. Reduce or delete it by the specified amount
+    3. Convert the amount to to_currency
+    4. Add to existing debt in to_currency or create new one
+    
+    Args:
+        trip_id: Trip ID
+        debtor_member_id: Member who owes
+        creditor_member_id: Member who is owed
+        amount: Amount to merge (in from_currency)
+        from_currency: Original currency
+        to_currency: Target currency
+        conversion_rate: Conversion rate (1 from_currency = X to_currency)
+        session: Database session
+        
+    Returns:
+        Dict with merge details
+    """
+    # Find the source debt
+    source_debt_statement = select(MemberDebt).where(
+        and_(
+            MemberDebt.trip_id == trip_id,
+            MemberDebt.debtor_member_id == debtor_member_id,
+            MemberDebt.creditor_member_id == creditor_member_id,
+            MemberDebt.currency == from_currency,
+        )
+    )
+    result = await session.execute(source_debt_statement)
+    source_debt = result.scalar_one_or_none()
+    
+    if not source_debt:
+        raise ValueError(
+            f"No debt found from member {debtor_member_id} to {creditor_member_id} in {from_currency}"
+        )
+    
+    if source_debt.amount < amount:
+        raise ValueError(
+            f"Cannot merge {amount} {from_currency}. Only {source_debt.amount} {from_currency} owed."
+        )
+    
+    # Calculate converted amount
+    converted_amount = amount * conversion_rate
+    
+    # Reduce or delete source debt
+    if source_debt.amount - amount < Decimal("0.01"):
+        # Delete if fully merged (or negligible remainder)
+        await session.delete(source_debt)
+        remaining_in_original = Decimal("0")
+    else:
+        # Partially merged
+        source_debt.amount -= amount
+        session.add(source_debt)
+        remaining_in_original = source_debt.amount
+    
+    # Find or create target debt
+    target_debt_statement = select(MemberDebt).where(
+        and_(
+            MemberDebt.trip_id == trip_id,
+            MemberDebt.debtor_member_id == debtor_member_id,
+            MemberDebt.creditor_member_id == creditor_member_id,
+            MemberDebt.currency == to_currency,
+        )
+    )
+    result = await session.execute(target_debt_statement)
+    target_debt = result.scalar_one_or_none()
+    
+    if target_debt:
+        # Add to existing debt
+        old_amount = target_debt.amount
+        target_debt.amount += converted_amount
+        session.add(target_debt)
+        new_amount = target_debt.amount
+    else:
+        # Create new debt in target currency
+        target_debt = MemberDebt(
+            trip_id=trip_id,
+            debtor_member_id=debtor_member_id,
+            creditor_member_id=creditor_member_id,
+            amount=converted_amount,
+            currency=to_currency,
+        )
+        session.add(target_debt)
+        old_amount = Decimal("0")
+        new_amount = converted_amount
+    
+    return {
+        "status": "merged",
+        "from_currency": from_currency,
+        "to_currency": to_currency,
+        "merged_amount": float(amount),
+        "converted_amount": float(converted_amount),
+        "conversion_rate": float(conversion_rate),
+        "remaining_in_original_currency": float(remaining_in_original),
+        "old_target_amount": float(old_amount),
+        "new_target_amount": float(new_amount),
+    }

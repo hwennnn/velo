@@ -26,10 +26,10 @@ class Split(SQLModel, table=True):
     member_id: int = Field(foreign_key="trip_members.id",
                            description="Member who owes this split")
 
-    # Amount owed in base currency
+    # Amount owed in expense currency
     amount: Decimal = Field(
         sa_column=Column(Numeric(12, 2)),
-        description="Amount owed by this member (in trip base currency)"
+        description="Amount owed by this member (in expense currency)"
     )
 
     # Optional: for percentage or custom splits

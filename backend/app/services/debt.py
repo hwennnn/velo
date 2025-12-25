@@ -39,8 +39,8 @@ async def update_debts_for_expense(
             continue
 
         # Calculate amount in original currency
-        # split.amount is in base currency, convert back to original
-        amount_in_original = split.amount / expense.exchange_rate_to_base
+        # split.amount is now in expense currency (no conversion needed)
+        amount_in_original = split.amount
         remaining_amount = amount_in_original
 
         # GREEDY: First check if there's a reverse debt (payer owes split member)
@@ -187,11 +187,11 @@ async def record_settlement(
     await session.flush()  # Get the expense ID
 
     # Create a split for the creditor (who "receives" the payment)
-    # This represents the debt being settled
+    # This represents the debt being settled (amount in expense currency)
     split = Split(
         expense_id=settlement_expense.id,
         member_id=creditor_member_id,
-        amount=amount * exchange_rate_to_base,
+        amount=amount,  # Now stored in expense currency
     )
 
     session.add(split)

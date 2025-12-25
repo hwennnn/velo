@@ -116,8 +116,8 @@ export const BalancesModal: React.FC<BalancesModalProps> = ({
                           <div className="flex-1">
                             <h4 className="font-medium text-gray-900">{balance.member_nickname}</h4>
                             <div className="flex gap-4 mt-1 text-xs text-gray-500">
-                              <span>Owed to them: {Number(balance.total_owed_to).toFixed(2)} {currency}</span>
-                              <span>They owe: {Number(balance.total_owed).toFixed(2)} {currency}</span>
+                              <span>Owed by others: {Number(balance.total_owed_to).toFixed(2)} {currency}</span>
+                              <span>Owed to others: {Number(balance.total_owed).toFixed(2)} {currency}</span>
                             </div>
                           </div>
                         </div>

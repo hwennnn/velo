@@ -106,7 +106,7 @@ async def get_member_balance_details(
     result = await session.execute(splits_statement)
     splits_with_expenses = result.all()
 
-    total_owed = sum(split.amount for split, _ in splits_with_expenses)
+    total_owed = sum(split.amount * expense.exchange_rate_to_base for split, expense in splits_with_expenses)
 
     return {
         "member_id": member_id,
@@ -126,7 +126,9 @@ async def get_member_balance_details(
             {
                 "id": expense.id,
                 "description": expense.description,
-                "amount": float(split.amount),
+                "amount": float(split.amount * expense.exchange_rate_to_base),
+                "original_amount": float(split.amount),
+                "original_currency": expense.currency,
             }
             for split, expense in splits_with_expenses
         ],

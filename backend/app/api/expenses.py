@@ -118,10 +118,10 @@ async def create_expense(
     await session.commit()
     await session.refresh(expense)
 
-    # Calculate amount in base currency
+    # Calculate amount in base currency for debt tracking
     amount_in_base = expense.amount * exchange_rate
 
-    # Create splits based on split_type
+    # Create splits based on split_type (store amounts in expense currency)
     splits_to_create = []
 
     if expense_data.split_type == "equal":
@@ -135,14 +135,14 @@ async def create_expense(
             members = result.scalars().all()
             member_ids = [member.id for member in members]
 
-        # Calculate equal splits with rounding fix
+        # Calculate equal splits in expense currency with rounding fix
         num_members = len(member_ids)
-        split_amount = (amount_in_base / num_members).quantize(Decimal("0.01"))
+        split_amount = (expense.amount / num_members).quantize(Decimal("0.01"))
         split_percentage = (Decimal("100.0") / num_members).quantize(Decimal("0.01"))
 
-        # Calculate total and remainder
+        # Calculate total and remainder in expense currency
         total_split = split_amount * num_members
-        remainder = amount_in_base - total_split
+        remainder = expense.amount - total_split
 
         # Assign remainder to a random member
         lucky_index = random.randint(0, num_members - 1) if remainder != 0 else -1
@@ -156,18 +156,18 @@ async def create_expense(
                 Split(
                     expense_id=expense.id,
                     member_id=member_id,
-                    amount=amount,
+                    amount=amount,  # Now in expense currency
                     percentage=split_percentage,
                 )
             )
 
     elif expense_data.split_type == "percentage":
-        # Calculate splits with rounding fix
+        # Calculate splits in expense currency with rounding fix
         total_assigned = Decimal("0")
         lucky_index = random.randint(0, len(expense_data.splits) - 1)
 
         for idx, split_data in enumerate(expense_data.splits):
-            split_amount = (amount_in_base * (split_data.percentage / 100)).quantize(
+            split_amount = (expense.amount * (split_data.percentage / 100)).quantize(
                 Decimal("0.01")
             )
             total_assigned += split_amount
@@ -175,14 +175,14 @@ async def create_expense(
             splits_to_create.append(
                 {
                     "member_id": split_data.member_id,
-                    "amount": split_amount,
+                    "amount": split_amount,  # Now in expense currency
                     "percentage": split_data.percentage,
                     "index": idx,
                 }
             )
 
-        # Assign remainder to random member
-        remainder = amount_in_base - total_assigned
+        # Assign remainder to random member (in expense currency)
+        remainder = expense.amount - total_assigned
         if remainder != 0:
             splits_to_create[lucky_index]["amount"] += remainder
 
@@ -192,37 +192,35 @@ async def create_expense(
                 Split(
                     expense_id=expense.id,
                     member_id=split_data["member_id"],
-                    amount=split_data["amount"],
+                    amount=split_data["amount"],  # Now in expense currency
                     percentage=split_data["percentage"],
                 )
             )
         splits_to_create = []  # Clear since we already added them
 
     elif expense_data.split_type == "custom":
-        # Calculate splits with rounding fix
+        # Calculate splits in expense currency with rounding fix
         total_assigned = Decimal("0")
         lucky_index = random.randint(0, len(expense_data.splits) - 1)
 
         for idx, split_data in enumerate(expense_data.splits):
-            split_amount_in_base = (split_data.amount * exchange_rate).quantize(
+            split_amount = split_data.amount.quantize(Decimal("0.01"))
+            split_percentage = ((split_amount / expense.amount) * 100).quantize(
                 Decimal("0.01")
             )
-            split_percentage = ((split_amount_in_base / amount_in_base) * 100).quantize(
-                Decimal("0.01")
-            )
-            total_assigned += split_amount_in_base
+            total_assigned += split_amount
 
             splits_to_create.append(
                 {
                     "member_id": split_data.member_id,
-                    "amount": split_amount_in_base,
+                    "amount": split_amount,  # Already in expense currency
                     "percentage": split_percentage,
                     "index": idx,
                 }
             )
 
-        # Assign remainder to random member
-        remainder = amount_in_base - total_assigned
+        # Assign remainder to random member (in expense currency)
+        remainder = expense.amount - total_assigned
         if remainder != 0:
             splits_to_create[lucky_index]["amount"] += remainder
 
@@ -232,7 +230,7 @@ async def create_expense(
                 Split(
                     expense_id=expense.id,
                     member_id=split_data["member_id"],
-                    amount=split_data["amount"],
+                    amount=split_data["amount"],  # Now in expense currency
                     percentage=split_data["percentage"],
                 )
             )

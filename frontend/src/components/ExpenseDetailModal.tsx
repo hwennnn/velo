@@ -220,7 +220,7 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                     <span className="text-sm font-medium text-gray-900">{split.member_nickname}</span>
                     <div className="text-right">
                       <span className="text-sm font-semibold text-gray-900">
-                        {Number(split.amount).toFixed(2)} {baseCurrency}
+                        {expense.currency} {Number(split.amount).toFixed(2)}
                       </span>
                       {split.percentage && (
                         <span className="text-xs text-gray-500 ml-2">

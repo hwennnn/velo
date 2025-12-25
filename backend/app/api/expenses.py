@@ -25,6 +25,7 @@ from app.schemas.expense import (
     SplitResponse,
 )
 from app.services.exchange_rate import get_exchange_rate
+from app.services.debt import update_debts_for_expense, delete_debts_for_expense
 
 router = APIRouter()
 
@@ -105,6 +106,11 @@ async def create_expense(
         category=expense_data.category,
         notes=expense_data.notes,
         receipt_url=expense_data.receipt_url,
+        expense_type=(
+            expense_data.expense_type
+            if hasattr(expense_data, "expense_type")
+            else "expense"
+        ),
         created_by=current_user.id,
     )
 
@@ -238,6 +244,15 @@ async def create_expense(
 
     await session.commit()
 
+    # Get all splits for debt update
+    splits_statement = select(Split).where(Split.expense_id == expense.id)
+    result = await session.execute(splits_statement)
+    all_splits = result.scalars().all()
+
+    # Update member debts (only for regular expenses, not settlements)
+    if expense.expense_type == "expense":
+        await update_debts_for_expense(expense, all_splits, session)
+
     # Update trip metadata
     trip.total_spent += amount_in_base
     trip.expense_count += 1
@@ -288,6 +303,9 @@ async def get_expense_response(
         category=expense.category,
         notes=expense.notes,
         receipt_url=expense.receipt_url,
+        expense_type=(
+            expense.expense_type if hasattr(expense, "expense_type") else "expense"
+        ),
         splits=split_responses,
         created_by=expense.created_by,
     )
@@ -468,6 +486,10 @@ async def delete_expense(
 
     # Calculate amount in base currency for trip metadata update
     amount_in_base = expense.amount * expense.exchange_rate_to_base
+
+    # Delete all debts created by this expense (only for regular expenses)
+    if expense.expense_type == "expense":
+        await delete_debts_for_expense(expense.id, session)
 
     # Delete all splits first (will cascade with new migration)
     splits_statement = select(Split).where(Split.expense_id == expense.id)

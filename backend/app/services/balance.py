@@ -1,10 +1,11 @@
 """
 Balance calculation service for trip settlements.
-Calculates member balances and optimal settlements.
+Calculates member balances and optimal settlements with multi-currency support.
 """
 
 from decimal import Decimal
 from typing import Dict, List, Tuple
+from collections import defaultdict
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func
 
@@ -22,6 +23,8 @@ class Balance:
         self.total_paid = Decimal("0.0")
         self.total_owed = Decimal("0.0")
         self.net_balance = Decimal("0.0")
+        # Multi-currency tracking
+        self.currency_balances: Dict[str, Decimal] = defaultdict(lambda: Decimal("0.0"))
 
     def to_dict(self):
         return {
@@ -30,6 +33,11 @@ class Balance:
             "total_paid": float(self.total_paid),
             "total_owed": float(self.total_owed),
             "net_balance": float(self.net_balance),
+            "currency_balances": {
+                currency: float(amount)
+                for currency, amount in self.currency_balances.items()
+                if abs(amount) > 0.01  # Only include non-zero balances
+            },
         }
 
 
@@ -41,12 +49,14 @@ class Settlement:
         from_member_id: int,
         to_member_id: int,
         amount: Decimal,
+        currency: str = "",
         from_nickname: str = "",
         to_nickname: str = "",
     ):
         self.from_member_id = from_member_id
         self.to_member_id = to_member_id
         self.amount = amount
+        self.currency = currency
         self.from_nickname = from_nickname
         self.to_nickname = to_nickname
 
@@ -55,132 +65,10 @@ class Settlement:
             "from_member_id": self.from_member_id,
             "to_member_id": self.to_member_id,
             "amount": float(self.amount),
+            "currency": self.currency,
             "from_nickname": self.from_nickname,
             "to_nickname": self.to_nickname,
         }
-
-
-async def calculate_balances(trip_id: int, session: AsyncSession) -> List[Balance]:
-    """
-    Calculate balances for all members in a trip.
-
-    Returns a list of Balance objects showing:
-    - How much each member paid
-    - How much each member owes
-    - Net balance (positive = owed money, negative = owes money)
-    """
-    # Get all members
-    members_statement = select(TripMember).where(TripMember.trip_id == trip_id)
-    result = await session.execute(members_statement)
-    members = result.scalars().all()
-
-    # Initialize balances
-    balances: Dict[int, Balance] = {}
-    for member in members:
-        balances[member.id] = Balance(member.id, member.nickname)
-
-    # Get all expenses for this trip
-    expenses_statement = select(Expense).where(Expense.trip_id == trip_id)
-    result = await session.execute(expenses_statement)
-    expenses = result.scalars().all()
-
-    for expense in expenses:
-        # Calculate amount in base currency
-        amount_in_base = expense.amount * expense.exchange_rate_to_base
-
-        # Add to total paid by the payer
-        if expense.paid_by_member_id in balances:
-            balances[expense.paid_by_member_id].total_paid += amount_in_base
-
-        # Get splits for this expense
-        splits_statement = select(Split).where(Split.expense_id == expense.id)
-        result = await session.execute(splits_statement)
-        splits = result.scalars().all()
-
-        for split in splits:
-            # Add to total owed by each member
-            if split.member_id in balances:
-                balances[split.member_id].total_owed += split.amount
-
-    # Calculate net balances
-    for balance in balances.values():
-        balance.net_balance = balance.total_paid - balance.total_owed
-
-    return list(balances.values())
-
-
-async def calculate_settlements(
-    trip_id: int, session: AsyncSession
-) -> List[Settlement]:
-    """
-    Calculate optimal settlements to minimize number of transactions.
-
-    Uses a greedy algorithm to match debtors with creditors.
-    Returns a list of Settlement objects.
-    """
-    # Get balances
-    balances = await calculate_balances(trip_id, session)
-
-    # Separate into creditors (owed money) and debtors (owe money)
-    creditors = []  # People who are owed money (positive balance)
-    debtors = []  # People who owe money (negative balance)
-
-    for balance in balances:
-        if balance.net_balance > Decimal("0.01"):  # Ignore tiny amounts
-            creditors.append(
-                {
-                    "member_id": balance.member_id,
-                    "nickname": balance.member_nickname,
-                    "amount": balance.net_balance,
-                }
-            )
-        elif balance.net_balance < Decimal("-0.01"):  # Ignore tiny amounts
-            debtors.append(
-                {
-                    "member_id": balance.member_id,
-                    "nickname": balance.member_nickname,
-                    "amount": -balance.net_balance,  # Make positive
-                }
-            )
-
-    # Sort by amount (largest first) for better optimization
-    creditors.sort(key=lambda x: x["amount"], reverse=True)
-    debtors.sort(key=lambda x: x["amount"], reverse=True)
-
-    settlements = []
-
-    # Greedy algorithm: match largest debtor with largest creditor
-    i = 0  # creditor index
-    j = 0  # debtor index
-
-    while i < len(creditors) and j < len(debtors):
-        creditor = creditors[i]
-        debtor = debtors[j]
-
-        # Determine payment amount
-        payment_amount = min(creditor["amount"], debtor["amount"])
-
-        # Create settlement
-        settlement = Settlement(
-            from_member_id=debtor["member_id"],
-            to_member_id=creditor["member_id"],
-            amount=payment_amount,
-            from_nickname=debtor["nickname"],
-            to_nickname=creditor["nickname"],
-        )
-        settlements.append(settlement)
-
-        # Update amounts
-        creditor["amount"] -= payment_amount
-        debtor["amount"] -= payment_amount
-
-        # Move to next if fully settled
-        if creditor["amount"] < Decimal("0.01"):
-            i += 1
-        if debtor["amount"] < Decimal("0.01"):
-            j += 1
-
-    return settlements
 
 
 async def get_member_balance_details(

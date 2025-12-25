@@ -1,5 +1,168 @@
 # Velo - Development Progress
 
+## 📦 Latest Update: Multi-Currency Settlement System (Dec 25, 2025)
+
+### Overview
+
+Implemented a comprehensive multi-currency settlement system that tracks debts in their original currencies and allows recording settlements in any currency.
+
+### Key Features
+
+#### 1. **Expense Type Classification**
+
+- Added `expense_type` field to distinguish between regular expenses and settlements
+- Types: `expense` (regular) and `settlement` (payment between members)
+- Settlements are tracked separately to avoid double-counting in balance calculations
+
+#### 2. **Multi-Currency Balance Tracking**
+
+- **Per-Currency Balances**: Track what each member owes/is owed in each original currency
+- **Base Currency Total**: Still show total balance in trip's base currency for reference
+- **Currency Breakdown**: Expandable view in Balances Modal showing detailed per-currency breakdown
+
+#### 3. **Settlement Recording**
+
+- New endpoint: `POST /trips/{trip_id}/settlements`
+- Record settlements in any currency (not just base currency)
+- Automatically creates a settlement expense that reduces debt
+- One-click "Paid" button in Settlements Modal
+
+#### 4. **Enhanced Settlement View**
+
+- Settlements now show the specific currency for each payment
+- Groups settlements by currency automatically
+- Shows optimal payment plan per currency to minimize transactions
+- Visual indicators for currency-specific debts
+
+### Backend Changes
+
+#### Database Migration
+
+- **File**: `backend/alembic/versions/20251225_1400-add_expense_type.py`
+- Added `expense_type` column to `expenses` table
+- Default value: `expense`
+
+#### Models Updated
+
+- **Expense Model** (`backend/app/models/expense.py`)
+  - Added `expense_type` field
+
+#### Services Enhanced
+
+- **Balance Service** (`backend/app/services/balance.py`)
+  - New `_calculate_currency_balances()` function
+  - `Balance` class now includes `currency_balances` dict
+  - `Settlement` class now includes `currency` field
+  - `calculate_balances()` filters out settlement expenses
+  - `calculate_settlements()` groups by currency and calculates optimal settlements per currency
+
+#### API Endpoints
+
+- **New**: `POST /trips/{trip_id}/settlements` - Record a settlement
+  - Request body: `SettlementCreate` schema
+  - Creates settlement expense with proper splits
+  - Returns confirmation with settlement details
+
+#### Schemas
+
+- **ExpenseCreate** (`backend/app/schemas/expense.py`)
+  - Added `expense_type` field with validation
+- **ExpenseResponse**
+  - Added `expense_type` field
+- **SettlementCreate** (new in `backend/app/api/balances.py`)
+  - Fields: from_member_id, to_member_id, amount, currency, settlement_date, notes
+
+### Frontend Changes
+
+#### Types Updated
+
+- **Balance** interface: Added `currency_balances?: Record<string, number>`
+- **Settlement** interface: Added `currency: string`
+- **Expense** interface: Added `expense_type: string`
+- **New**: `SettlementInput` interface for recording settlements
+
+#### Components Enhanced
+
+**BalancesModal** (`frontend/src/components/BalancesModal.tsx`)
+
+- Expandable currency breakdown section
+- Shows per-currency balances with color coding
+- Toggle button to show/hide detailed breakdown
+- Visual indicators (+ for gets back, - for owes)
+
+**SettlementsModal** (`frontend/src/components/SettlementsModal.tsx`)
+
+- Shows currency for each settlement (not just base currency)
+- "Paid" button to record settlements
+- Loading state during settlement recording
+- Automatically refreshes after recording
+- Integration with mutation hooks for optimistic updates
+
+#### Services
+
+- **API Service** (`frontend/src/services/api.ts`)
+  - Added `recordSettlement()` method
+
+### User Experience Improvements
+
+1. **Clarity**: Users can now see exactly what they owe in each currency
+2. **Flexibility**: Can settle debts in the original currency or any other currency
+3. **Accuracy**: Exchange rates are only for reference; actual settlements use real amounts
+4. **Convenience**: One-click settlement recording from the settlements view
+5. **Transparency**: Clear breakdown of multi-currency debts
+
+### Example Use Case
+
+**Scenario**: Trip to Japan with SGD base currency
+
+- Alice pays 10,000 JPY for dinner
+- Bob owes Alice his share (5,000 JPY)
+- In the Balances view:
+  - Bob sees he owes -5,000 JPY (and equivalent in SGD)
+  - Alice sees she gets back +5,000 JPY
+- In Settlements view:
+  - Shows "Bob pays Alice 5,000 JPY"
+  - Bob clicks "Paid" button
+  - Settlement is recorded as a settlement expense
+  - Balances update to reflect the payment
+
+### Technical Notes
+
+1. **Settlement Expenses**: Modeled as expenses where:
+
+   - `paid_by_member_id` = person making payment
+   - Single split to the recipient for the full amount
+   - `expense_type` = "settlement"
+   - Excluded from regular balance calculations to avoid double-counting
+
+2. **Currency Conversion**:
+
+   - Exchange rates stored for reference only
+   - Settlements can be in any currency
+   - Per-currency tracking shows original amounts
+
+3. **Alembic Fix**: Updated `env.py` to use synchronous engine for migrations
+
+### Files Modified
+
+**Backend**:
+
+- `backend/app/models/expense.py`
+- `backend/app/schemas/expense.py`
+- `backend/app/services/balance.py`
+- `backend/app/api/balances.py`
+- `backend/alembic/env.py`
+- `backend/alembic/versions/20251225_1400-add_expense_type.py` (new)
+
+**Frontend**:
+
+- `frontend/src/types/index.ts`
+- `frontend/src/components/BalancesModal.tsx`
+- `frontend/src/components/SettlementsModal.tsx`
+- `frontend/src/services/api.ts`
+
+---
+
 ## 📦 Increment 1: Trip Management Foundation (COMPLETED)
 
 ### Backend Implementation ✅

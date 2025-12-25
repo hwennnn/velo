@@ -5,6 +5,7 @@ import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-q
 import { api } from '../services/api';
 import type { CreateExpenseInput, Expense } from '../types';
 import { tripKeys } from './useTrips';
+import { balanceKeys } from './useBalances';
 
 // Query Keys
 export const expenseKeys = {
@@ -72,6 +73,9 @@ export function useCreateExpense(tripId: string) {
       });
       // Invalidate trip data (for totals and metadata)
       queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
+      // Invalidate balances and settlements (debts changed)
+      queryClient.invalidateQueries({ queryKey: balanceKeys.trip(tripId) });
+      queryClient.invalidateQueries({ queryKey: balanceKeys.settlements(tripId) });
     },
   });
 }
@@ -95,6 +99,9 @@ export function useDeleteExpense(tripId: string) {
       });
       // Invalidate trip data (for totals and metadata)
       queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
+      // Invalidate balances and settlements (debts changed)
+      queryClient.invalidateQueries({ queryKey: balanceKeys.trip(tripId) });
+      queryClient.invalidateQueries({ queryKey: balanceKeys.settlements(tripId) });
     },
   });
 }

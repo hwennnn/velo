@@ -42,6 +42,9 @@ class Expense(SQLModel, table=True):
     )
 
     expense_date: date = Field(description="Date the expense occurred")
+    
+    # Expense type: 'expense' for regular expenses, 'settlement' for settlements
+    expense_type: str = Field(default="expense", description="Type: expense or settlement")
 
     # Metadata
     category: Optional[str] = Field(

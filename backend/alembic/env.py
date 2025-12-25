@@ -2,6 +2,7 @@
 Alembic environment configuration for Velo backend.
 This file is used by Alembic to generate and apply database migrations.
 """
+
 from sqlmodel import SQLModel
 from app.models.split import Split
 from app.models.expense import Expense
@@ -78,7 +79,15 @@ def run_migrations_online() -> None:
     In this scenario we need to create an Engine
     and associate a connection with the context.
     """
-    connectable = engine
+    # Create a synchronous engine for migrations
+    from sqlalchemy import create_engine
+
+    # Get the database URL and ensure it's synchronous
+    db_url = settings.database_url
+    if db_url.startswith("postgresql+asyncpg://"):
+        db_url = db_url.replace("postgresql+asyncpg://", "postgresql://")
+
+    connectable = create_engine(db_url)
 
     with connectable.connect() as connection:
         context.configure(

@@ -85,6 +85,7 @@ export const api = {
     get: (tripId: string) => apiClient.get(`/trips/${tripId}/balances`),
     getSettlements: (tripId: string) => apiClient.get(`/trips/${tripId}/settlements`),
     getMemberBalance: (tripId: string, memberId: number) => apiClient.get(`/trips/${tripId}/members/${memberId}/balance`),
+    recordSettlement: (tripId: string, data: any) => apiClient.post(`/trips/${tripId}/settlements`, data),
   },
 
   // User

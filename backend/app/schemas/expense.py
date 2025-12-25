@@ -61,6 +61,11 @@ class ExpenseCreate(BaseModel):
         None, description="Custom/percentage splits"
     )
 
+    # Expense type
+    expense_type: str = Field(
+        default="expense", description="Type: expense or settlement"
+    )
+
     @model_validator(mode="after")
     def validate_expense_data(self):
         """Validate expense data"""
@@ -97,6 +102,10 @@ class ExpenseCreate(BaseModel):
         # Validate split type
         if self.split_type not in ["equal", "percentage", "custom"]:
             raise ValueError("Split type must be equal, percentage, or custom")
+
+        # Validate expense type
+        if self.expense_type not in ["expense", "settlement"]:
+            raise ValueError("Expense type must be expense or settlement")
 
         # For custom and percentage splits, splits list is required
         if self.split_type in ["percentage", "custom"]:
@@ -216,6 +225,7 @@ class ExpenseResponse(BaseModel):
     category: Optional[str] = None
     notes: Optional[str] = None
     receipt_url: Optional[str] = None
+    expense_type: str = "expense"  # Default to 'expense' for backward compatibility
     splits: list[SplitResponse]
     created_by: str
 

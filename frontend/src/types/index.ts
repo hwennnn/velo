@@ -55,6 +55,7 @@ export interface Expense {
   category?: string;
   notes?: string;
   receipt_url?: string;
+  expense_type: string; // 'expense' or 'settlement'
   created_by: string;
   splits: Split[];
 }
@@ -70,19 +71,32 @@ export interface Split {
 export interface Balance {
   member_id: number;
   member_nickname: string;
-  total_paid: number;
-  total_owed: number;
-  net_balance: number;
+  total_owed: number; // What they owe to others (in BASE CURRENCY)
+  total_owed_to: number; // What others owe them (in BASE CURRENCY)
+  net_balance: number; // total_owed_to - total_owed (in BASE CURRENCY)
+  currency_balances: Record<string, number>; // Per-currency balances (original currencies)
 }
 
 export interface Settlement {
   from_member_id: number;
   to_member_id: number;
   amount: number;
+  currency: string; // Currency of the settlement
   from_member?: TripMember;
   to_member?: TripMember;
   from_nickname: string;
   to_nickname: string;
+}
+
+export interface SettlementInput {
+  from_member_id: number;
+  to_member_id: number;
+  amount: number;
+  currency: string;
+  settlement_date: string;
+  notes?: string;
+  convert_to_currency?: string; // Optional: convert payment to this currency
+  conversion_rate?: number; // Optional: conversion rate if converting
 }
 
 export interface CreateTripInput {
@@ -111,6 +125,7 @@ export interface CreateExpenseInput {
   receipt_url?: string;
   split_type: 'equal' | 'percentage' | 'custom';
   splits?: SplitInput[];
+  expense_type?: 'expense' | 'settlement';
 }
 
 export interface SplitInput {

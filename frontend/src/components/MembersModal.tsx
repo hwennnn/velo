@@ -64,7 +64,7 @@ export const MembersModal: React.FC<MembersModalProps> = ({
         <div className="flex-1 overflow-y-auto p-4">
           {members && members.length > 0 ? (
             <div className="space-y-2">
-              {members.map((member, index) => (
+              {members.map((member) => (
                 <MemberListItem
                   key={member.id}
                   member={member}

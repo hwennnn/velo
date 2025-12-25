@@ -9,22 +9,6 @@ import { useBalances, useSettlements } from '../hooks/useBalances';
 import { LoadingSpinner } from './LoadingSpinner';
 import type { TripMember } from '../types';
 
-interface Balance {
-  member_id: number;
-  member_nickname: string;
-  total_paid: number;
-  total_owed: number;
-  net_balance: number;
-}
-
-interface Settlement {
-  from_member_id: number;
-  to_member_id: number;
-  amount: number;
-  from_nickname: string;
-  to_nickname: string;
-}
-
 interface SettlementViewProps {
   tripId: string;
   members: TripMember[];
@@ -130,7 +114,7 @@ export const SettlementView: React.FC<SettlementViewProps> = ({
                   <div className="flex-1">
                     <h4 className="font-medium text-gray-900">{balance.member_nickname}</h4>
                     <div className="flex gap-4 mt-1 text-xs text-gray-500">
-                      <span>Paid: {balance.total_paid.toFixed(2)}</span>
+                      <span>Paid: {balance.total_owed_to.toFixed(2)}</span>
                       <span>Owes: {balance.total_owed.toFixed(2)}</span>
                     </div>
                   </div>

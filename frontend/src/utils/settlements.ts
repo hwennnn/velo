@@ -1,7 +1,7 @@
 /**
  * Utility functions for settlement grouping and management
  */
-import type { Settlement, GroupedSettlement } from '../types';
+import type { GroupedSettlement, Settlement } from '../types';
 
 /**
  * Group settlements by payer -> payee pairs across all currencies
@@ -9,7 +9,6 @@ import type { Settlement, GroupedSettlement } from '../types';
  */
 export function groupSettlementsByPair(
   settlements: Settlement[],
-  baseCurrency: string,
   exchangeRates: Record<string, number> = {}
 ): GroupedSettlement[] {
   const grouped = new Map<string, GroupedSettlement>();
@@ -47,7 +46,6 @@ export function groupSettlementsByPair(
 export function calculateExchangeRate(
   fromCurrency: string,
   toCurrency: string,
-  baseCurrency: string,
   exchangeRates: Record<string, number>
 ): number {
   if (fromCurrency === toCurrency) return 1;
@@ -82,7 +80,6 @@ export function mergeSettlementCurrency(
 export function calculateGroupTotalInCurrency(
   group: GroupedSettlement,
   targetCurrency: string,
-  baseCurrency: string,
   exchangeRates: Record<string, number>
 ): number {
   let total = 0;
@@ -91,7 +88,6 @@ export function calculateGroupTotalInCurrency(
     const rate = calculateExchangeRate(
       settlement.currency,
       targetCurrency,
-      baseCurrency,
       exchangeRates
     );
     total += settlement.amount * rate;

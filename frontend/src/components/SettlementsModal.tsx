@@ -195,8 +195,8 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
 
   // Group settlements by payer-payee pairs
   const groupedSettlements = useMemo(() => {
-    return groupSettlementsByPair(filteredSettlements, currency, exchangeRates);
-  }, [filteredSettlements, currency, exchangeRates]);
+    return groupSettlementsByPair(filteredSettlements, exchangeRates);
+  }, [filteredSettlements, exchangeRates]);
 
   // Mutation for recording settlements
   const recordSettlementMutation = useMutation({

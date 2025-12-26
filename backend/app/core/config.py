@@ -48,7 +48,7 @@ class Settings(BaseSettings):
 
     # CORS settings
     cors_origins: str = Field(
-        default="http://localhost:5173,http://localhost:3000",
+        default="http://localhost:5173",
         description="Allowed CORS origins (comma-separated)",
     )
 
@@ -60,6 +60,12 @@ class Settings(BaseSettings):
     # Pagination defaults
     default_page_size: int = Field(default=20, description="Default items per page")
     max_page_size: int = Field(default=100, description="Maximum items per page")
+
+    # Frontend
+    frontend_url: str = Field(
+        default="http://localhost:5173",
+        description="Frontend URL",
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"

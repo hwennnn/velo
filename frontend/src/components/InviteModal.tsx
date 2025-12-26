@@ -8,17 +8,25 @@ import React from 'react';
 interface InviteModalProps {
   isOpen: boolean;
   inviteLink: string | null;
+  isLoading?: boolean;
+  error?: string | null;
   onClose: () => void;
   onCopy: () => void;
+  onRetry?: () => void;
 }
 
 export const InviteModal: React.FC<InviteModalProps> = ({
   isOpen,
   inviteLink,
+  isLoading = false,
+  error = null,
   onClose,
   onCopy,
+  onRetry,
 }) => {
   if (!isOpen) return null;
+
+  const isReady = !!inviteLink && !isLoading;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
@@ -48,20 +56,62 @@ export const InviteModal: React.FC<InviteModalProps> = ({
           </p>
 
           <div className="flex gap-2">
-            <input
-              type="text"
-              value={inviteLink || ''}
-              readOnly
-              className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg text-sm text-gray-700"
-            />
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={inviteLink || ''}
+                readOnly
+                disabled={!isReady}
+                placeholder={isLoading ? 'Generating invite link…' : ''}
+                className={`w-full px-4 py-2.5 bg-gray-50 border rounded-lg text-sm ${
+                  isReady ? 'text-gray-700 border-gray-300' : 'text-gray-400 border-gray-200'
+                } pr-10`}
+              />
+              {isLoading && (
+                <div className="absolute inset-y-0 right-3 flex items-center">
+                  <div className="w-4 h-4 rounded-full border-2 border-gray-300 border-t-primary-600 animate-spin" />
+                </div>
+              )}
+            </div>
             <button
-              onClick={onCopy}
-              className="px-4 py-2.5 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-colors flex items-center gap-2"
+              onClick={() => {
+                if (!isReady) return;
+                onCopy();
+              }}
+              disabled={!isReady}
+              className={`px-4 py-2.5 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                isReady
+                  ? 'bg-primary-600 text-white hover:bg-primary-700'
+                  : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              }`}
             >
-              <Copy className="w-4 h-4" />
-              Copy
+              {isLoading ? (
+                <>
+                  <div className="w-4 h-4 rounded-full border-2 border-gray-500/40 border-t-gray-600 animate-spin" />
+                  Generating
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4" />
+                  Copy
+                </>
+              )}
             </button>
           </div>
+
+          {!!error && (
+            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between gap-3">
+              <p className="text-xs text-red-800">{error}</p>
+              {onRetry && (
+                <button
+                  onClick={onRetry}
+                  className="shrink-0 text-xs font-semibold text-red-700 hover:text-red-800 underline"
+                >
+                  Retry
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-xs text-blue-900">
@@ -73,4 +123,5 @@ export const InviteModal: React.FC<InviteModalProps> = ({
     </div>
   );
 };
+
 

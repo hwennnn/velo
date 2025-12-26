@@ -42,6 +42,7 @@ export default function TripDetail() {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [memberMenuOpen, setMemberMenuOpen] = useState<number | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState<TripMember | null>(null);
   const [showMemberDetail, setShowMemberDetail] = useState(false);
@@ -130,13 +131,18 @@ export default function TripDetail() {
   };
 
   const handleGenerateInvite = async () => {
+    setInviteError(null);
+    setInviteLink(null);
+    setShowInviteModal(true);
+
     try {
       const url = await generateInviteMutation.mutateAsync();
       setInviteLink(url);
-      setShowInviteModal(true);
     } catch (error) {
       const err = error as { response?: { data?: { detail?: string } } };
-      showAlert(err.response?.data?.detail || 'Failed to generate invite link', { type: 'error' });
+      const message = err.response?.data?.detail || 'Failed to generate invite link';
+      setInviteError(message);
+      showAlert(message, { type: 'error' });
     }
   };
 
@@ -460,8 +466,14 @@ export default function TripDetail() {
       <InviteModal
         isOpen={showInviteModal}
         inviteLink={inviteLink}
-        onClose={() => setShowInviteModal(false)}
+        isLoading={generateInviteMutation.isPending}
+        error={inviteError}
+        onClose={() => {
+          setShowInviteModal(false);
+          setInviteError(null);
+        }}
         onCopy={handleCopyInvite}
+        onRetry={handleGenerateInvite}
       />
 
       {/* Balances Modal */}

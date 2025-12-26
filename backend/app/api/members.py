@@ -23,6 +23,7 @@ from app.schemas.member import (
     MemberClaimRequest,
 )
 from app.services.avatar import get_avatar_for_member
+from app.core.config import settings
 
 router = APIRouter()
 
@@ -394,7 +395,7 @@ async def generate_invite_link(
     # In a real app, you'd store this in a database with expiration
     # For now, we'll just return a simple response
     # The frontend URL should be configured
-    frontend_url = "http://localhost:5173"  # Should come from config
+    frontend_url = settings.frontend_url
     invite_url = f"{frontend_url}/join?trip={trip_id}&code={invite_code}"
 
     return InviteLinkResponse(

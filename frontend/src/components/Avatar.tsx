@@ -11,6 +11,7 @@ interface AvatarProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
   onClick?: () => void;
+  fallbackColorClass?: string;
 }
 
 const sizeClasses = {
@@ -40,13 +41,14 @@ export const Avatar: React.FC<AvatarProps> = ({
   member, 
   size = 'md', 
   className = '',
-  onClick 
+  onClick,
+  fallbackColorClass,
 }) => {
   const [imageError, setImageError] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
   
   const sizeClass = sizeClasses[size];
-  const colorClass = getMemberColor(member.id);
+  const colorClass = fallbackColorClass ?? getMemberColor(member.id);
   const initials = getMemberInitials(member.display_name || member.nickname);
   
   const hasAvatar = member.avatar_url !== null && member.avatar_url !== undefined && member.avatar_url.length > 0 && !imageError;

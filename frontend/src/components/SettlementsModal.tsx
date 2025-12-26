@@ -16,6 +16,7 @@ import { tripKeys } from '../hooks/useTrips';
 import { api } from '../services/api';
 import type { GroupedSettlement, Settlement, SettlementInput, TripMember } from '../types';
 import { groupSettlementsByPair } from '../utils/settlements';
+import { Avatar } from './Avatar';
 import { Shimmer } from './Shimmer';
 
 // Reusable component for individual settlement items
@@ -25,6 +26,7 @@ interface SettlementCardProps {
   recordingSettlements: Set<string>;
   currency: string;
   getMemberColor: (memberId: number) => string;
+  membersById: Map<number, TripMember>;
   showPayerPayee?: boolean; // Show payer/payee info (for individual view)
   onRecordSettlement: (settlement: Settlement) => void;
   onShowMergeModal: (group: GroupedSettlement, settlement: Settlement) => void;
@@ -37,6 +39,7 @@ const SettlementCard: React.FC<SettlementCardProps> = ({
   recordingSettlements,
   currency,
   getMemberColor,
+  membersById,
   showPayerPayee = false,
   onRecordSettlement,
   onShowMergeModal,
@@ -46,6 +49,8 @@ const SettlementCard: React.FC<SettlementCardProps> = ({
   const isRecording = recordingSettlements.has(settlementKey);
   const fromColor = getMemberColor(settlement.from_member_id);
   const toColor = getMemberColor(settlement.to_member_id);
+  const fromMember = membersById.get(settlement.from_member_id);
+  const toMember = membersById.get(settlement.to_member_id);
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-4">
@@ -54,11 +59,17 @@ const SettlementCard: React.FC<SettlementCardProps> = ({
         <div className="flex items-center gap-3 mb-4">
           {/* From Member */}
           <div className="flex items-center gap-2 flex-1">
-            <div className={`w-10 h-10 rounded-full ${fromColor} flex items-center justify-center`}>
-              <span className="text-white font-semibold text-sm">
-                {settlement.from_nickname.charAt(0).toUpperCase()}
-              </span>
-            </div>
+            <Avatar
+              size="md"
+              className="w-10 h-10"
+              fallbackColorClass={fromColor}
+              member={{
+                id: settlement.from_member_id,
+                nickname: fromMember?.nickname ?? settlement.from_nickname,
+                display_name: fromMember?.display_name,
+                avatar_url: fromMember?.avatar_url,
+              }}
+            />
             <span className="font-medium text-gray-900 text-sm">{settlement.from_nickname}</span>
           </div>
 
@@ -70,11 +81,17 @@ const SettlementCard: React.FC<SettlementCardProps> = ({
           {/* To Member */}
           <div className="flex items-center gap-2 flex-1 justify-end">
             <span className="font-medium text-gray-900 text-sm">{settlement.to_nickname}</span>
-            <div className={`w-10 h-10 rounded-full ${toColor} flex items-center justify-center`}>
-              <span className="text-white font-semibold text-sm">
-                {settlement.to_nickname.charAt(0).toUpperCase()}
-              </span>
-            </div>
+            <Avatar
+              size="md"
+              className="w-10 h-10"
+              fallbackColorClass={toColor}
+              member={{
+                id: settlement.to_member_id,
+                nickname: toMember?.nickname ?? settlement.to_nickname,
+                display_name: toMember?.display_name,
+                avatar_url: toMember?.avatar_url,
+              }}
+            />
           </div>
         </div>
       )}
@@ -174,6 +191,7 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
   const queryClient = useQueryClient();
   const { showAlert, showConfirm } = useAlert();
   const { user } = useAuth();
+  const membersById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
 
   // Get exchange rates or use fallback (memoized to prevent re-renders)
   const exchangeRates = useMemo(() => {
@@ -482,6 +500,8 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
               const fromColor = getMemberColor(group.from_member_id);
               const toColor = getMemberColor(group.to_member_id);
               const hasMultipleCurrencies = group.settlements.length > 1;
+              const fromMember = membersById.get(group.from_member_id);
+              const toMember = membersById.get(group.to_member_id);
 
               return (
                 <div
@@ -493,11 +513,17 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
                     <div className="flex items-center gap-3">
                       {/* From Member */}
                       <div className="flex items-center gap-2 flex-1">
-                        <div className={`w-10 h-10 rounded-full ${fromColor} flex items-center justify-center`}>
-                          <span className="text-white font-semibold text-sm">
-                            {group.from_nickname.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
+                        <Avatar
+                          size="md"
+                          className="w-10 h-10"
+                          fallbackColorClass={fromColor}
+                          member={{
+                            id: group.from_member_id,
+                            nickname: fromMember?.nickname ?? group.from_nickname,
+                            display_name: fromMember?.display_name,
+                            avatar_url: fromMember?.avatar_url,
+                          }}
+                        />
                         <span className="font-medium text-gray-900 text-sm">{group.from_nickname}</span>
                       </div>
 
@@ -514,11 +540,17 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
                       {/* To Member */}
                       <div className="flex items-center gap-2 flex-1 justify-end">
                         <span className="font-medium text-gray-900 text-sm">{group.to_nickname}</span>
-                        <div className={`w-10 h-10 rounded-full ${toColor} flex items-center justify-center`}>
-                          <span className="text-white font-semibold text-sm">
-                            {group.to_nickname.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
+                        <Avatar
+                          size="md"
+                          className="w-10 h-10"
+                          fallbackColorClass={toColor}
+                          member={{
+                            id: group.to_member_id,
+                            nickname: toMember?.nickname ?? group.to_nickname,
+                            display_name: toMember?.display_name,
+                            avatar_url: toMember?.avatar_url,
+                          }}
+                        />
                       </div>
                     </div>
 
@@ -554,6 +586,7 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
                           recordingSettlements={recordingSettlements}
                           currency={currency}
                           getMemberColor={getMemberColor}
+                          membersById={membersById}
                           showPayerPayee={false}
                           onRecordSettlement={handleRecordSettlement}
                           onShowMergeModal={handleShowMergeModal}
@@ -600,6 +633,7 @@ export const SettlementsModal: React.FC<SettlementsModalProps> = ({
                   recordingSettlements={recordingSettlements}
                   currency={currency}
                   getMemberColor={getMemberColor}
+                  membersById={membersById}
                   showPayerPayee={true}
                   onRecordSettlement={handleRecordSettlement}
                   onShowMergeModal={handleShowMergeModal}

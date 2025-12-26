@@ -5,6 +5,8 @@
 import { ChevronDown, ChevronUp, DollarSign, TrendingDown, TrendingUp, X } from 'lucide-react';
 import React, { useState } from 'react';
 import { useBalances } from '../hooks/useBalances';
+import { useTrip } from '../hooks/useTrips';
+import { Avatar } from './Avatar';
 import { Shimmer } from './Shimmer';
 
 interface BalancesModalProps {
@@ -24,6 +26,7 @@ export const BalancesModal: React.FC<BalancesModalProps> = ({
 }) => {
   // Fetch balances only when modal is open
   const { data: balances = [], isLoading } = useBalances(isOpen ? tripId : undefined);
+  const { data: trip } = useTrip(isOpen ? tripId : undefined);
   const [expandedMembers, setExpandedMembers] = useState<Set<number>>(new Set());
 
   const toggleMemberExpansion = (memberId: number) => {
@@ -95,10 +98,11 @@ export const BalancesModal: React.FC<BalancesModalProps> = ({
               </div>
             ) : (
               balances.map((balance) => {
-                const colorClass = getMemberColor(balance.member_id);
+                const fallbackColorClass = getMemberColor(balance.member_id);
                 const isExpanded = expandedMembers.has(balance.member_id);
                 const hasCurrencyBreakdown = balance.currency_balances && 
                   Object.keys(balance.currency_balances).length > 0;
+                const member = trip?.members?.find((m) => m.id === balance.member_id);
                 
                 return (
                   <div
@@ -108,11 +112,17 @@ export const BalancesModal: React.FC<BalancesModalProps> = ({
                     <div className="p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3 flex-1">
-                          <div className={`w-12 h-12 rounded-full ${colorClass} flex items-center justify-center`}>
-                            <span className="text-white font-semibold">
-                              {balance.member_nickname.charAt(0).toUpperCase()}
-                            </span>
-                          </div>
+                          <Avatar
+                            size="md"
+                            className="w-12 h-12"
+                            fallbackColorClass={fallbackColorClass}
+                            member={{
+                              id: balance.member_id,
+                              nickname: member?.nickname ?? balance.member_nickname,
+                              display_name: member?.display_name,
+                              avatar_url: member?.avatar_url,
+                            }}
+                          />
                           <div className="flex-1">
                             <h4 className="font-medium text-gray-900">{balance.member_nickname}</h4>
                             <div className="flex gap-4 mt-1 text-xs text-gray-500">

@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { Avatar } from '../components/Avatar';
 import BottomNavbar from '../components/BottomNavbar';
 import CreateTripModal from '../components/CreateTripModal';
-import { LoadingSpinner } from '../components/LoadingSpinner';
+import { TripListSkeleton } from '../components/TripListSkeleton';
 import { useCreateTrip, useTrips } from '../hooks/useTrips';
 import type { CreateTripInput } from '../types';
 
@@ -74,8 +74,8 @@ export default function Home() {
       {/* Content */}
       <main className="flex-1 px-5 pt-4 pb-20 overflow-y-auto relative">
         {isLoading ? (
-          <div className="flex justify-center py-16">
-            <LoadingSpinner size="lg" text="Loading trips..." />
+          <div className="pt-1">
+            <TripListSkeleton rows={4} />
           </div>
         ) : trips.length === 0 ? (
           /* Empty State */

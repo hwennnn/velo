@@ -2,10 +2,16 @@
 Authentication and authorization utilities
 """
 
+from functools import lru_cache
 from typing import Optional
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError, jwt
+from jwt import (
+    InvalidTokenError,
+    PyJWKClient,
+    decode as jwt_decode,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -14,6 +20,22 @@ from app.core.database import get_session
 from app.models.user import User
 
 security = HTTPBearer()
+
+
+@lru_cache(maxsize=1)
+def _get_supabase_jwks_client() -> PyJWKClient:
+    """
+    Get JWKS client for Supabase JWT verification.
+
+    PyJWKClient handles its own caching with lifespan=1800 (30 minutes).
+    The @lru_cache ensures we only create one client instance per process.
+
+    Returns:
+        PyJWKClient configured for Supabase authentication with 30-minute key cache
+    """
+    supabase_url = settings.supabase_url.rstrip("/")
+    jwks_url = f"{supabase_url}/auth/v1/.well-known/jwks.json"
+    return PyJWKClient(jwks_url, lifespan=1800)
 
 
 async def get_current_user_id(
@@ -35,13 +57,30 @@ async def get_current_user_id(
     token = credentials.credentials
 
     try:
-        # Decode JWT token (Supabase uses HS256 with JWT secret)
-        payload = jwt.decode(
-            token,
-            settings.jwt_secret,
-            algorithms=[settings.jwt_algorithm],
-            # Supabase tokens don't always have aud
-            options={"verify_aud": False},
+        # Decode JWT token using JWKS (JSON Web Key Set)
+        # Supabase uses ES256 algorithm with ECDSA P-256 curve
+        signing_key = _get_supabase_jwks_client().get_signing_key_from_jwt(token)
+        issuer = f"{settings.supabase_url.rstrip('/')}/auth/v1"
+
+        # Build decode options
+        decode_options = {}
+        if not settings.supabase_jwt_audience:
+            # Skip audience verification if not configured
+            decode_options["verify_aud"] = False
+
+        payload = jwt_decode(
+            jwt=token,
+            key=signing_key.key,
+            algorithms=[
+                settings.jwt_algorithm
+            ],  # Supabase uses ES256 (confirmed by JWKS)
+            issuer=issuer,
+            audience=(
+                settings.supabase_jwt_audience
+                if settings.supabase_jwt_audience
+                else None
+            ),
+            options=decode_options if decode_options else None,
         )
 
         user_id: Optional[str] = payload.get("sub")
@@ -53,7 +92,7 @@ async def get_current_user_id(
 
         return user_id
 
-    except JWTError as e:
+    except InvalidTokenError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Invalid authentication token: {str(e)}",

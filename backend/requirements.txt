@@ -14,7 +14,7 @@ supabase==2.3.4
 gotrue==2.4.2
 
 # Authentication and security
-python-jose[cryptography]==3.3.0
+PyJWT[crypto]==2.8.0
 python-multipart==0.0.6
 passlib[bcrypt]==1.7.4
 email-validator==2.3.0

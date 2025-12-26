@@ -38,9 +38,13 @@ class Settings(BaseSettings):
     db_pool_size: int = Field(default=20, description="Database connection pool size")
     db_max_overflow: int = Field(default=40, description="Max overflow connections")
 
-    # JWT configuration
-    jwt_secret: str = Field(..., description="Secret key for JWT verification")
-    jwt_algorithm: str = Field(default="HS256", description="JWT algorithm")
+    jwt_algorithm: str = Field(
+        default="ES256", description="JWT algorithm (Supabase uses ES256)"
+    )
+    supabase_jwt_audience: Optional[str] = Field(
+        default="authenticated",
+        description="Expected Supabase JWT audience (set to None to disable audience verification)",
+    )
 
     # CORS settings
     cors_origins: str = Field(

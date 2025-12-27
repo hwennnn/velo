@@ -15,6 +15,7 @@ export interface Trip {
   name: string;
   description?: string;
   base_currency: string;
+  simplify_debts?: boolean;
   start_date?: string;
   end_date?: string;
   created_by: string;
@@ -51,7 +52,8 @@ export interface Expense {
   amount_in_base_currency: number;
   paid_by_member_id: number;
   paid_by_nickname: string;
-  expense_date: string;
+  created_at: string;
+  updated_at: string;
   category?: string;
   notes?: string;
   receipt_url?: string;
@@ -77,15 +79,20 @@ export interface Balance {
   currency_balances: Record<string, number>; // Per-currency balances (original currencies)
 }
 
-export interface Settlement {
+export interface Debt {
   from_member_id: number;
   to_member_id: number;
-  amount: number;
-  currency: string; // Currency of the settlement
-  from_member?: TripMember;
-  to_member?: TripMember;
   from_nickname: string;
   to_nickname: string;
+  amount: number;
+  currency: string;
+  amount_in_base: number;
+}
+
+export interface Settlement extends Debt {
+  // Settlement is the same as Debt
+  from_member?: TripMember;
+  to_member?: TripMember;
 }
 
 export interface GroupedSettlement {
@@ -128,7 +135,6 @@ export interface CreateExpenseInput {
   amount: number;
   currency: string;
   paid_by_member_id: number;
-  expense_date: string;
   category?: string;
   notes?: string;
   receipt_url?: string;
@@ -141,6 +147,32 @@ export interface SplitInput {
   member_id: number;
   amount?: number;
   percentage?: number;
+}
+
+export interface UpdateExpenseInput {
+  description?: string;
+  amount?: number;
+  currency?: string;
+  paid_by_member_id?: number;
+  category?: string;
+  notes?: string;
+  receipt_url?: string;
+  split_type?: 'equal' | 'percentage' | 'custom';
+  splits?: SplitInput[];
+}
+
+export interface BalancesResponse {
+  trip_id: number;
+  base_currency: string;
+  simplified: boolean;
+  member_balances: Balance[];
+  debts: Debt[];
+}
+
+export interface BulkConversionRequest {
+  target_currency: string;
+  use_custom_rates: boolean;
+  custom_rates?: Record<string, number>;
 }
 
 export interface InviteLink {

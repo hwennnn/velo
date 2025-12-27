@@ -4,8 +4,8 @@ Balance and Settlement API endpoints with debt tracking
 
 from datetime import date
 from decimal import Decimal
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Optional, Dict
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
@@ -17,9 +17,9 @@ from app.models.trip import Trip
 from app.models.trip_member import TripMember
 from app.services.debt import (
     get_member_balances,
-    get_settlements_plan,
     record_settlement,
     merge_debt_currency,
+    convert_all_debts_to_currency,
 )
 from app.services.exchange_rate import get_exchange_rate, fetch_exchange_rates
 
@@ -64,6 +64,23 @@ class DebtMergeRequest(BaseModel):
     )
 
 
+class BulkConversionRequest(BaseModel):
+    """Schema for bulk currency conversion of all debts"""
+
+    target_currency: str = Field(
+        ...,
+        min_length=3,
+        max_length=3,
+        description="Target currency to convert all debts to",
+    )
+    use_custom_rates: bool = Field(
+        default=False, description="Use custom rates instead of Google rates"
+    )
+    custom_rates: Optional[Dict[str, Decimal]] = Field(
+        None, description="Custom exchange rates {currency: rate_to_target}"
+    )
+
+
 async def check_trip_access(
     trip_id: int,
     user: User,
@@ -102,47 +119,40 @@ async def check_trip_access(
 @router.get("/trips/{trip_id}/balances")
 async def get_trip_balances(
     trip_id: int,
+    simplify: Optional[bool] = Query(
+        default=None,
+        description="Override trip setting simplify_debts. If omitted, uses trip.simplify_debts.",
+    ),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
     """
     Get balance summary for all members in a trip.
     Uses the member_debts table for efficient queries.
-    Shows currency-specific balances and totals.
-    """
-    # Check access
-    await check_trip_access(trip_id, current_user, session)
+    Shows currency-specific balances and detailed debt relationships.
 
-    # Get balances from debt records
-    balances = await get_member_balances(trip_id, session)
+    Args:
+        trip_id: Trip ID
+        simplify: If True, minimize the number of transactions (returns debts in base currency)
 
-    return {
-        "trip_id": trip_id,
-        "balances": balances,
-    }
-
-
-@router.get("/trips/{trip_id}/settlements")
-async def get_trip_settlements(
-    trip_id: int,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
-):
-    """
-    Get settlement plan from debt records.
-    Returns direct debts between members in each currency.
-    Much more efficient than calculating from expenses.
+    Returns:
+        - member_balances: List of member balances with currency breakdown
+        - debts: List of who owes who how much (simplified if requested)
     """
     # Check access
     trip, _ = await check_trip_access(trip_id, current_user, session)
 
-    # Get settlements from debt records
-    settlements = await get_settlements_plan(trip_id, session)
+    effective_simplify = simplify if simplify is not None else bool(trip.simplify_debts)
+
+    # Get balances and debts from debt records
+    result = await get_member_balances(trip_id, session, simplify=effective_simplify)
 
     return {
         "trip_id": trip_id,
         "base_currency": trip.base_currency,
-        "settlements": settlements,
+        "simplified": effective_simplify,
+        "member_balances": result["member_balances"],
+        "debts": result["debts"],
     }
 
 
@@ -333,4 +343,54 @@ async def merge_debt_currencies(
             "conversion_rate": float(conversion_rate),
             **result,
         },
+    }
+
+
+@router.post("/trips/{trip_id}/debts/convert-all", status_code=status.HTTP_200_OK)
+async def convert_all_debts(
+    trip_id: int,
+    conversion_data: BulkConversionRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Convert all debts in a trip to a single target currency.
+    This consolidates all multi-currency debts for easier settlement.
+
+    Supports two modes:
+    1. Google rates (default): Fetches current exchange rates automatically
+    2. Custom rates: Use user-provided exchange rates
+
+    Example:
+    - Trip has debts in USD, EUR, JPY, SGD
+    - Convert all to SGD
+    - Result: All debts are now in SGD only
+    """
+    # Check access
+    await check_trip_access(trip_id, current_user, session)
+
+    # Validate target currency
+    target_currency = conversion_data.target_currency.upper()
+
+    # Prepare custom rates if provided
+    custom_rates = None
+    if conversion_data.use_custom_rates and conversion_data.custom_rates:
+        custom_rates = {
+            currency.upper(): rate
+            for currency, rate in conversion_data.custom_rates.items()
+        }
+
+    # Convert all debts
+    result = await convert_all_debts_to_currency(
+        trip_id=trip_id,
+        target_currency=target_currency,
+        session=session,
+        custom_rates=custom_rates,
+    )
+
+    await session.commit()
+
+    return {
+        "message": "All debts converted successfully",
+        "conversion": result,
     }

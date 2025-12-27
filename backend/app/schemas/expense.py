@@ -1,8 +1,6 @@
-"""
-Pydantic schemas for Expense API endpoints
-"""
+"""Pydantic schemas for Expense API endpoints"""
 
-from datetime import date
+from datetime import datetime
 from typing import Optional
 from decimal import Decimal
 from pydantic import BaseModel, Field, model_validator
@@ -42,7 +40,6 @@ class ExpenseCreate(BaseModel):
         description="Currency code (ISO 4217)",
     )
     paid_by_member_id: int = Field(..., description="Member who paid")
-    expense_date: date = Field(..., description="Date of expense")
     category: Optional[str] = Field(
         None,
         max_length=50,
@@ -141,7 +138,6 @@ class ExpenseCreate(BaseModel):
                 "amount": "85.50",
                 "currency": "SGD",
                 "paid_by_member_id": 1,
-                "expense_date": "2024-03-16",
                 "category": "food",
                 "split_type": "equal",
             }
@@ -155,10 +151,17 @@ class ExpenseUpdate(BaseModel):
     amount: Optional[Decimal] = Field(None, gt=0)
     currency: Optional[str] = Field(None, min_length=3, max_length=3)
     paid_by_member_id: Optional[int] = None
-    expense_date: Optional[date] = None
     category: Optional[str] = Field(None, max_length=50)
     notes: Optional[str] = Field(None, max_length=500)
     receipt_url: Optional[str] = Field(None, max_length=500)
+
+    # Split information (optional - only if changing splits)
+    split_type: Optional[str] = Field(
+        None, description="Split type: equal, percentage, custom"
+    )
+    splits: Optional[list[SplitCreate]] = Field(
+        None, description="Custom/percentage splits"
+    )
 
     @model_validator(mode="after")
     def validate_expense_data(self):
@@ -193,6 +196,34 @@ class ExpenseUpdate(BaseModel):
             if not self.notes:
                 self.notes = None
 
+        # Validate split type if provided
+        if self.split_type is not None:
+            if self.split_type not in ["equal", "percentage", "custom"]:
+                raise ValueError("Split type must be equal, percentage, or custom")
+
+            # For custom and percentage splits, splits list is required
+            if self.split_type in ["percentage", "custom"]:
+                if not self.splits or len(self.splits) == 0:
+                    raise ValueError(
+                        f"Splits list is required for {self.split_type} split type"
+                    )
+
+        # Validate percentage splits sum to 100
+        if self.split_type == "percentage" and self.splits:
+            total_percentage = sum(split.percentage or 0 for split in self.splits)
+            if abs(total_percentage - 100) > 0.01:
+                raise ValueError(
+                    f"Percentage splits must sum to 100, got {total_percentage}"
+                )
+
+        # Validate custom splits sum to expense amount (if amount is provided)
+        if self.split_type == "custom" and self.splits and self.amount:
+            total_amount = sum(split.amount or 0 for split in self.splits)
+            if abs(total_amount - self.amount) > 0.01:
+                raise ValueError(
+                    f"Custom split amounts must sum to expense amount {self.amount}, got {total_amount}"
+                )
+
         return self
 
 
@@ -221,13 +252,14 @@ class ExpenseResponse(BaseModel):
     amount_in_base_currency: Decimal
     paid_by_member_id: int
     paid_by_nickname: str
-    expense_date: date
     category: Optional[str] = None
     notes: Optional[str] = None
     receipt_url: Optional[str] = None
     expense_type: str = "expense"  # Default to 'expense' for backward compatibility
     splits: list[SplitResponse]
     created_by: str
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True

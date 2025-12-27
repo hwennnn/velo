@@ -18,18 +18,106 @@ from app.models.trip import Trip
 from app.services.exchange_rate import get_exchange_rate
 
 
+def simplify_debts(debts: List[Dict], base_currency: str) -> List[Dict]:
+    """
+    Simplify debts to minimize the number of transactions.
+    Uses a greedy algorithm to reduce complexity.
+
+    Algorithm:
+    1. Convert all debts to base currency
+    2. Calculate net balance for each member
+    3. Match debtors with creditors to minimize transactions
+
+    Args:
+        debts: List of debt dictionaries with amount_in_base
+        base_currency: Base currency for simplified debts
+
+    Returns:
+        Simplified list of debts in base currency
+    """
+    if not debts:
+        return []
+
+    # Calculate net balance for each member in base currency
+    net_balances = defaultdict(lambda: Decimal("0.0"))
+    member_names = {}
+
+    for debt in debts:
+        debtor_id = debt["from_member_id"]
+        creditor_id = debt["to_member_id"]
+        amount_in_base = Decimal(str(debt["amount_in_base"]))
+
+        # Track names
+        member_names[debtor_id] = debt["from_nickname"]
+        member_names[creditor_id] = debt["to_nickname"]
+
+        # Debtor has negative balance, creditor has positive
+        net_balances[debtor_id] -= amount_in_base
+        net_balances[creditor_id] += amount_in_base
+
+    # Separate members into debtors (negative) and creditors (positive)
+    debtors = []  # (member_id, amount_owed)
+    creditors = []  # (member_id, amount_owed_to)
+
+    for member_id, balance in net_balances.items():
+        if balance < Decimal("-0.01"):
+            debtors.append([member_id, -balance])  # Make positive
+        elif balance > Decimal("0.01"):
+            creditors.append([member_id, balance])
+
+    # Greedy matching: match largest debtor with largest creditor
+    simplified = []
+    debtors.sort(key=lambda x: x[1], reverse=True)
+    creditors.sort(key=lambda x: x[1], reverse=True)
+
+    debtor_idx = 0
+    creditor_idx = 0
+
+    while debtor_idx < len(debtors) and creditor_idx < len(creditors):
+        debtor_id, debt_amount = debtors[debtor_idx]
+        creditor_id, credit_amount = creditors[creditor_idx]
+
+        # Transfer amount is the minimum of what debtor owes and creditor is owed
+        transfer = min(debt_amount, credit_amount)
+
+        if transfer > Decimal("0.01"):
+            simplified.append(
+                {
+                    "from_member_id": debtor_id,
+                    "to_member_id": creditor_id,
+                    "from_nickname": member_names[debtor_id],
+                    "to_nickname": member_names[creditor_id],
+                    "amount": float(transfer),
+                    "currency": base_currency,
+                    "amount_in_base": float(transfer),
+                }
+            )
+
+        # Update remaining amounts
+        debtors[debtor_idx][1] -= transfer
+        creditors[creditor_idx][1] -= transfer
+
+        # Move to next if settled
+        if debtors[debtor_idx][1] < Decimal("0.01"):
+            debtor_idx += 1
+        if creditors[creditor_idx][1] < Decimal("0.01"):
+            creditor_idx += 1
+
+    return simplified
+
+
 async def update_debts_for_expense(
     expense: Expense, splits: List[Split], session: AsyncSession
 ) -> None:
     """
-    Update member debts when an expense is created or modified.
+    Create or update member debts when an expense is created or modified.
 
-    Logic (Greedy Approach):
+    Simple Logic:
     1. For each split, if the member is not the payer, they owe the payer
-    2. Calculate the amount in the original currency
-    3. Check for reverse debt (payer owes the split member) in the same currency
-    4. If reverse debt exists, reduce it first (greedy settlement)
-    5. Only create/update forward debt if there's remaining amount
+    2. Find or create a debt record for (debtor -> creditor) in the expense currency
+    3. Add the split amount to the existing debt
+
+    No greedy settlement - just track who owes who what.
     """
     payer_id = expense.paid_by_member_id
 
@@ -38,45 +126,10 @@ async def update_debts_for_expense(
             # Payer doesn't owe themselves
             continue
 
-        # Calculate amount in original currency
-        # split.amount is now in expense currency (no conversion needed)
-        amount_in_original = split.amount
-        remaining_amount = amount_in_original
+        # Amount this member owes (in expense currency)
+        amount = split.amount
 
-        # GREEDY: First check if there's a reverse debt (payer owes split member)
-        reverse_debt_statement = select(MemberDebt).where(
-            and_(
-                MemberDebt.trip_id == expense.trip_id,
-                MemberDebt.debtor_member_id == payer_id,
-                MemberDebt.creditor_member_id == split.member_id,
-                MemberDebt.currency == expense.currency,
-            )
-        )
-        result = await session.execute(reverse_debt_statement)
-        reverse_debt = result.scalar_one_or_none()
-
-        if reverse_debt:
-            # Greedy settlement: reduce the reverse debt first
-            if reverse_debt.amount >= remaining_amount:
-                # Reverse debt is larger or equal - just reduce it
-                reverse_debt.amount -= remaining_amount
-                reverse_debt.updated_at = expense.updated_at
-
-                if reverse_debt.amount < Decimal("0.01"):
-                    # Debt fully settled, remove it
-                    await session.delete(reverse_debt)
-                else:
-                    session.add(reverse_debt)
-
-                # No remaining amount to add as forward debt
-                continue
-            else:
-                # Reverse debt is smaller - eliminate it and continue with remainder
-                remaining_amount -= reverse_debt.amount
-                await session.delete(reverse_debt)
-
-        # Now handle the remaining amount (if any)
-        # Find existing forward debt record
+        # Find existing debt record
         debt_statement = select(MemberDebt).where(
             and_(
                 MemberDebt.trip_id == expense.trip_id,
@@ -89,8 +142,8 @@ async def update_debts_for_expense(
         existing_debt = result.scalar_one_or_none()
 
         if existing_debt:
-            # Update existing debt
-            existing_debt.amount += remaining_amount
+            # Update existing debt by adding the amount
+            existing_debt.amount += amount
             existing_debt.updated_at = expense.updated_at
             session.add(existing_debt)
         else:
@@ -99,7 +152,7 @@ async def update_debts_for_expense(
                 trip_id=expense.trip_id,
                 debtor_member_id=split.member_id,
                 creditor_member_id=payer_id,
-                amount=remaining_amount,
+                amount=amount,
                 currency=expense.currency,
                 source_expense_id=expense.id,
             )
@@ -122,15 +175,16 @@ async def record_settlement(
     """
     Record a settlement between two members as a settlement expense.
 
-    Creates an expense with expense_type='settlement' that:
-    - Shows in the expense list
-    - Reduces the debt between members
-    - Provides audit trail
+    New Simple Logic:
+    - Create a settlement expense (debtor pays creditor)
+    - Create a split showing creditor receives the amount
+    - This creates a debt: creditor owes debtor
+    - This debt will cancel out with existing debts in balances calculation
 
     Args:
         trip_id: Trip ID
-        debtor_member_id: Member who is paying
-        creditor_member_id: Member who is receiving
+        debtor_member_id: Member who is paying (the payer)
+        creditor_member_id: Member who is receiving (the receiver)
         amount: Amount being paid
         currency: Currency of payment
         session: Database session
@@ -155,154 +209,77 @@ async def record_settlement(
     if not trip:
         raise ValueError("Invalid trip ID")
 
-    # Calculate settle amount and currency
-    settle_currency = currency
-    settle_amount = amount
-
+    # Handle currency conversion notes
     if target_currency and conversion_rate:
-        # User is paying in 'currency' but settling debt in 'target_currency'
         settle_amount = amount * conversion_rate
-        settle_currency = target_currency
         if not notes:
-            notes = f"Paid {amount} {currency} (= {settle_amount} {settle_currency})"
+            notes = f"Paid {amount} {currency} (= {settle_amount} {target_currency})"
 
     # Get exchange rate to base currency
     exchange_rate_to_base = await get_exchange_rate(currency, trip.base_currency)
 
     # Create settlement as an expense
+    # The debtor (payer) is the one who "paid" this expense
     settlement_expense = Expense(
         trip_id=trip_id,
-        description=f"Settlement: {debtor.nickname} → {creditor.nickname}",
+        description=f"{debtor.nickname} paid {creditor.nickname}",
         amount=amount,
         currency=currency,
         exchange_rate_to_base=exchange_rate_to_base,
         paid_by_member_id=debtor_member_id,
-        expense_date=settlement_date,
         expense_type="settlement",
         notes=notes or "Settlement payment",
         created_by=user_id,
+        created_at=settlement_date,
+        updated_at=settlement_date,
     )
 
     session.add(settlement_expense)
     await session.flush()  # Get the expense ID
 
     # Create a split for the creditor (who "receives" the payment)
-    # This represents the debt being settled (amount in expense currency)
+    # This creates a reverse debt: creditor now owes debtor
     split = Split(
         expense_id=settlement_expense.id,
         member_id=creditor_member_id,
-        amount=amount,  # Now stored in expense currency
+        amount=amount,
     )
 
     session.add(split)
     await session.flush()
 
-    # Now reduce the actual debt
-    # Find the debt record
-    debt_statement = select(MemberDebt).where(
-        and_(
-            MemberDebt.trip_id == trip_id,
-            MemberDebt.debtor_member_id == debtor_member_id,
-            MemberDebt.creditor_member_id == creditor_member_id,
-            MemberDebt.currency == settle_currency,
-        )
-    )
-    result = await session.execute(debt_statement)
-    debt = result.scalar_one_or_none()
+    # Update debts using the standard logic
+    # This will create: creditor owes debtor the amount
+    # Which cancels out with the existing: debtor owes creditor
+    await update_debts_for_expense(settlement_expense, [split], session)
 
-    if not debt:
-        # No debt exists in this currency
-        # Check if there's a reverse debt (creditor owes debtor)
-        reverse_statement = select(MemberDebt).where(
-            and_(
-                MemberDebt.trip_id == trip_id,
-                MemberDebt.debtor_member_id == creditor_member_id,
-                MemberDebt.creditor_member_id == debtor_member_id,
-                MemberDebt.currency == settle_currency,
-            )
-        )
-        result = await session.execute(reverse_statement)
-        reverse_debt = result.scalar_one_or_none()
-
-        if reverse_debt:
-            # Increase the reverse debt (they paid more than they owed)
-            reverse_debt.amount += settle_amount
-            session.add(reverse_debt)
-            return {
-                "status": "overpaid",
-                "message": f"Payment recorded. {creditor.nickname} now owes {debtor.nickname}",
-                "remaining_debt": float(reverse_debt.amount),
-                "expense_id": settlement_expense.id,
-            }
-        else:
-            # Create new reverse debt
-            new_debt = MemberDebt(
-                trip_id=trip_id,
-                debtor_member_id=creditor_member_id,
-                creditor_member_id=debtor_member_id,
-                amount=settle_amount,
-                currency=settle_currency,
-            )
-            session.add(new_debt)
-            return {
-                "status": "overpaid",
-                "message": f"Payment recorded. {creditor.nickname} now owes {debtor.nickname}",
-                "remaining_debt": float(settle_amount),
-                "expense_id": settlement_expense.id,
-            }
-
-    # Reduce the debt
-    if debt.amount <= settle_amount:
-        # Fully settled (or overpaid)
-        overpayment = settle_amount - debt.amount
-        await session.delete(debt)
-
-        if overpayment > Decimal("0.01"):
-            # Create reverse debt for overpayment
-            new_debt = MemberDebt(
-                trip_id=trip_id,
-                debtor_member_id=creditor_member_id,
-                creditor_member_id=debtor_member_id,
-                amount=overpayment,
-                currency=settle_currency,
-            )
-            session.add(new_debt)
-            return {
-                "status": "overpaid",
-                "message": "Debt fully settled with overpayment",
-                "overpayment": float(overpayment),
-                "expense_id": settlement_expense.id,
-            }
-        else:
-            return {
-                "status": "settled",
-                "message": "Debt fully settled",
-                "expense_id": settlement_expense.id,
-            }
-    else:
-        # Partially settled
-        debt.amount -= settle_amount
-        session.add(debt)
-        return {
-            "status": "partial",
-            "message": "Partial payment recorded",
-            "remaining_debt": float(debt.amount),
-            "expense_id": settlement_expense.id,
-        }
+    return {
+        "status": "recorded",
+        "message": "Settlement recorded successfully",
+        "expense_id": settlement_expense.id,
+    }
 
 
-async def get_member_balances(trip_id: int, session: AsyncSession) -> List[Dict]:
+async def get_member_balances(
+    trip_id: int, session: AsyncSession, simplify: bool = False
+) -> Dict:
     """
     Get balances for all members in a trip.
     Much more efficient than calculating from expenses.
 
-    Returns list of member balances with currency breakdown.
-    total_owed and total_owed_to are in BASE CURRENCY for comparison.
+    Returns:
+    - member_balances: List of member balances with currency breakdown
+    - debts: List of who owes who how much (can be simplified)
+
+    Args:
+        trip_id: Trip ID
+        session: Database session
+        simplify: If True, minimize the number of transactions using greedy algorithm
     """
     # Get trip to know base currency
     trip = await session.get(Trip, trip_id)
     if not trip:
-        return []
+        return {"member_balances": [], "debts": []}
 
     base_currency = trip.base_currency
 
@@ -310,6 +287,7 @@ async def get_member_balances(trip_id: int, session: AsyncSession) -> List[Dict]
     members_statement = select(TripMember).where(TripMember.trip_id == trip_id)
     result = await session.execute(members_statement)
     members = result.scalars().all()
+    member_map = {m.id: m.nickname for m in members}
 
     # Initialize balance structure
     balances = {}
@@ -327,88 +305,97 @@ async def get_member_balances(trip_id: int, session: AsyncSession) -> List[Dict]
     # Get all debts for this trip
     debts_statement = select(MemberDebt).where(MemberDebt.trip_id == trip_id)
     result = await session.execute(debts_statement)
-    debts = result.scalars().all()
+    all_debts = result.scalars().all()
 
-    # Process debts
-    for debt in debts:
+    # First net out reverse debts per pair/currency to avoid showing A owes B and B owes A.
+    net_map: Dict[tuple[int, int, str], Decimal] = {}
+    for debt in all_debts:
         if debt.amount < Decimal("0.01"):
             continue  # Skip negligible amounts
+        if debt.debtor_member_id == debt.creditor_member_id:
+            continue
+
+        a = debt.debtor_member_id
+        b = debt.creditor_member_id
+        lo, hi = (a, b) if a < b else (b, a)
+        sign = Decimal("1") if a == lo else Decimal("-1")
+        key = (lo, hi, debt.currency)
+        net_map[key] = net_map.get(key, Decimal("0.0")) + sign * debt.amount
+
+    # Build normalized debt list and update balances
+    debt_list = []
+    for (lo, hi, curr), net_amount in net_map.items():
+        if abs(net_amount) < Decimal("0.01"):
+            continue  # cancels out fully
+
+        if net_amount > 0:
+            from_id, to_id, amount = lo, hi, net_amount
+        else:
+            from_id, to_id, amount = hi, lo, -net_amount
 
         # Get exchange rate to base currency
-        exchange_rate = await get_exchange_rate(debt.currency, base_currency)
-        amount_in_base = debt.amount * exchange_rate
+        exchange_rate = await get_exchange_rate(curr, base_currency)
+        amount_in_base = amount * exchange_rate
+
+        debt_list.append(
+            {
+                "from_member_id": from_id,
+                "to_member_id": to_id,
+                "from_nickname": member_map.get(from_id, "Unknown"),
+                "to_nickname": member_map.get(to_id, "Unknown"),
+                "amount": float(amount),
+                "currency": curr,
+                "amount_in_base": float(amount_in_base),
+            }
+        )
 
         # Debtor owes money (negative balance in this currency)
-        if debt.debtor_member_id in balances:
-            balances[debt.debtor_member_id]["currency_balances"][
-                debt.currency
-            ] -= debt.amount
-            balances[debt.debtor_member_id]["total_owed_base"] += amount_in_base
+        if from_id in balances:
+            balances[from_id]["currency_balances"][curr] -= amount
+            balances[from_id]["total_owed_base"] += amount_in_base
 
         # Creditor is owed money (positive balance in this currency)
-        if debt.creditor_member_id in balances:
-            balances[debt.creditor_member_id]["currency_balances"][
-                debt.currency
-            ] += debt.amount
-            balances[debt.creditor_member_id]["total_owed_to_base"] += amount_in_base
+        if to_id in balances:
+            balances[to_id]["currency_balances"][curr] += amount
+            balances[to_id]["total_owed_to_base"] += amount_in_base
 
-    # Convert to list and clean up
+    # Simplify debts if requested (minimize transactions)
+    if simplify:
+        debt_list = simplify_debts(debt_list, base_currency)
+
+    # Convert balances to list and clean up
     result_list = []
     for balance in balances.values():
         # Convert defaultdict to regular dict, filter out zero balances
-        balance["currency_balances"] = {
+        currency_balances = {
             currency: float(amount)
             for currency, amount in balance["currency_balances"].items()
             if abs(amount) > 0.01
         }
-        balance["total_owed"] = float(balance["total_owed_base"])
-        balance["total_owed_to"] = float(balance["total_owed_to_base"])
-        balance["net_balance"] = float(
-            balance["total_owed_to_base"] - balance["total_owed_base"]
-        )
-        result_list.append(balance)
 
-    return result_list
-
-
-async def get_settlements_plan(trip_id: int, session: AsyncSession) -> List[Dict]:
-    """
-    Get optimal settlement plan from debt records.
-    Groups by currency and suggests minimal transactions.
-    """
-    # Get all debts
-    debts_statement = select(MemberDebt).where(
-        and_(MemberDebt.trip_id == trip_id, MemberDebt.amount > Decimal("0.01"))
-    )
-    result = await session.execute(debts_statement)
-    debts = result.scalars().all()
-
-    # Get member info for nicknames
-    members_statement = select(TripMember).where(TripMember.trip_id == trip_id)
-    result = await session.execute(members_statement)
-    members = {m.id: m.nickname for m in result.scalars().all()}
-
-    # Convert debts to settlement suggestions
-    settlements = []
-    for debt in debts:
-        settlements.append(
+        result_list.append(
             {
-                "from_member_id": debt.debtor_member_id,
-                "to_member_id": debt.creditor_member_id,
-                "from_nickname": members.get(debt.debtor_member_id, "Unknown"),
-                "to_nickname": members.get(debt.creditor_member_id, "Unknown"),
-                "amount": float(debt.amount),
-                "currency": debt.currency,
+                "member_id": balance["member_id"],
+                "member_nickname": balance["member_nickname"],
+                "currency_balances": currency_balances,
+                "total_owed": float(balance["total_owed_base"]),
+                "total_owed_to": float(balance["total_owed_to_base"]),
+                "net_balance": float(
+                    balance["total_owed_to_base"] - balance["total_owed_base"]
+                ),
             }
         )
 
-    return settlements
+    return {
+        "member_balances": result_list,
+        "debts": debt_list,
+    }
 
 
 async def delete_debts_for_expense(expense_id: int, session: AsyncSession) -> int:
     """
     Delete all debt records created by a specific expense.
-    Called when an expense is deleted.
+    Called when an expense is deleted or updated.
 
     Returns number of debt records deleted.
     """
@@ -419,7 +406,129 @@ async def delete_debts_for_expense(expense_id: int, session: AsyncSession) -> in
     return result.rowcount
 
 
-async def cleanup_zero_debts(trip_id: int, session: AsyncSession) -> int:
+async def update_debts_for_expense_modification(
+    expense: Expense, splits: List[Split], session: AsyncSession
+) -> None:
+    """
+    Update debts when an expense is modified.
+    This ensures idempotent updates by:
+    1. Deleting all old debts created by this expense
+    2. Recreating debts based on current splits
+
+    Args:
+        expense: The modified expense
+        splits: Current splits for the expense
+        session: Database session
+    """
+    # Delete old debts for this expense
+    await delete_debts_for_expense(expense.id, session)
+
+    # Recreate debts based on current splits
+    await update_debts_for_expense(expense, splits, session)
+
+
+async def convert_all_debts_to_currency(
+    trip_id: int,
+    target_currency: str,
+    session: AsyncSession,
+    custom_rates: Optional[Dict[str, Decimal]] = None,
+) -> Dict:
+    """
+    Convert all debts in a trip to a single target currency.
+    This consolidates multi-currency debts for easier settlement.
+
+    Process:
+    1. Get all debts in the trip
+    2. For each unique (debtor, creditor, currency) debt:
+       - If already in target currency, keep as is
+       - Otherwise, convert to target currency and merge
+    3. Result: All debts are in target currency
+
+    Args:
+        trip_id: Trip ID
+        target_currency: Target currency to convert to
+        session: Database session
+        custom_rates: Optional custom exchange rates {currency: rate_to_target}
+
+    Returns:
+        Dict with conversion summary
+    """
+    # Get all debts
+    debts_statement = select(MemberDebt).where(
+        and_(MemberDebt.trip_id == trip_id, MemberDebt.amount > Decimal("0.01"))
+    )
+    result = await session.execute(debts_statement)
+    all_debts = result.scalars().all()
+
+    conversions = []
+    total_converted = 0
+
+    for debt in all_debts:
+        # Skip if already in target currency
+        if debt.currency == target_currency:
+            continue
+
+        # Get conversion rate
+        if custom_rates and debt.currency in custom_rates:
+            conversion_rate = custom_rates[debt.currency]
+        else:
+            conversion_rate = await get_exchange_rate(debt.currency, target_currency)
+
+        # Convert amount
+        original_amount = debt.amount
+        converted_amount = original_amount * conversion_rate
+
+        # Find or create debt in target currency
+        target_debt_statement = select(MemberDebt).where(
+            and_(
+                MemberDebt.trip_id == trip_id,
+                MemberDebt.debtor_member_id == debt.debtor_member_id,
+                MemberDebt.creditor_member_id == debt.creditor_member_id,
+                MemberDebt.currency == target_currency,
+            )
+        )
+        result = await session.execute(target_debt_statement)
+        target_debt = result.scalar_one_or_none()
+
+        if target_debt:
+            # Add to existing debt
+            target_debt.amount += converted_amount
+            target_debt.updated_at = datetime.utcnow()
+            session.add(target_debt)
+        else:
+            # Create new debt in target currency
+            new_debt = MemberDebt(
+                trip_id=trip_id,
+                debtor_member_id=debt.debtor_member_id,
+                creditor_member_id=debt.creditor_member_id,
+                amount=converted_amount,
+                currency=target_currency,
+            )
+            session.add(new_debt)
+
+        # Delete old debt
+        await session.delete(debt)
+
+        conversions.append(
+            {
+                "debtor_id": debt.debtor_member_id,
+                "creditor_id": debt.creditor_member_id,
+                "original_amount": float(original_amount),
+                "original_currency": debt.currency,
+                "converted_amount": float(converted_amount),
+                "conversion_rate": float(conversion_rate),
+            }
+        )
+
+        total_converted += 1
+
+    return {
+        "status": "success",
+        "target_currency": target_currency,
+        "total_debts_converted": total_converted,
+        "conversions": conversions,
+    }
+
     """
     Remove debt records with zero or negligible amounts.
     Returns number of records deleted.

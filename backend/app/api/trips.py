@@ -42,6 +42,7 @@ async def create_trip(
         base_currency=trip_data.base_currency,
         start_date=trip_data.start_date,
         end_date=trip_data.end_date,
+        simplify_debts=trip_data.simplify_debts,
         created_by=current_user.id,
     )
 

@@ -26,6 +26,12 @@ class Trip(SQLModel, table=True):
         default=DEFAULT_CURRENCY, description="Base currency code (ISO 4217)"
     )
 
+    # Balance calculation preferences
+    simplify_debts: bool = Field(
+        default=False,
+        description="If true, balances endpoint returns simplified debts to minimize transactions",
+    )
+
     start_date: Optional[date] = Field(default=None, description="Trip start date")
     end_date: Optional[date] = Field(default=None, description="Trip end date")
 

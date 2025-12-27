@@ -13,6 +13,7 @@ import { queryClient } from './lib/queryClient';
 
 // Lazy load pages for better initial load performance
 const AuthCallback = lazy(() => import('./pages/AuthCallback'));
+const BalancesPage = lazy(() => import('./pages/BalancesPage'));
 const Home = lazy(() => import('./pages/Home'));
 const JoinTrip = lazy(() => import('./pages/JoinTrip'));
 const Login = lazy(() => import('./pages/Login'));
@@ -20,6 +21,7 @@ const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const Profile = lazy(() => import('./pages/Profile'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const TripDetail = lazy(() => import('./pages/TripDetail'));
+const TripSettings = lazy(() => import('./pages/TripSettings'));
 
 // Custom loading component with brand styling
 function PageLoader() {
@@ -82,6 +84,22 @@ function App() {
                     element={
                       <ProtectedRoute>
                         <TripDetail />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/trips/:tripId/balances"
+                    element={
+                      <ProtectedRoute>
+                        <BalancesPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/trips/:tripId/settings"
+                    element={
+                      <ProtectedRoute>
+                        <TripSettings />
                       </ProtectedRoute>
                     }
                   />

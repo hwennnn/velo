@@ -3,19 +3,22 @@
  * Shows detailed information about an expense in a modal
  */
 import { format, parseISO } from "date-fns";
-import { Trash2, X } from "lucide-react";
-import React from "react";
-import type { Expense } from "../types";
+import { Pencil, Trash2, X } from "lucide-react";
+import React, { useState } from "react";
+import type { Expense, TripMember, UpdateExpenseInput } from "../types";
+import { EditExpenseModal } from "./EditExpenseModal";
 
 interface ExpenseDetailModalProps {
   isOpen: boolean;
   expense: Expense | null;
   baseCurrency: string;
+  members: TripMember[];
   currentUserId?: string;
   currentUserMemberId?: number;
   isCurrentUserAdmin?: boolean;
   onClose: () => void;
   onDelete: (expenseId: number) => void;
+  onUpdate: (expenseId: number, expenseData: UpdateExpenseInput) => Promise<void>;
   deletingId: number | null;
 }
 
@@ -32,13 +35,17 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
   isOpen,
   expense,
   baseCurrency,
+  members,
   currentUserId,
   currentUserMemberId,
   isCurrentUserAdmin,
   onClose,
   onDelete,
+  onUpdate,
   deletingId,
 }) => {
+  const [showEditModal, setShowEditModal] = useState(false);
+
   if (!isOpen || !expense) return null;
 
   const getCategoryEmoji = (category?: string) => {
@@ -47,6 +54,12 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
   };
 
   const isSettlement = expense.expense_type === "settlement";
+  const canEdit = !!currentUserId && expense.created_by === currentUserId;
+  const createdAtLabel = format(parseISO(expense.created_at), "PPP");
+  const lastUpdatedLabel =
+    expense.updated_at && expense.updated_at !== expense.created_at
+      ? format(parseISO(expense.updated_at), "PPP p")
+      : null;
 
   // Calculate what the user needs to pay or will get back
   const calculateUserBalance = () => {
@@ -121,13 +134,10 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                 )}
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">
-                    {expense.description}
+                    {isSettlement ? "Settlement" : expense.description}
                   </h2>
                   <p className="text-sm text-gray-500">
-                    {format(
-                      parseISO(expense.expense_date),
-                      "EEEE, MMMM d, yyyy"
-                    )}
+                    {createdAtLabel}
                   </p>
                 </div>
               </div>
@@ -158,66 +168,60 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                 {expense.currency} {Number(expense.amount).toFixed(2)}
               </div>
               <div className="text-sm text-primary-700 mt-1">
-                Paid by {expense.paid_by_nickname}
+                {isSettlement ? "" : `Paid by ${expense.paid_by_nickname}`}
               </div>
             </div>
 
             {/* User Balance - What they need to pay or will get back */}
             {userBalance && (
               <div
-                className={`rounded-xl p-4 ${
-                  userBalance.type === "get_back"
-                    ? "bg-green-50 border-2 border-green-200"
-                    : "bg-red-50 border-2 border-red-200"
-                }`}
+                className={`rounded-xl p-4 ${userBalance.type === "get_back"
+                  ? "bg-green-50 border-2 border-green-200"
+                  : "bg-red-50 border-2 border-red-200"
+                  }`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <h3
-                      className={`text-sm font-semibold mb-1 ${
-                        userBalance.type === "get_back"
-                          ? "text-green-900"
-                          : "text-red-900"
-                      }`}
+                      className={`text-sm font-semibold mb-1 ${userBalance.type === "get_back"
+                        ? "text-green-900"
+                        : "text-red-900"
+                        }`}
                     >
                       {userBalance.type === "get_back"
                         ? "You will get back"
                         : "You need to pay back"}
                     </h3>
                     <p
-                      className={`text-xs ${
-                        userBalance.type === "get_back"
-                          ? "text-green-700"
-                          : "text-red-700"
-                      }`}
+                      className={`text-xs ${userBalance.type === "get_back"
+                        ? "text-green-700"
+                        : "text-red-700"
+                        }`}
                     >
                       {userBalance.type === "get_back"
-                        ? `${
-                            expense.paid_by_nickname === "You"
-                              ? "You"
-                              : expense.paid_by_nickname
-                          } paid for others`
+                        ? `${expense.paid_by_nickname === "You"
+                          ? "You"
+                          : expense.paid_by_nickname
+                        } paid for others`
                         : `Your share of the expense`}
                     </p>
                   </div>
                   <div className="text-right">
                     <div
-                      className={`text-2xl font-bold ${
-                        userBalance.type === "get_back"
-                          ? "text-green-900"
-                          : "text-red-900"
-                      }`}
+                      className={`text-2xl font-bold ${userBalance.type === "get_back"
+                        ? "text-green-900"
+                        : "text-red-900"
+                        }`}
                     >
                       {expense.currency}{" "}
                       {Number(userBalance.amountInOriginal).toFixed(2)}
                     </div>
                     {expense.currency !== baseCurrency && (
                       <div
-                        className={`text-sm ${
-                          userBalance.type === "get_back"
-                            ? "text-green-700"
-                            : "text-red-700"
-                        }`}
+                        className={`text-sm ${userBalance.type === "get_back"
+                          ? "text-green-700"
+                          : "text-red-700"
+                          }`}
                       >
                         ≈ {baseCurrency} {Number(userBalance.amount).toFixed(2)}
                       </div>
@@ -228,7 +232,7 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
             )}
 
             {/* Currency Conversion Info */}
-            {expense.currency !== baseCurrency && (
+            {expense.currency !== baseCurrency && !isSettlement && (
               <div className="bg-blue-50 rounded-xl p-4">
                 <h3 className="text-sm font-semibold text-gray-900 mb-3">
                   Currency Conversion
@@ -302,10 +306,25 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
             )}
           </div>
 
+          {lastUpdatedLabel && (
+            <div className="px-5 py-4 text-xs text-gray-500">
+              Last updated on {lastUpdatedLabel}
+            </div>
+          )}
+
           {/* Footer Actions */}
           {currentUserId &&
             (expense.created_by === currentUserId || isCurrentUserAdmin) && (
               <div className="sticky bottom-0 bg-white border-t border-gray-200 px-5 py-4 rounded-b-2xl">
+                {canEdit && (
+                  <button
+                    onClick={() => setShowEditModal(true)}
+                    className="w-full mb-3 px-4 py-3 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Pencil className="w-4 h-4" />
+                    Edit {isSettlement ? "Settlement" : "Expense"}
+                  </button>
+                )}
                 <button
                   onClick={() => onDelete(expense.id)}
                   disabled={deletingId === expense.id}
@@ -318,6 +337,15 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
             )}
         </div>
       </div>
+
+      <EditExpenseModal
+        isOpen={showEditModal}
+        expense={expense}
+        members={members}
+        baseCurrency={baseCurrency}
+        onClose={() => setShowEditModal(false)}
+        onUpdate={onUpdate}
+      />
     </div>
   );
 };

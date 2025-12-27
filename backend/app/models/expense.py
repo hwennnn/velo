@@ -1,8 +1,6 @@
-"""
-Expense model for tracking trip expenses
-"""
+"""Expense model for tracking trip expenses"""
 
-from datetime import datetime, date
+from datetime import datetime
 from typing import Optional
 from decimal import Decimal
 from sqlmodel import Field, SQLModel, Column
@@ -41,10 +39,10 @@ class Expense(SQLModel, table=True):
         foreign_key="trip_members.id", description="Trip member who paid this expense"
     )
 
-    expense_date: date = Field(description="Date the expense occurred")
-    
     # Expense type: 'expense' for regular expenses, 'settlement' for settlements
-    expense_type: str = Field(default="expense", description="Type: expense or settlement")
+    expense_type: str = Field(
+        default="expense", description="Type: expense or settlement"
+    )
 
     # Metadata
     category: Optional[str] = Field(
@@ -69,7 +67,6 @@ class Expense(SQLModel, table=True):
                 "currency": "SGD",
                 "exchange_rate_to_base": "1.0",
                 "paid_by_member_id": 1,
-                "expense_date": "2024-03-16",
                 "category": "food",
             }
         }

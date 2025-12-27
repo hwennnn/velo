@@ -74,7 +74,7 @@ export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTri
     if (formData.start_date && formData.end_date) {
       const startDate = new Date(formData.start_date);
       const endDate = new Date(formData.end_date);
-      
+
       if (endDate < startDate) {
         newErrors.end_date = 'End date cannot be before start date';
       }
@@ -113,7 +113,7 @@ export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTri
       onClose();
     } catch (error) {
       console.error('Error creating trip:', error);
-      
+
       // Extract error message from response
       let errorMessage = 'Failed to create trip. Please try again.';
       if (error && typeof error === 'object' && 'response' in error) {
@@ -129,7 +129,7 @@ export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTri
           }
         }
       }
-      
+
       setErrors({ submit: errorMessage });
     } finally {
       setIsLoading(false);
@@ -152,7 +152,7 @@ export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTri
     if (newFormData.start_date && newFormData.end_date) {
       const startDate = new Date(newFormData.start_date);
       const endDate = new Date(newFormData.end_date);
-      
+
       if (endDate < startDate) {
         setErrors({ ...errors, end_date: 'End date cannot be before start date' });
       }
@@ -162,7 +162,7 @@ export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTri
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-3">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
@@ -170,10 +170,10 @@ export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTri
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-xl animate-slide-up sm:animate-fade-in max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="relative w-full max-w-md bg-white rounded-2xl sm:rounded-3xl shadow-xl animate-slide-up sm:animate-fade-in max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-100">
-          <h2 className="text-2xl font-bold text-gray-900">Create New Trip</h2>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h2 className="text-xl font-semibold text-gray-900">Create New Trip</h2>
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
@@ -184,10 +184,10 @@ export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTri
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
           {/* Trip Name */}
           <div>
-            <label htmlFor="trip-name" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="trip-name" className="block text-sm font-medium text-gray-700 mb-1.5">
               Trip Name <span className="text-red-500">*</span>
             </label>
             <div className="relative">
@@ -197,9 +197,8 @@ export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTri
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className={`w-full pl-11 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow ${
-                  errors.name ? 'border-red-500' : 'border-gray-300'
-                }`}
+                className={`w-full pl-11 pr-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow ${errors.name ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 placeholder="Tokyo Adventure 2024"
                 autoFocus
               />
@@ -209,7 +208,7 @@ export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTri
 
           {/* Description */}
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1.5">
               Description (Optional)
             </label>
             <div className="relative">
@@ -218,7 +217,7 @@ export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTri
                 id="description"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow resize-none"
+                className="w-full pl-11 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow resize-none"
                 placeholder="Spring vacation in Japan"
                 rows={3}
               />
@@ -227,7 +226,7 @@ export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTri
 
           {/* Base Currency */}
           <div>
-            <label htmlFor="currency" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="currency" className="block text-sm font-medium text-gray-700 mb-1.5">
               Base Currency
             </label>
             <div className="relative">
@@ -236,7 +235,7 @@ export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTri
                 id="currency"
                 value={formData.base_currency}
                 onChange={(e) => setFormData({ ...formData, base_currency: e.target.value })}
-                className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow appearance-none bg-white"
+                className="w-full pl-11 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow appearance-none bg-white"
               >
                 {SUPPORTED_CURRENCIES.map((currency) => (
                   <option key={currency.code} value={currency.code}>
@@ -246,14 +245,14 @@ export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTri
               </select>
             </div>
             <p className="mt-1 text-xs text-gray-500">
-              All expenses will be converted to this currency for settlement
+              The base currency is used to calculate balances and settlements.
             </p>
           </div>
 
           {/* Dates */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="start-date" className="block text-sm font-medium text-gray-700 mb-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="min-w-0">
+              <label htmlFor="start-date" className="block text-sm font-medium text-gray-700 mb-1.5">
                 Start Date
               </label>
               <div className="relative">
@@ -263,13 +262,13 @@ export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTri
                   type="date"
                   value={formData.start_date}
                   onChange={(e) => handleDateChange('start_date', e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                  className="w-full min-w-0 pl-11 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                 />
               </div>
             </div>
 
-            <div>
-              <label htmlFor="end-date" className="block text-sm font-medium text-gray-700 mb-2">
+            <div className="min-w-0">
+              <label htmlFor="end-date" className="block text-sm font-medium text-gray-700 mb-1.5">
                 End Date
               </label>
               <div className="relative">
@@ -279,9 +278,8 @@ export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTri
                   type="date"
                   value={formData.end_date}
                   onChange={(e) => handleDateChange('end_date', e.target.value)}
-                  className={`w-full pl-11 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow ${
-                    errors.end_date ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                  className={`w-full min-w-0 pl-11 pr-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow ${errors.end_date ? 'border-red-500' : 'border-gray-300'
+                    }`}
                 />
               </div>
               {errors.end_date && <p className="mt-1 text-xs text-red-500">{errors.end_date}</p>}
@@ -297,12 +295,12 @@ export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTri
         </form>
 
         {/* Footer */}
-        <div className="p-6 border-t border-gray-100 bg-gray-50">
+        <div className="px-5 py-4 border-t border-gray-100 bg-gray-50">
           <div className="flex gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-100 transition-colors"
+              className="flex-1 px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-100 transition-colors"
               disabled={isLoading}
             >
               Cancel
@@ -311,7 +309,7 @@ export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTri
               type="submit"
               onClick={handleSubmit}
               disabled={isLoading}
-              className="flex-1 px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+              className="flex-1 px-5 py-2.5 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
             >
               {isLoading ? (
                 <span className="flex items-center justify-center gap-2">

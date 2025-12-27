@@ -82,11 +82,24 @@ export const api = {
 
   // Balances & Settlements
   balances: {
-    get: (tripId: string) => apiClient.get(`/trips/${tripId}/balances`),
-    getSettlements: (tripId: string) => apiClient.get(`/trips/${tripId}/settlements`),
-    getMemberBalance: (tripId: string, memberId: number) => apiClient.get(`/trips/${tripId}/members/${memberId}/balance`),
-    recordSettlement: (tripId: string, data: any) => apiClient.post(`/trips/${tripId}/settlements`, data),
-    mergeDebtCurrency: (tripId: string, data: any) => apiClient.post(`/trips/${tripId}/debts/merge`, data),
+    get: (tripId: string, simplify?: boolean) =>
+      simplify === undefined
+        ? apiClient.get(`/trips/${tripId}/balances`)
+        : apiClient.get(`/trips/${tripId}/balances`, { params: { simplify } }),
+    getSettlements: (tripId: string, simplify?: boolean) =>
+      simplify === undefined
+        ? apiClient.get(`/trips/${tripId}/settlements`)
+        : apiClient.get(`/trips/${tripId}/settlements`, { params: { simplify } }),
+    getMemberBalance: (tripId: string, memberId: number) => 
+      apiClient.get(`/trips/${tripId}/members/${memberId}/balance`),
+    createSettlement: (tripId: string, data: any) => 
+      apiClient.post(`/trips/${tripId}/settlements`, data),
+    recordSettlement: (tripId: string, data: any) => 
+      apiClient.post(`/trips/${tripId}/settlements`, data),
+    mergeDebtCurrency: (tripId: string, data: any) => 
+      apiClient.post(`/trips/${tripId}/debts/merge`, data),
+    convertAllDebts: (tripId: string, data: any) => 
+      apiClient.post(`/trips/${tripId}/debts/convert-all`, data),
   },
 
   // Exchange Rates

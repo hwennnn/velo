@@ -24,6 +24,10 @@ class TripCreate(BaseModel):
     )
     start_date: Optional[date] = Field(None, description="Trip start date")
     end_date: Optional[date] = Field(None, description="Trip end date")
+    simplify_debts: bool = Field(
+        default=False,
+        description="If true, balances endpoint returns simplified debts to minimize transactions",
+    )
 
     @model_validator(mode="after")
     def validate_trip_data(self):
@@ -79,6 +83,7 @@ class TripUpdate(BaseModel):
     base_currency: Optional[str] = Field(None, min_length=3, max_length=3)
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    simplify_debts: Optional[bool] = None
 
     @model_validator(mode="after")
     def validate_trip_data(self):
@@ -135,6 +140,7 @@ class TripResponse(BaseModel):
     name: str
     description: Optional[str]
     base_currency: str
+    simplify_debts: bool = False
     start_date: Optional[date]
     end_date: Optional[date]
     created_by: str

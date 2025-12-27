@@ -102,7 +102,6 @@ async def create_expense(
         currency=expense_data.currency,
         exchange_rate_to_base=exchange_rate,
         paid_by_member_id=expense_data.paid_by_member_id,
-        expense_date=expense_data.expense_date,
         category=expense_data.category,
         notes=expense_data.notes,
         receipt_url=expense_data.receipt_url,
@@ -299,7 +298,6 @@ async def get_expense_response(
         amount_in_base_currency=expense.amount * expense.exchange_rate_to_base,
         paid_by_member_id=expense.paid_by_member_id,
         paid_by_nickname=paid_by_member.nickname if paid_by_member else "Unknown",
-        expense_date=expense.expense_date,
         category=expense.category,
         notes=expense.notes,
         receipt_url=expense.receipt_url,
@@ -308,6 +306,8 @@ async def get_expense_response(
         ),
         splits=split_responses,
         created_by=expense.created_by,
+        created_at=expense.created_at,
+        updated_at=expense.updated_at,
     )
 
 
@@ -350,8 +350,8 @@ async def list_expenses(
             statement = statement.where(Expense.expense_type == "settlement")
         # For "all", don't add any filter
 
-    # Order by date descending
-    statement = statement.order_by(Expense.expense_date.desc(), Expense.id.desc())
+    # Order by creation time descending
+    statement = statement.order_by(Expense.created_at.desc(), Expense.id.desc())
 
     # Get total count
     count_statement = select(func.count(Expense.id)).where(Expense.trip_id == trip_id)
@@ -429,10 +429,10 @@ async def update_expense(
     """
     Update an expense.
     Only the creator can update an expense.
-    Note: This does not update splits. Delete and recreate if splits need to change.
+    Supports updating splits - if amount/split logic changes, debts are updated accordingly.
     """
     # Check access
-    await check_trip_access(trip_id, current_user, session)
+    trip, _ = await check_trip_access(trip_id, current_user, session)
 
     # Get expense
     expense = await session.get(Expense, expense_id)
@@ -449,23 +449,182 @@ async def update_expense(
             detail="Only the expense creator can update it",
         )
 
+    # Track if we need to update debts
+    needs_debt_update = False
+    old_amount_in_base = expense.amount * expense.exchange_rate_to_base
+
     # Update fields
     update_data = expense_data.model_dump(exclude_unset=True)
 
     # If currency changed, update exchange rate
     if "currency" in update_data:
-        trip = await session.get(Trip, trip_id)
         exchange_rate = await get_exchange_rate(
             update_data["currency"], trip.base_currency
         )
         expense.exchange_rate_to_base = exchange_rate
+        needs_debt_update = True
 
+    # If amount or paid_by changed, we need to update debts
+    if "amount" in update_data or "paid_by_member_id" in update_data:
+        needs_debt_update = True
+
+    # Update basic fields (excluding split-related fields)
     for field, value in update_data.items():
-        setattr(expense, field, value)
+        if field not in ["split_type", "splits"]:
+            setattr(expense, field, value)
 
     expense.updated_at = datetime.utcnow()
-
     session.add(expense)
+
+    # Handle split updates if provided
+    if expense_data.split_type is not None or expense_data.splits is not None:
+        needs_debt_update = True
+
+        # Delete old splits
+        old_splits_statement = select(Split).where(Split.expense_id == expense.id)
+        result = await session.execute(old_splits_statement)
+        old_splits = result.scalars().all()
+        for old_split in old_splits:
+            await session.delete(old_split)
+
+        await session.flush()
+
+        # Create new splits based on split_type
+        splits_to_create = []
+        split_type = expense_data.split_type or "equal"
+
+        if split_type == "equal":
+            # If splits are provided, use only those members; otherwise keep existing logic
+            if expense_data.splits and len(expense_data.splits) > 0:
+                member_ids = [split.member_id for split in expense_data.splits]
+            else:
+                # Get all trip members
+                members_statement = select(TripMember).where(
+                    TripMember.trip_id == trip_id
+                )
+                result = await session.execute(members_statement)
+                members = result.scalars().all()
+                member_ids = [member.id for member in members]
+
+            # Calculate equal splits
+            num_members = len(member_ids)
+            split_amount = (expense.amount / num_members).quantize(Decimal("0.01"))
+            split_percentage = (Decimal("100.0") / num_members).quantize(
+                Decimal("0.01")
+            )
+
+            total_split = split_amount * num_members
+            remainder = expense.amount - total_split
+            lucky_index = random.randint(0, num_members - 1) if remainder != 0 else -1
+
+            for idx, member_id in enumerate(member_ids):
+                amount = split_amount
+                if idx == lucky_index:
+                    amount += remainder
+
+                splits_to_create.append(
+                    Split(
+                        expense_id=expense.id,
+                        member_id=member_id,
+                        amount=amount,
+                        percentage=split_percentage,
+                    )
+                )
+
+        elif split_type == "percentage":
+            total_assigned = Decimal("0")
+            lucky_index = random.randint(0, len(expense_data.splits) - 1)
+
+            for idx, split_data in enumerate(expense_data.splits):
+                split_amount = (
+                    expense.amount * (split_data.percentage / 100)
+                ).quantize(Decimal("0.01"))
+                total_assigned += split_amount
+
+                splits_to_create.append(
+                    {
+                        "member_id": split_data.member_id,
+                        "amount": split_amount,
+                        "percentage": split_data.percentage,
+                        "index": idx,
+                    }
+                )
+
+            remainder = expense.amount - total_assigned
+            if remainder != 0:
+                splits_to_create[lucky_index]["amount"] += remainder
+
+            for split_data in splits_to_create:
+                session.add(
+                    Split(
+                        expense_id=expense.id,
+                        member_id=split_data["member_id"],
+                        amount=split_data["amount"],
+                        percentage=split_data["percentage"],
+                    )
+                )
+            splits_to_create = []
+
+        elif split_type == "custom":
+            total_assigned = Decimal("0")
+            lucky_index = random.randint(0, len(expense_data.splits) - 1)
+
+            for idx, split_data in enumerate(expense_data.splits):
+                split_amount = split_data.amount.quantize(Decimal("0.01"))
+                split_percentage = ((split_amount / expense.amount) * 100).quantize(
+                    Decimal("0.01")
+                )
+                total_assigned += split_amount
+
+                splits_to_create.append(
+                    {
+                        "member_id": split_data.member_id,
+                        "amount": split_amount,
+                        "percentage": split_percentage,
+                        "index": idx,
+                    }
+                )
+
+            remainder = expense.amount - total_assigned
+            if remainder != 0:
+                splits_to_create[lucky_index]["amount"] += remainder
+
+            for split_data in splits_to_create:
+                session.add(
+                    Split(
+                        expense_id=expense.id,
+                        member_id=split_data["member_id"],
+                        amount=split_data["amount"],
+                        percentage=split_data["percentage"],
+                    )
+                )
+            splits_to_create = []
+
+        # Add remaining splits
+        for split in splits_to_create:
+            session.add(split)
+
+    await session.flush()
+
+    # Update debts if needed (only for regular expenses)
+    if needs_debt_update and expense.expense_type == "expense":
+        # Get current splits
+        splits_statement = select(Split).where(Split.expense_id == expense.id)
+        result = await session.execute(splits_statement)
+        current_splits = result.scalars().all()
+
+        # Update debts (idempotent - deletes old and creates new)
+        from app.services.debt import update_debts_for_expense_modification
+
+        await update_debts_for_expense_modification(expense, current_splits, session)
+
+    # Update trip metadata if amount changed
+    if "amount" in update_data or "currency" in update_data:
+        new_amount_in_base = expense.amount * expense.exchange_rate_to_base
+        trip.total_spent = trip.total_spent - old_amount_in_base + new_amount_in_base
+        trip.updated_at = datetime.utcnow()
+        session.add(trip)
+
     await session.commit()
     await session.refresh(expense)
 

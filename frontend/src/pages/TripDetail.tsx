@@ -3,21 +3,18 @@
  * Optimized with React Query, broken into smaller components
  */
 import { format } from 'date-fns';
-import { ArrowLeft, Plus, Settings, TrendingUp, Wallet } from 'lucide-react';
+import { ArrowLeft, Plus, Settings, TrendingUp, Users, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AddMemberModal } from '../components/AddMemberModal';
 import { Avatar } from '../components/Avatar';
-import { BalancesModal } from '../components/BalancesModal';
 import { CreateExpenseModal } from '../components/CreateExpenseModal';
 import { ExpenseList } from '../components/ExpenseList';
 import { FilterModal } from '../components/FilterModal';
 import { InviteModal } from '../components/InviteModal';
 import { MemberDetailModal } from '../components/MemberDetailModal';
 import { MembersModal } from '../components/MembersModal';
-import { SettlementsModal } from '../components/SettlementsModal';
 import { TripDetailSkeleton } from '../components/TripDetailSkeleton';
-import { TripSettingsModal } from '../components/TripSettingsModal';
 import { useAlert } from '../contexts/AlertContext';
 import { useAuth } from '../hooks/useAuth';
 import { useBalances } from '../hooks/useBalances';
@@ -25,7 +22,6 @@ import { useCreateExpense, useExpenses, type ExpenseFilters } from '../hooks/use
 import { useAddMember, useClaimMember, useLeaveTrip, useRemoveMember, useUpdateMember } from '../hooks/useMembers';
 import { useGenerateInvite, useTrip } from '../hooks/useTrips';
 import type { AddMemberInput, CreateExpenseInput, TripMember } from '../types';
-import { getMemberColor } from '../utils/memberUtils';
 
 export default function TripDetail() {
   const { tripId } = useParams<{ tripId: string }>();
@@ -37,8 +33,7 @@ export default function TripDetail() {
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
   const [showMembersModal, setShowMembersModal] = useState(false);
-  const [showBalancesModal, setShowBalancesModal] = useState(false);
-  const [showSettlementsModal, setShowSettlementsModal] = useState(false);
+  // balances/settle up now lives on /trips/:tripId/balances
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [memberMenuOpen, setMemberMenuOpen] = useState<number | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
@@ -49,31 +44,30 @@ export default function TripDetail() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedMemberFilter, setSelectedMemberFilter] = useState<number | null>(null);
   const [selectedExpenseType, setSelectedExpenseType] = useState('all');
-  const [showTripSettingsModal, setShowTripSettingsModal] = useState(false);
 
   const { data: trip, isLoading: tripLoading } = useTrip(tripId);
-  
+
   // Create filters object for expenses
   const expenseFilters: ExpenseFilters = {
     ...(selectedCategory !== 'all' && { category: selectedCategory }),
     ...(selectedMemberFilter && { paid_by_member_id: selectedMemberFilter }),
     ...(selectedExpenseType !== 'all' && { expense_type: selectedExpenseType }),
   };
-  
-  const { 
-    data: expensesData, 
+
+  const {
+    data: expensesData,
     isLoading: expensesLoading,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
   } = useExpenses(tripId, expenseFilters);
-  
+
   // Flatten all expenses from all pages
   const expenses = expensesData?.pages.flatMap(page => page.expenses) || [];
-  
+
   // Get balances (must be called before any early returns)
   const { data: balances = [] } = useBalances(tripId);
-  
+
   const createExpenseMutation = useCreateExpense(tripId!);
   const addMemberMutation = useAddMember(tripId!);
   const removeMemberMutation = useRemoveMember(tripId!);
@@ -224,11 +218,11 @@ export default function TripDetail() {
   };
 
   const formatCurrency = (amount: number, currency: string) => {
-    const formatted = amount.toLocaleString('en-US', { 
+    const formatted = amount.toLocaleString('en-US', {
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2 
+      maximumFractionDigits: 2
     });
-    
+
     return `${currency} ${formatted}`;
   };
 
@@ -259,7 +253,7 @@ export default function TripDetail() {
 
   // Get current user's balance
   const currentUserMember = trip?.members?.find(m => m.user_id === user?.id);
-  const currentUserBalance = balances.find(b => b.member_id === currentUserMember?.id);
+  const currentUserBalance = balances && 'member_balances' in balances ? balances.member_balances.find(b => b.member_id === currentUserMember?.id) : null;
   const netBalance = currentUserBalance?.net_balance || 0;
 
   return (
@@ -281,7 +275,7 @@ export default function TripDetail() {
             </p>
           </div>
           <button
-            onClick={() => setShowTripSettingsModal(true)}
+            onClick={() => navigate(`/trips/${tripId}/settings`)}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             aria-label="Settings"
           >
@@ -327,18 +321,15 @@ export default function TripDetail() {
 
             {/* Balance Indicator */}
             {currentUserBalance && netBalance !== 0 && (
-              <div className={`rounded-xl p-3 flex items-center gap-2 ${
-                netBalance > 0 
-                  ? 'bg-green-50' 
-                  : 'bg-red-50'
-              }`}>
-                <TrendingUp className={`w-4 h-4 ${
-                  netBalance > 0 ? 'text-green-600' : 'text-red-600'
-                }`} />
-                <span className={`text-sm font-medium ${
-                  netBalance > 0 ? 'text-green-700' : 'text-red-700'
+              <div className={`rounded-xl p-3 flex items-center gap-2 ${netBalance > 0
+                ? 'bg-green-50'
+                : 'bg-red-50'
                 }`}>
-                  {netBalance > 0 
+                <TrendingUp className={`w-4 h-4 ${netBalance > 0 ? 'text-green-600' : 'text-red-600'
+                  }`} />
+                <span className={`text-sm font-medium ${netBalance > 0 ? 'text-green-700' : 'text-red-700'
+                  }`}>
+                  {netBalance > 0
                     ? `You are owed ${formatCurrency(Math.abs(netBalance), trip.base_currency)}`
                     : `You owe ${formatCurrency(Math.abs(netBalance), trip.base_currency)}`
                   }
@@ -352,18 +343,19 @@ export default function TripDetail() {
         <div className="px-5 pb-4">
           <div className="grid grid-cols-2 gap-2">
             <button
-              onClick={() => setShowBalancesModal(true)}
+              onClick={() => navigate(`/trips/${tripId}/balances`)}
               className="bg-white rounded-xl p-3 shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 border border-gray-100"
             >
               <Wallet className="w-4 h-4 text-blue-600" />
               <span className="text-sm font-medium text-gray-900">Balances</span>
             </button>
+
             <button
-              onClick={() => setShowSettlementsModal(true)}
+              onClick={() => setShowMembersModal(true)}
               className="bg-white rounded-xl p-3 shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 border border-gray-100"
             >
-              <TrendingUp className="w-4 h-4 text-orange-600" />
-              <span className="text-sm font-medium text-gray-900">Settle Up</span>
+              <Users className="w-4 h-4 text-blue-600" />
+              <span className="text-sm font-medium text-gray-900">Members</span>
             </button>
           </div>
         </div>
@@ -447,9 +439,12 @@ export default function TripDetail() {
         selectedExpenseType={selectedExpenseType}
         members={trip.members || []}
         onClose={() => setShowFilterModal(false)}
-        onCategoryChange={setSelectedCategory}
-        onMemberChange={setSelectedMemberFilter}
-        onExpenseTypeChange={setSelectedExpenseType}
+        onApply={(category, memberId, expenseType) => {
+          setSelectedCategory(category);
+          setSelectedMemberFilter(memberId);
+          setSelectedExpenseType(expenseType);
+          setShowFilterModal(false);
+        }}
       />
 
       <MemberDetailModal
@@ -474,45 +469,6 @@ export default function TripDetail() {
         }}
         onCopy={handleCopyInvite}
         onRetry={handleGenerateInvite}
-      />
-
-      {/* Balances Modal */}
-      <BalancesModal
-        isOpen={showBalancesModal}
-        tripId={tripId!}
-        currency={trip.base_currency}
-        getMemberColor={(memberId) => {
-          const index = trip.members?.findIndex(m => m.id === memberId) || 0;
-          return getMemberColor(index);
-        }}
-        onClose={() => setShowBalancesModal(false)}
-      />
-
-      {/* Settlements Modal */}
-      <SettlementsModal
-        isOpen={showSettlementsModal}
-        tripId={tripId!}
-        currency={trip.base_currency}
-        members={trip.members}
-        getMemberColor={(memberId) => {
-          const index = trip.members?.findIndex(m => m.id === memberId) || 0;
-          return getMemberColor(index);
-        }}
-        onClose={() => setShowSettlementsModal(false)}
-      />
-
-      <TripSettingsModal
-        isOpen={showTripSettingsModal}
-        onClose={() => setShowTripSettingsModal(false)}
-        trip={trip}
-        onTripUpdated={() => {
-          // The trip data will be automatically updated via React Query
-          setShowTripSettingsModal(false);
-        }}
-        onTripLeft={() => {
-          navigate('/trips');
-        }}
-        isAdmin={isCurrentUserAdmin}
       />
     </div>
   );

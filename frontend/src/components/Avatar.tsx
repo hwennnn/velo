@@ -11,12 +11,11 @@ interface AvatarProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
   onClick?: () => void;
-  fallbackColorClass?: string;
 }
 
 const sizeClasses = {
   sm: 'w-8 h-8 text-xs',
-  md: 'w-10 h-10 text-sm', 
+  md: 'w-10 h-10 text-sm',
   lg: 'w-16 h-16 text-lg',
   xl: 'w-20 h-20 text-2xl'
 };
@@ -25,7 +24,7 @@ const getMemberColor = (id: number) => {
   const colors = [
     'bg-blue-500',
     'bg-emerald-500',
-    'bg-violet-500', 
+    'bg-violet-500',
     'bg-pink-500',
     'bg-amber-500',
     'bg-red-500',
@@ -37,31 +36,30 @@ const getMemberColor = (id: number) => {
   return colors[id % colors.length];
 };
 
-export const Avatar: React.FC<AvatarProps> = ({ 
-  member, 
-  size = 'md', 
+export const Avatar: React.FC<AvatarProps> = ({
+  member,
+  size = 'md',
   className = '',
   onClick,
-  fallbackColorClass,
 }) => {
   const [imageError, setImageError] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
-  
+
   const sizeClass = sizeClasses[size];
-  const colorClass = fallbackColorClass ?? getMemberColor(member.id);
+  const colorClass = getMemberColor(member.id);
   const initials = getMemberInitials(member.display_name || member.nickname);
-  
+
   const hasAvatar = member.avatar_url !== null && member.avatar_url !== undefined && member.avatar_url.length > 0 && !imageError;
-  
+
   const handleImageLoad = () => {
     setImageLoading(false);
   };
-  
+
   const handleImageError = () => {
     setImageError(true);
     setImageLoading(false);
   };
-  
+
   const baseClasses = `
     ${sizeClass} 
     rounded-full 
@@ -75,9 +73,9 @@ export const Avatar: React.FC<AvatarProps> = ({
     ${onClick ? 'cursor-pointer' : ''}
     ${className}
   `.trim();
-  
+
   return (
-    <div 
+    <div
       className={`${baseClasses} ${hasAvatar ? 'bg-gray-200' : colorClass}`}
       onClick={onClick}
     >

@@ -3,7 +3,7 @@
  */
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api';
-import type { CreateExpenseInput, Expense } from '../types';
+import type { CreateExpenseInput, Expense, UpdateExpenseInput } from '../types';
 import { balanceKeys } from './useBalances';
 import { tripKeys } from './useTrips';
 
@@ -97,6 +97,30 @@ export function useDeleteExpense(tripId: string) {
           // Match any expense query that includes this tripId
           return query.queryKey.includes(tripId);
         }
+      });
+      // Invalidate trip data (for totals and metadata)
+      queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
+      // Invalidate balances and settlements (debts changed)
+      queryClient.invalidateQueries({ queryKey: balanceKeys.trip(tripId) });
+      queryClient.invalidateQueries({ queryKey: balanceKeys.settlements(tripId) });
+    },
+  });
+}
+
+// Update expense mutation (supports updating split_type + splits)
+export function useUpdateExpense(tripId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: { expenseId: number; data: UpdateExpenseInput }) => {
+      const response = await api.expenses.update(tripId, params.expenseId, params.data);
+      return response.data;
+    },
+    onSuccess: () => {
+      // Invalidate all expense queries for this trip (including infinite queries with different filters)
+      queryClient.invalidateQueries({
+        queryKey: expenseKeys.lists(),
+        predicate: (query) => query.queryKey.includes(tripId),
       });
       // Invalidate trip data (for totals and metadata)
       queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });

@@ -3,8 +3,9 @@
  * Modal for filtering expenses by category and member
  */
 import { Filter, X } from 'lucide-react';
-import React from 'react';
+import React, { useState } from 'react';
 import type { TripMember } from '../types';
+import { Avatar } from './Avatar';
 
 interface FilterModalProps {
   isOpen: boolean;
@@ -13,9 +14,7 @@ interface FilterModalProps {
   selectedExpenseType: string;
   members: TripMember[];
   onClose: () => void;
-  onCategoryChange: (category: string) => void;
-  onMemberChange: (memberId: number | null) => void;
-  onExpenseTypeChange: (expenseType: string) => void;
+  onApply: (category: string, memberId: number | null, expenseType: string) => void;
 }
 
 const CATEGORIES = [
@@ -41,18 +40,22 @@ export const FilterModal: React.FC<FilterModalProps> = ({
   selectedExpenseType,
   members,
   onClose,
-  onCategoryChange,
-  onMemberChange,
-  onExpenseTypeChange,
+  onApply,
 }) => {
+
+  const [category, setCategory] = useState(selectedCategory);
+  const [memberId, setMemberId] = useState(selectedMember);
+  const [expenseType, setExpenseType] = useState(selectedExpenseType);
+
   if (!isOpen) return null;
 
-  const hasActiveFilters = selectedCategory !== 'all' || selectedMember !== null || selectedExpenseType !== 'all';
+  const hasActiveFilters =
+    category !== 'all' || memberId !== null || expenseType !== 'all';
 
   const handleClearFilters = () => {
-    onCategoryChange('all');
-    onMemberChange(null);
-    onExpenseTypeChange('all');
+    setCategory('all');
+    setMemberId(null);
+    setExpenseType('all');
   };
 
   return (
@@ -75,22 +78,28 @@ export const FilterModal: React.FC<FilterModalProps> = ({
           </button>
         </div>
 
-        <div className="p-4 space-y-4">
+        <div className="p-4 space-y-3">
           {/* Expense Type Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-gray-700">Type</label>
+              {expenseType !== 'all' && (
+                <span className="text-xs text-primary-700 bg-primary-50 px-2 py-1 rounded-full">
+                  {EXPENSE_TYPES.find((t) => t.value === expenseType)?.label}
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-3 gap-2">
               {EXPENSE_TYPES.map((type) => (
                 <button
                   key={type.value}
-                  onClick={() => onExpenseTypeChange(type.value)}
-                  className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                    selectedExpenseType === type.value
-                      ? 'bg-primary-600 text-white shadow-md'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
+                  onClick={() => setExpenseType(type.value)}
+                  className={`px-3 py-2 rounded-full text-sm font-medium border transition-all flex items-center justify-center gap-1.5 ${expenseType === type.value
+                    ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-sm'
+                    : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
                 >
-                  <span className="mr-1.5">{type.emoji}</span>
+                  <span>{type.emoji}</span>
                   {type.label}
                 </button>
               ))}
@@ -98,20 +107,26 @@ export const FilterModal: React.FC<FilterModalProps> = ({
           </div>
 
           {/* Category Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-gray-700">Category</label>
+              {category !== 'all' && (
+                <span className="text-xs text-primary-700 bg-primary-50 px-2 py-1 rounded-full">
+                  {CATEGORIES.find((c) => c.value === category)?.label}
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-2">
               {CATEGORIES.map((cat) => (
                 <button
                   key={cat.value}
-                  onClick={() => onCategoryChange(cat.value)}
-                  className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                    selectedCategory === cat.value
-                      ? 'bg-primary-600 text-white shadow-md'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
+                  onClick={() => setCategory(cat.value)}
+                  className={`px-3 py-2 rounded-xl text-sm font-medium border transition-all flex items-center gap-1.5 ${category === cat.value
+                    ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-sm'
+                    : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
                 >
-                  <span className="mr-1.5">{cat.emoji}</span>
+                  <span>{cat.emoji}</span>
                   {cat.label}
                 </button>
               ))}
@@ -119,30 +134,40 @@ export const FilterModal: React.FC<FilterModalProps> = ({
           </div>
 
           {/* Member Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Paid By</label>
-            <div className="space-y-2">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-gray-700">Paid By</label>
+              {memberId !== null && (
+                <span className="text-xs text-primary-700 bg-primary-50 px-2 py-1 rounded-full">
+                  {members.find((m) => m.id === memberId)?.nickname}
+                </span>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto">
               <button
-                onClick={() => onMemberChange(null)}
-                className={`w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  selectedMember === null
-                    ? 'bg-primary-600 text-white shadow-md'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+                onClick={() => setMemberId(null)}
+                className={`px-3 py-2 rounded-full text-sm font-medium border transition-all flex items-center gap-2 ${memberId === null
+                  ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-sm'
+                  : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
               >
                 All Members
               </button>
               {members.map((member) => (
                 <button
                   key={member.id}
-                  onClick={() => onMemberChange(member.id)}
-                  className={`w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                    selectedMember === member.id
-                      ? 'bg-primary-600 text-white shadow-md'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
+                  onClick={() => setMemberId(member.id)}
+                  className={`px-3 py-2 rounded-full text-sm font-medium border transition-all flex items-center gap-2 ${memberId === member.id
+                    ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-sm'
+                    : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
                 >
-                  {member.nickname}
+                  <Avatar
+                    member={member}
+                    size="sm"
+                    className="bg-gray-100 text-gray-700"
+                  />
+                  <span className="truncate max-w-[120px]">{member.nickname}</span>
                 </button>
               ))}
             </div>
@@ -159,7 +184,7 @@ export const FilterModal: React.FC<FilterModalProps> = ({
             </button>
           )}
           <button
-            onClick={onClose}
+            onClick={() => onApply(category, memberId, expenseType)}
             className="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"
           >
             Apply Filters

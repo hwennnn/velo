@@ -74,21 +74,19 @@ export const SettleConvertModal: React.FC<SettleConvertModalProps> = ({
           <div className="px-4 pt-3 flex gap-2">
             <button
               onClick={() => setModalView('settle')}
-              className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                modalView === 'settle'
+              className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${modalView === 'settle'
                   ? 'bg-primary-600 text-white shadow-sm'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+                }`}
             >
               Settle Up
             </button>
             <button
               onClick={() => setModalView('convert')}
-              className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                modalView === 'convert'
+              className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${modalView === 'convert'
                   ? 'bg-primary-50 text-primary-700 border border-primary-200 shadow-sm'
                   : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
-              }`}
+                }`}
             >
               Convert
             </button>
@@ -182,16 +180,6 @@ export const SettleConvertModal: React.FC<SettleConvertModalProps> = ({
                     ))}
                   </select>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                <input
-                  type="date"
-                  value={settlementDraft.settlement_date}
-                  onChange={(e) => setSettlementDraft(prev => prev ? { ...prev, settlement_date: e.target.value } : prev)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
               </div>
 
               <div>

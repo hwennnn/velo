@@ -35,7 +35,6 @@ class SettlementCreate(BaseModel):
     currency: str = Field(
         ..., min_length=3, max_length=3, description="Currency of payment"
     )
-    settlement_date: date = Field(..., description="Date of settlement")
     notes: str = Field(default="", description="Optional notes")
 
     # Optional: for currency conversion
@@ -216,7 +215,6 @@ async def record_settlement_payment(
         currency=settlement_data.currency,
         session=session,
         user_id=current_user.id,
-        settlement_date=settlement_data.settlement_date,
         notes=settlement_data.notes,
         conversion_rate=conversion_rate,
         target_currency=target_currency,
@@ -231,7 +229,6 @@ async def record_settlement_payment(
             "to_member": to_member.nickname,
             "amount": float(settlement_data.amount),
             "currency": settlement_data.currency,
-            "settlement_date": settlement_data.settlement_date.isoformat(),
             **result,
         },
     }

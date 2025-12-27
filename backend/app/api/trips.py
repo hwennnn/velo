@@ -36,6 +36,8 @@ async def create_trip(
     The current user becomes the creator and first admin member.
     """
     # Create trip
+    now = datetime.utcnow()
+    
     trip = Trip(
         name=trip_data.name,
         description=trip_data.description,
@@ -44,6 +46,8 @@ async def create_trip(
         end_date=trip_data.end_date,
         simplify_debts=trip_data.simplify_debts,
         created_by=current_user.id,
+        created_at=now,
+        updated_at=now,
     )
 
     session.add(trip)

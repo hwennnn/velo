@@ -89,7 +89,6 @@ export default function BalancesPage() {
       to_member_id: debt.to_member_id,
       amount: Number(debt.amount).toFixed(2),
       currency: debt.currency,
-      settlement_date: today,
       notes: `Settlement: ${debt.from_nickname} → ${debt.to_nickname}`,
       from_nickname: debt.from_nickname,
       to_nickname: debt.to_nickname,
@@ -108,7 +107,6 @@ export default function BalancesPage() {
   };
 
   const openManualSettlementDraft = () => {
-    const today = new Date().toISOString().split('T')[0];
     const members = trip?.members || [];
     const from = members[0];
     const to = members[1];
@@ -123,7 +121,6 @@ export default function BalancesPage() {
       to_member_id: to.id,
       amount: '',
       currency: baseCurrency,
-      settlement_date: today,
       notes: 'Settlement',
       from_nickname: from.nickname,
       to_nickname: to.nickname,
@@ -227,7 +224,6 @@ export default function BalancesPage() {
         to_member_id: settlementDraft.to_member_id,
         amount: amountNum,
         currency: settlementDraft.currency,
-        settlement_date: settlementDraft.settlement_date,
         notes: settlementDraft.notes,
       });
       showAlert('Settlement created', { type: 'success' });

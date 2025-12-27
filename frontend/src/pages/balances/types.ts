@@ -6,7 +6,6 @@ export type SettlementDraftState = {
   to_member_id: number;
   amount: string;
   currency: string;
-  settlement_date: string;
   notes: string;
   from_nickname?: string;
   to_nickname?: string;

@@ -45,7 +45,6 @@ export function useCreateSettlement(tripId: string) {
       to_member_id: number;
       amount: number;
       currency: string;
-      settlement_date: string;
       notes?: string;
     }) => {
       const response = await api.balances.createSettlement(tripId, settlementData);

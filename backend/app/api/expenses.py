@@ -94,6 +94,8 @@ async def create_expense(
     # Get exchange rate
     exchange_rate = await get_exchange_rate(expense_data.currency, trip.base_currency)
 
+    now = datetime.utcnow()
+
     # Create expense
     expense = Expense(
         trip_id=trip_id,
@@ -111,6 +113,8 @@ async def create_expense(
             else "expense"
         ),
         created_by=current_user.id,
+        created_at=now,
+        updated_at=now,
     )
 
     session.add(expense)
@@ -255,7 +259,7 @@ async def create_expense(
     # Update trip metadata
     trip.total_spent += amount_in_base
     trip.expense_count += 1
-    trip.updated_at = datetime.utcnow()
+    
     session.add(trip)
     await session.commit()
 
@@ -476,6 +480,23 @@ async def update_expense(
     expense.updated_at = datetime.utcnow()
     session.add(expense)
 
+    # For settlements: if amount changed but no splits provided, auto-update the split
+    # Settlements have a single split for the creditor (receiver) with the full amount
+    if (
+        expense.expense_type == "settlement"
+        and "amount" in update_data
+        and expense_data.split_type is None
+        and expense_data.splits is None
+    ):
+        # Get the existing split and update its amount
+        existing_split_statement = select(Split).where(Split.expense_id == expense.id)
+        result = await session.execute(existing_split_statement)
+        existing_splits = result.scalars().all()
+        for split in existing_splits:
+            split.amount = expense.amount
+            session.add(split)
+        await session.flush()
+
     # Handle split updates if provided
     if expense_data.split_type is not None or expense_data.splits is not None:
         needs_debt_update = True
@@ -606,20 +627,31 @@ async def update_expense(
 
     await session.flush()
 
-    # Update debts if needed (only for regular expenses)
-    if needs_debt_update and expense.expense_type == "expense":
+    # Update debts if needed (for both expenses and settlements)
+    if needs_debt_update:
         # Get current splits
         splits_statement = select(Split).where(Split.expense_id == expense.id)
         result = await session.execute(splits_statement)
         current_splits = result.scalars().all()
 
-        # Update debts (idempotent - deletes old and creates new)
-        from app.services.debt import update_debts_for_expense_modification
+        if expense.expense_type == "expense":
+            # Regular expense: update debts for expense modification
+            from app.services.debt import update_debts_for_expense_modification
 
-        await update_debts_for_expense_modification(expense, current_splits, session)
+            await update_debts_for_expense_modification(expense, current_splits, session)
+        else:
+            # Settlement: update debts for settlement modification
+            from app.services.debt import update_debts_for_settlement_modification
 
-    # Update trip metadata if amount changed
-    if "amount" in update_data or "currency" in update_data:
+            await update_debts_for_settlement_modification(
+                expense, current_splits, session
+            )
+
+    # Update trip metadata if amount changed (only for regular expenses, not settlements)
+    if (
+        ("amount" in update_data or "currency" in update_data)
+        and expense.expense_type == "expense"
+    ):
         new_amount_in_base = expense.amount * expense.exchange_rate_to_base
         trip.total_spent = trip.total_spent - old_amount_in_base + new_amount_in_base
         trip.updated_at = datetime.utcnow()
@@ -665,13 +697,13 @@ async def delete_expense(
     # Calculate amount in base currency for trip metadata update
     amount_in_base = expense.amount * expense.exchange_rate_to_base
 
-    # Delete all debts created by this expense (only for regular expenses)
-    if expense.expense_type == "expense":
-        await delete_debts_for_expense(expense.id, session)
-        # Update TripMember balance fields to reflect debt deletion
-        from app.services.debt import update_trip_member_balances_for_expense_deletion
+    # Delete all debts created by this expense (for both expenses and settlements)
+    await delete_debts_for_expense(expense.id, session)
 
-        await update_trip_member_balances_for_expense_deletion(expense.id, session)
+    # Update TripMember balance fields to reflect debt deletion
+    from app.services.debt import update_trip_member_balances_for_expense_deletion
+
+    await update_trip_member_balances_for_expense_deletion(expense.id, session)
 
     # Delete all splits first (will cascade with new migration)
     splits_statement = select(Split).where(Split.expense_id == expense.id)
@@ -684,9 +716,10 @@ async def delete_expense(
     await session.delete(expense)
 
     # Update trip metadata
-    trip.total_spent -= amount_in_base
-    trip.expense_count -= 1
-    trip.updated_at = datetime.utcnow()
-    session.add(trip)
+    if expense.expense_type == "expense":
+        trip.total_spent -= amount_in_base
+        trip.expense_count -= 1
+        trip.updated_at = datetime.utcnow()
+        session.add(trip)
 
     await session.commit()

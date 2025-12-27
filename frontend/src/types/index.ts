@@ -109,7 +109,6 @@ export interface SettlementInput {
   to_member_id: number;
   amount: number;
   currency: string;
-  settlement_date: string;
   notes?: string;
   convert_to_currency?: string; // Optional: convert payment to this currency
   conversion_rate?: number; // Optional: conversion rate if converting

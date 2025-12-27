@@ -167,7 +167,6 @@ async def record_settlement(
     currency: str,
     session: AsyncSession,
     user_id: str,
-    settlement_date: datetime,
     notes: Optional[str] = None,
     conversion_rate: Optional[Decimal] = None,
     target_currency: Optional[str] = None,
@@ -189,7 +188,6 @@ async def record_settlement(
         currency: Currency of payment
         session: Database session
         user_id: User recording the settlement
-        settlement_date: Date of settlement
         notes: Optional notes
         conversion_rate: Optional conversion rate if settling in different currency
         target_currency: Optional target currency if converting
@@ -220,6 +218,8 @@ async def record_settlement(
 
     # Create settlement as an expense
     # The debtor (payer) is the one who "paid" this expense
+    now = datetime.utcnow()
+    
     settlement_expense = Expense(
         trip_id=trip_id,
         description=f"{debtor.nickname} paid {creditor.nickname}",
@@ -230,8 +230,8 @@ async def record_settlement(
         expense_type="settlement",
         notes=notes or "Settlement payment",
         created_by=user_id,
-        created_at=settlement_date,
-        updated_at=settlement_date,
+        created_at=now,
+        updated_at=now,
     )
 
     session.add(settlement_expense)
@@ -424,6 +424,31 @@ async def update_debts_for_expense_modification(
     await delete_debts_for_expense(expense.id, session)
 
     # Recreate debts based on current splits
+    await update_debts_for_expense(expense, splits, session)
+
+
+async def update_debts_for_settlement_modification(
+    expense: Expense, splits: List[Split], session: AsyncSession
+) -> None:
+    """
+    Update debts when a settlement is modified.
+    Settlements create a reverse debt (creditor owes debtor) to cancel out existing debts.
+
+    This function is idempotent - it:
+    1. Deletes all old debts created by this settlement expense
+    2. Recreates the reverse debt based on current settlement amount
+
+    Args:
+        expense: The modified settlement expense
+        splits: Current splits for the settlement
+        session: Database session
+    """
+    # Delete old debts for this settlement
+    await delete_debts_for_expense(expense.id, session)
+
+    # Recreate debts using the standard expense logic
+    # For settlements: the split shows who receives the money
+    # This creates a debt from receiver -> payer which cancels existing debts
     await update_debts_for_expense(expense, splits, session)
 
 

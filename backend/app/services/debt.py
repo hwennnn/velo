@@ -130,25 +130,26 @@ async def update_debts_for_expense(
         # Amount this member owes (in expense currency)
         amount = split.amount
 
-        # Find existing debt record
+        # Find existing debt record explicitly for this expense
         debt_statement = select(MemberDebt).where(
             and_(
                 MemberDebt.trip_id == expense.trip_id,
                 MemberDebt.debtor_member_id == split.member_id,
                 MemberDebt.creditor_member_id == payer_id,
                 MemberDebt.currency == expense.currency,
+                MemberDebt.source_expense_id == expense.id,
             )
         )
         result = await session.execute(debt_statement)
         existing_debt = result.scalar_one_or_none()
 
-        if existing_debt:
-            # Update existing debt by adding the amount
+        if existing_debt and existing_debt.source_expense_id == expense.id:
+            # Update existing debt for this expense
             existing_debt.amount += amount
             existing_debt.updated_at = expense.updated_at
             session.add(existing_debt)
         else:
-            # Create new debt record
+            # Create new debt record (ledger style)
             new_debt = MemberDebt(
                 trip_id=expense.trip_id,
                 debtor_member_id=split.member_id,
@@ -505,16 +506,20 @@ async def convert_all_debts_to_currency(
         converted_amount = original_amount * conversion_rate
 
         # Find or create debt in target currency
+        
         target_debt_statement = select(MemberDebt).where(
             and_(
                 MemberDebt.trip_id == trip_id,
                 MemberDebt.debtor_member_id == debt.debtor_member_id,
                 MemberDebt.creditor_member_id == debt.creditor_member_id,
                 MemberDebt.currency == target_currency,
+                MemberDebt.source_expense_id == None, # Reuse general debt record
             )
         )
         result = await session.execute(target_debt_statement)
-        target_debt = result.scalar_one_or_none()
+        target_debt = result.first() # Use first if multiple (shouldn't be if we stick to this logic)
+        
+        target_debt = target_debt[0] if target_debt else None
 
         if target_debt:
             # Add to existing debt
@@ -529,6 +534,7 @@ async def convert_all_debts_to_currency(
                 creditor_member_id=debt.creditor_member_id,
                 amount=converted_amount,
                 currency=target_currency,
+                source_expense_id=None, # General debt
             )
             session.add(new_debt)
 
@@ -600,7 +606,8 @@ async def merge_debt_currency(
         Dict with merge details
     """
     # Find the source debt
-    source_debt_statement = select(MemberDebt).where(
+    # Find the source debts (could be multiple now)
+    source_debts_statement = select(MemberDebt).where(
         and_(
             MemberDebt.trip_id == trip_id,
             MemberDebt.debtor_member_id == debtor_member_id,
@@ -608,44 +615,62 @@ async def merge_debt_currency(
             MemberDebt.currency == from_currency,
         )
     )
-    result = await session.execute(source_debt_statement)
-    source_debt = result.scalar_one_or_none()
+    result = await session.execute(source_debts_statement)
+    source_debts = result.scalars().all()
+    
+    total_source_amount = sum(d.amount for d in source_debts)
 
-    if not source_debt:
+    if not source_debts:
         raise ValueError(
             f"No debt found from member {debtor_member_id} to {creditor_member_id} in {from_currency}"
         )
 
-    if source_debt.amount < amount:
+    if total_source_amount < amount:
         raise ValueError(
-            f"Cannot merge {amount} {from_currency}. Only {source_debt.amount} {from_currency} owed."
+            f"Cannot merge {amount} {from_currency}. Only {total_source_amount} {from_currency} owed."
         )
 
     # Calculate converted amount
     converted_amount = amount * conversion_rate
+    
+    # Reduce source debts
+    # We greedily reduce from the first debt onwards
+    remaining_to_reduce = amount
+    remaining_in_original = Decimal("0") # will calculate after
+    
+    for debt in source_debts:
+        if remaining_to_reduce <= Decimal("0"):
+            break
+            
+        if debt.amount <= remaining_to_reduce:
+            # Fully consume this debt record
+            consumed = debt.amount
+            remaining_to_reduce -= consumed
+            await session.delete(debt)
+        else:
+            # Partially consume
+            debt.amount -= remaining_to_reduce
+            session.add(debt)
+            remaining_to_reduce = Decimal("0")
 
-    # Reduce or delete source debt
-    if source_debt.amount - amount < Decimal("0.01"):
-        # Delete if fully merged (or negligible remainder)
-        await session.delete(source_debt)
-        remaining_in_original = Decimal("0")
-    else:
-        # Partially merged
-        source_debt.amount -= amount
-        session.add(source_debt)
-        remaining_in_original = source_debt.amount
+    # Recalculate remaining just to be safe/correct for return value
+    # (or just simple math: total - amount)
+    remaining_in_original = total_source_amount - amount
 
     # Find or create target debt
+    # Similar logic: find a general debt record to merge into
     target_debt_statement = select(MemberDebt).where(
         and_(
             MemberDebt.trip_id == trip_id,
             MemberDebt.debtor_member_id == debtor_member_id,
             MemberDebt.creditor_member_id == creditor_member_id,
             MemberDebt.currency == to_currency,
+            MemberDebt.source_expense_id == None,
         )
     )
     result = await session.execute(target_debt_statement)
-    target_debt = result.scalar_one_or_none()
+    target_row = result.first()
+    target_debt = target_row[0] if target_row else None
 
     if target_debt:
         # Add to existing debt
@@ -661,6 +686,7 @@ async def merge_debt_currency(
             creditor_member_id=creditor_member_id,
             amount=converted_amount,
             currency=to_currency,
+            source_expense_id=None,
         )
         session.add(target_debt)
         old_amount = Decimal("0")

@@ -35,13 +35,6 @@ class MemberDebt(SQLModel, table=True):
         Index("idx_member_debts_debtor", "debtor_member_id"),
         Index("idx_member_debts_creditor", "creditor_member_id"),
         Index("idx_member_debts_trip_currency", "trip_id", "currency"),
-        UniqueConstraint(
-            "trip_id",
-            "debtor_member_id",
-            "creditor_member_id",
-            "currency",
-            name="uq_member_debts_trip_debtor_creditor_currency",
-        ),
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)

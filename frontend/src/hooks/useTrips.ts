@@ -48,8 +48,8 @@ export function useTrip(tripId: string | undefined) {
   });
 }
 
-// Create trip mutation
-export function useCreateTrip() {
+// Create trip mutation with optimistic update
+export function useCreateTrip(currentUserId?: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -57,8 +57,60 @@ export function useCreateTrip() {
       const response = await api.trips.create(data);
       return response.data;
     },
-    onSuccess: () => {
+    onMutate: async (newTripData) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: tripKeys.lists() });
+      
+      // Snapshot for rollback
+      const previousTrips = queryClient.getQueryData<Trip[]>(tripKeys.list());
+      
+      // Build optimistic trip
+      const optimisticId = `optimistic-trip-${Date.now()}`;
+      const optimisticTrip: Trip = {
+        id: -Date.now(), // Temporary negative ID
+        name: newTripData.name,
+        description: newTripData.description || '',
+        base_currency: newTripData.base_currency,
+        simplify_debts: false, // Default value for new trips
+        start_date: newTripData.start_date,
+        end_date: newTripData.end_date,
+        created_by: currentUserId || '',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        total_spent: 0,
+        expense_count: 0,
+        member_count: 1,
+        _isOptimistic: true,
+        _optimisticId: optimisticId,
+      };
+      
+      // Optimistically add to trip list
+      queryClient.setQueryData<Trip[]>(
+        tripKeys.list(),
+        (old) => old ? [optimisticTrip, ...old] : [optimisticTrip]
+      );
+      
+      return { previousTrips, optimisticId };
+    },
+    onSuccess: (data, _variables, context) => {
+      // Replace optimistic trip with real data
+      queryClient.setQueryData<Trip[]>(
+        tripKeys.list(),
+        (old) => old ? old.map(trip => 
+          trip._optimisticId === context?.optimisticId 
+            ? { ...data, _isOptimistic: false } 
+            : trip
+        ) : [data]
+      );
+      
+      // Invalidate to ensure sync
       queryClient.invalidateQueries({ queryKey: tripKeys.lists() });
+    },
+    onError: (_error, _variables, context) => {
+      // Rollback on error
+      if (context?.previousTrips) {
+        queryClient.setQueryData(tripKeys.list(), context.previousTrips);
+      }
     },
   });
 }

@@ -3,23 +3,25 @@
  * Shows all user trips and allows creating new ones
  */
 import { format } from 'date-fns';
-import { MapPin, Plus, Settings, Users } from 'lucide-react';
+import { MapPin, Plus, Settings } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Avatar } from '../components/Avatar';
 import BottomNavbar from '../components/BottomNavbar';
 import CreateTripModal from '../components/CreateTripModal';
 import { TripListSkeleton } from '../components/TripListSkeleton';
+import { useAuth } from '../hooks/useAuth';
 import { useCreateTrip, useTrips } from '../hooks/useTrips';
 import type { CreateTripInput } from '../types';
 
 export default function Home() {
   const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const { user } = useAuth();
 
   // Use React Query hooks
   const { data: trips = [], isLoading } = useTrips();
-  const createTripMutation = useCreateTrip();
+  const createTripMutation = useCreateTrip(user?.id);
 
   const handleCreateTrip = async (tripData: CreateTripInput) => {
     await createTripMutation.mutateAsync(tripData);
@@ -99,65 +101,89 @@ export default function Home() {
         ) : (
           /* Trip List */
           <div className="space-y-3">
-            {trips.map((trip) => (
-              <button
-                key={trip.id}
-                onClick={() => navigate(`/trips/${trip.id}`)}
-                className="w-full bg-white rounded-xl p-5 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 text-left"
-              >
-                {/* Header with title and currency */}
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-bold text-gray-900 mb-0.5">{trip.name}</h3>
-                    {formatDateRange(trip.start_date, trip.end_date) && (
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">
-                        {formatDateRange(trip.start_date, trip.end_date)}
-                      </p>
-                    )}
+            {trips.map((trip) => {
+              const isOptimistic = trip._isOptimistic === true;
+              return (
+                <button
+                  key={trip._optimisticId || trip.id}
+                  onClick={() => !isOptimistic && navigate(`/trips/${trip.id}`)}
+                  disabled={isOptimistic}
+                  className={`w-full bg-white rounded-xl p-5 shadow-sm transition-all text-left ${isOptimistic
+                    ? 'opacity-70 cursor-not-allowed animate-pulse'
+                    : 'hover:shadow-md hover:-translate-y-0.5'
+                    }`}
+                >
+                  {/* Header with title and currency */}
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-gray-900 mb-0.5">{trip.name}</h3>
+                      {formatDateRange(trip.start_date, trip.end_date) && (
+                        <p className="text-xs text-gray-500 uppercase tracking-wide">
+                          {formatDateRange(trip.start_date, trip.end_date)}
+                        </p>
+                      )}
+                    </div>
+                    <div className="ml-3 px-2.5 py-1 bg-primary-50 text-primary-600 text-xs font-semibold rounded-lg">
+                      {trip.base_currency}
+                    </div>
                   </div>
-                  <div className="ml-3 px-2.5 py-1 bg-primary-50 text-primary-600 text-xs font-semibold rounded-lg">
-                    {trip.base_currency}
-                  </div>
-                </div>
 
-                {/* Members and Total Spent */}
-                <div className="flex items-center justify-between mt-3">
-                  {/* Member Avatars */}
-                  <div className="flex items-center">
-                    {trip.members && trip.members.length > 0 ? (
-                      <div className="flex -space-x-2">
-                        {trip.members.slice(0, 4).map((member) => (
+                  {/* Members and Total Spent */}
+                  <div className="flex items-center justify-between mt-3">
+                    {/* Member Avatars */}
+                    <div className="flex items-center">
+                      {isOptimistic || !trip.members || trip.members?.length === 0 ? (
+                        // Show current user avatar with spinner overlay for optimistic state
+                        <div className="relative">
                           <Avatar
-                            key={member.id}
-                            member={member}
+                            member={{
+                              id: -1,
+                              nickname: user?.user_metadata?.display_name || user?.email || 'You',
+                              display_name: user?.user_metadata?.display_name,
+                              avatar_url: user?.user_metadata?.avatar_url,
+                            }}
                             size="sm"
                             className="border-2 border-white"
                           />
-                        ))}
-                        {trip.members.length > 4 && (
-                          <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-gray-700 text-xs font-bold border-2 border-white">
-                            +{trip.members.length - 4}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1.5 text-gray-500">
-                        <Users className="w-4 h-4" />
-                        <span className="text-sm">{trip.member_count || 0}</span>
-                      </div>
-                    )}
-                  </div>
+                        </div>
+                      ) : (
+                        <div className="flex -space-x-2">
+                          {trip.members.slice(0, 4).map((member) => (
+                            <Avatar
+                              key={member.id}
+                              member={member}
+                              size="sm"
+                              className="border-2 border-white"
+                            />
+                          ))}
+                          {trip.members.length > 4 && (
+                            <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-gray-700 text-xs font-bold border-2 border-white">
+                              +{trip.members.length - 4}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
 
-                  {/* Total Spent */}
-                  <div className="text-right">
-                    <p className="text-xs text-gray-500 mb-0.5">Total Spend</p>
-                    <p className="text-xl font-bold text-gray-900">
-                      {formatCurrency(trip.total_spent || 0, trip.base_currency)}
-                    </p>
+                    {/* Total Spent / Creating Status */}
+                    <div className="text-right">
+                      {isOptimistic ? (
+                        <div className="flex items-center gap-2 justify-end">
+                          <p className="text-sm font-medium text-blue-600">Creating...</p>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-xs text-gray-500 mb-0.5">Total Spend</p>
+                          <p className="text-xl font-bold text-gray-900">
+                            {formatCurrency(trip.total_spent || 0, trip.base_currency)}
+                          </p>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         )}
       </main>

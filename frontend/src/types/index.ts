@@ -25,6 +25,9 @@ export interface Trip {
   expense_count: number;
   member_count?: number;
   members?: TripMember[];
+  // Optimistic update fields
+  _isOptimistic?: boolean;
+  _optimisticId?: string;
 }
 
 export interface TripMember {

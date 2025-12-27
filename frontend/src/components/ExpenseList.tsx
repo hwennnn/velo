@@ -111,7 +111,6 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
       }
 
       const date = format(parseUTCDate(expense.created_at), 'yyyy-MM-dd');
-      console.log(parseUTCDate(expense.created_at), expense.created_at)
       if (!groups[date]) {
         groups[date] = [];
       }
@@ -123,7 +122,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
 
     return sortedDates.map(date => ({
       date,
-      expenses: groups[date].sort((a, b) => b.id - a.id), // Sort expenses within date by ID descending
+      expenses: groups[date].sort((a, b) => Math.abs(b.id) - Math.abs(a.id)), // Sort expenses within date by ID descending
     }));
   }, [filteredExpenses]);
 

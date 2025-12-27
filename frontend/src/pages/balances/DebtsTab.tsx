@@ -59,11 +59,32 @@ export const DebtsTab: React.FC<DebtsTabProps> = ({
                   }}
                 />
               </div>
+
               <div className="text-right">
-                <div className="text-xs text-gray-500">Total (base)</div>
-                <div className="text-lg font-bold text-red-600">
-                  {group.total_base ? group.total_base.toFixed(2) : '—'} {baseCurrency}
-                </div>
+                {
+                  // Multi-currency case with tooltip
+                  <div className="group relative">
+                    <div className="text-xs text-gray-500">Total (approx)</div>
+                    <div className="text-lg font-bold text-gray-700 underline decoration-dotted cursor-help">
+                      {group.total_base ? group.total_base.toFixed(2) : '—'} {baseCurrency}
+                    </div>
+
+                    {/* Tooltip */}
+                    <div className="absolute right-0 top-full mt-2 w-48 bg-gray-900 text-white text-xs rounded-lg py-2 px-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 shadow-xl">
+                      <div className="font-semibold mb-1 border-b border-gray-700 pb-1">Breakdown</div>
+                      <div className="space-y-1">
+                        {Object.entries(group.totals_by_currency).map(([curr, amt]) => (
+                          <div key={curr} className="flex justify-between">
+                            <span>{curr}</span>
+                            <span className="font-mono">{amt}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {/* Triangle pointer */}
+                      <div className="absolute -top-1 right-4 w-2 h-2 bg-gray-900 rotate-45"></div>
+                    </div>
+                  </div>
+                }
               </div>
             </div>
 

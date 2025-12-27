@@ -245,6 +245,7 @@ export default function BalancesPage() {
       if (existing) {
         existing.rows.push(d);
         existing.total_base += d.amount_in_base ?? 0;
+        existing.totals_by_currency[d.currency] = (existing.totals_by_currency[d.currency] || 0) + Number(d.amount);
       } else {
         map.set(key, {
           from_id: d.from_member_id,
@@ -253,6 +254,7 @@ export default function BalancesPage() {
           to_name: d.to_nickname,
           rows: [d],
           total_base: d.amount_in_base ?? 0,
+          totals_by_currency: { [d.currency]: Number(d.amount) },
         });
       }
     });

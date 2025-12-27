@@ -29,6 +29,7 @@ export type GroupedDebt = {
   to_name: string;
   rows: Debt[];
   total_base: number;
+  totals_by_currency: Record<string, number>;
 };
 
 export type MemberBalance = NonNullable<ReturnType<typeof useBalances>['data']>['member_balances'];

@@ -292,7 +292,7 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
             )}
 
             {/* Currency Conversion Info */}
-            {expense.currency !== baseCurrency && !isSettlement && (
+            {expense.currency !== baseCurrency && (
               <div className="bg-blue-50 rounded-xl p-4">
                 <h3 className="text-sm font-semibold text-gray-900 mb-3">
                   Currency Conversion

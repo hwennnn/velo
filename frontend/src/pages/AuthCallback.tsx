@@ -4,8 +4,8 @@
  */
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../services/supabase';
 import { api } from '../services/api';
+import { supabase } from '../services/supabase';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
@@ -15,7 +15,7 @@ export default function AuthCallback() {
     const handleCallback = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        
+
         if (session?.user) {
           // Extract profile information from OAuth providers
           const userMetadata = session.user.user_metadata;
@@ -32,9 +32,9 @@ export default function AuthCallback() {
             });
           } catch (error) {
             // Ignore registration errors (user might already exist)
-            console.log('User registration skipped or failed:', error);
+            console.error('User registration skipped or failed:', error);
           }
-          
+
           // Successfully authenticated, redirect to trips
           navigate('/trips');
         } else {

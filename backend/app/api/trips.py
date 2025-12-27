@@ -2,12 +2,11 @@
 Trip API endpoints
 """
 
-from datetime import datetime
-from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func
 
+from app.api.members import build_members_response
 from app.core.auth import get_current_user
 from app.core.database import get_session
 from app.core.datetime_utils import utcnow, to_utc_isoformat
@@ -72,10 +71,12 @@ async def create_trip(
     response = TripResponse.model_validate(trip)
     response.member_count = 1
 
-     # Get all members
+    # Get all members
     members_statement = select(TripMember).where(TripMember.trip_id == response.id)
     result = await session.execute(members_statement)
-    response.members = result.scalars().all()
+    members = result.scalars().all()
+
+    response.members = await build_members_response(members, session)
 
     return response
 
@@ -131,39 +132,9 @@ async def list_trips(
         result = await session.execute(members_statement)
         members = result.scalars().all()
 
-        # Build member responses
-        member_responses = []
-        for m in members:
-            member_response = TripMemberResponse(
-                id=m.id,
-                nickname=m.nickname,
-                is_fictional=m.is_fictional,
-                is_admin=m.is_admin,
-                user_id=m.user_id,
-                created_at=to_utc_isoformat(m.created_at),
-                joined_at=to_utc_isoformat(m.joined_at),
-            )
-
-            # Add user details if real member
-            user_avatar_url = None
-            if m.user_id:
-                user = await session.get(User, m.user_id)
-                if user:
-                    member_response.email = user.email
-                    member_response.display_name = user.display_name
-                    user_avatar_url = user.avatar_url
-
-            # Get avatar (user's profile picture or generated)
-            avatar_info = get_avatar_for_member(
-                member_id=m.id, nickname=m.nickname, user_avatar_url=user_avatar_url
-            )
-            member_response.avatar_url = avatar_info["avatar_url"]
-
-            member_responses.append(member_response)
-
         trip_response = TripResponse.model_validate(trip)
         trip_response.member_count = len(members)
-        trip_response.members = member_responses
+        trip_response.members = await build_members_response(members, session)
         trip_responses.append(trip_response)
 
     return TripListResponse(
@@ -213,36 +184,7 @@ async def get_trip(
 
     # Build response with member details
     trip_response = TripResponse.model_validate(trip)
-    member_responses = []
-    for m in members:
-        member_response = TripMemberResponse(
-            id=m.id,
-            nickname=m.nickname,
-            is_fictional=m.is_fictional,
-            is_admin=m.is_admin,
-            user_id=m.user_id,
-            created_at=to_utc_isoformat(m.created_at),
-            joined_at=to_utc_isoformat(m.joined_at),
-        )
-
-        # Add user details if real member
-        user_avatar_url = None
-        if m.user_id:
-            user = await session.get(User, m.user_id)
-            if user:
-                member_response.email = user.email
-                member_response.display_name = user.display_name
-                user_avatar_url = user.avatar_url
-
-        # Get avatar (user's profile picture or generated)
-        avatar_info = get_avatar_for_member(
-            member_id=m.id, nickname=m.nickname, user_avatar_url=user_avatar_url
-        )
-        member_response.avatar_url = avatar_info["avatar_url"]
-
-        member_responses.append(member_response)
-
-    trip_response.members = member_responses
+    trip_response.members = await build_members_response(members, session)
     trip_response.member_count = len(members)
 
     return trip_response

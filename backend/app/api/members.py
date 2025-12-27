@@ -28,6 +28,11 @@ from app.core.config import settings
 
 router = APIRouter()
 
+async def build_members_response(
+    members: list[TripMember], session: AsyncSession
+) -> list[MemberResponse]:
+    return [await build_member_response(m, session) for m in members]
+
 
 async def build_member_response(
     member: TripMember, session: AsyncSession

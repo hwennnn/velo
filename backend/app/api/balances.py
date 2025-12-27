@@ -222,16 +222,20 @@ async def record_settlement_payment(
 
     await session.commit()
 
-    return {
-        "message": "Settlement recorded successfully",
-        "settlement": {
-            "from_member": from_member.nickname,
-            "to_member": to_member.nickname,
-            "amount": float(settlement_data.amount),
-            "currency": settlement_data.currency,
-            **result,
-        },
-    }
+    # Fetch the complete expense object with splits
+    from app.models.expense import Expense
+    from app.api.expenses import get_expense_response
+
+    expense_id = result["expense_id"]
+    expense = await session.get(Expense, expense_id)
+    
+    if not expense:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve created settlement expense",
+        )
+    
+    return await get_expense_response(expense, session)
 
 
 @router.get("/exchange-rates/{base_currency}")

@@ -68,7 +68,7 @@ export default function TripDetail() {
   // Get balances (must be called before any early returns)
   const { data: balances = [] } = useBalances(tripId);
 
-  const createExpenseMutation = useCreateExpense(tripId!);
+  const createExpenseMutation = useCreateExpense(tripId!, trip?.members, user?.id);
   const addMemberMutation = useAddMember(tripId!);
   const removeMemberMutation = useRemoveMember(tripId!);
   const claimMemberMutation = useClaimMember(tripId!);

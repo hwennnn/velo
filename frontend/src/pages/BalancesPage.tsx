@@ -12,6 +12,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Shimmer } from '../components/Shimmer';
 import { useAlert } from '../contexts/AlertContext';
+import { useAuth } from '../hooks/useAuth';
 import { balanceKeys, useBalances, useCreateSettlement } from '../hooks/useBalances';
 import { calculateCrossRate, useExchangeRates } from '../hooks/useExchangeRates';
 import { tripKeys, useTrip } from '../hooks/useTrips';
@@ -27,13 +28,14 @@ export default function BalancesPage() {
   const { tripId } = useParams<{ tripId: string }>();
   const navigate = useNavigate();
   const { showAlert, showConfirm } = useAlert();
+  const { user } = useAuth();
 
   const [tab, setTab] = useState<TabKey>('summary');
   const [expandedMembers, setExpandedMembers] = useState<Set<number>>(new Set());
 
   const { data: trip } = useTrip(tripId);
   const { data: balancesData, isLoading } = useBalances(tripId);
-  const createSettlement = useCreateSettlement(tripId || '');
+  const createSettlement = useCreateSettlement(tripId || '', trip?.members, user?.id);
   const queryClient = useQueryClient();
 
   const baseCurrency = trip?.base_currency || balancesData?.base_currency || 'USD';
@@ -70,7 +72,6 @@ export default function BalancesPage() {
     }) => api.balances.mergeDebtCurrency(tripId || '', mergeData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: balanceKeys.trip(tripId || '') });
-      queryClient.invalidateQueries({ queryKey: balanceKeys.settlements(tripId || '') });
       queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId || '') });
       showAlert('Debt converted successfully', { type: 'success' });
     },
@@ -81,7 +82,6 @@ export default function BalancesPage() {
   });
 
   const openSettlementDraftFromDebt = (debt: Debt) => {
-    const today = new Date().toISOString().split('T')[0];
     const defaultRate = calculateCrossRate(debt.currency, baseCurrency, exchangeRates, baseCurrency);
     setDraftSource('debt');
     setSettlementDraft({

@@ -60,6 +60,9 @@ export interface Expense {
   expense_type: string; // 'expense' or 'settlement'
   created_by: string;
   splits: Split[];
+  // Optimistic update fields
+  _isOptimistic?: boolean;
+  _optimisticId?: string;
 }
 
 export interface Split {

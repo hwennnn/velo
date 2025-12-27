@@ -4,6 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api';
 import type { CreateTripInput, Trip } from '../types';
+import { balanceKeys } from './useBalances';
 
 // Query Keys
 export const tripKeys = {
@@ -25,8 +26,10 @@ export function useTrips() {
   });
 }
 
-// Fetch single trip
+// Fetch single trip (with initial data from list cache for faster FMP)
 export function useTrip(tripId: string | undefined) {
+  const queryClient = useQueryClient();
+
   return useQuery({
     queryKey: tripKeys.detail(tripId!),
     queryFn: async () => {
@@ -34,6 +37,14 @@ export function useTrip(tripId: string | undefined) {
       return response.data as Trip;
     },
     enabled: !!tripId,
+    // Use cached trip from list for instant display while fetching fresh data
+    initialData: () => {
+      const trips = queryClient.getQueryData<Trip[]>(tripKeys.list());
+      return trips?.find((t) => t.id === Number(tripId));
+    },
+    initialDataUpdatedAt: () => {
+      return queryClient.getQueryState(tripKeys.list())?.dataUpdatedAt;
+    },
   });
 }
 
@@ -64,6 +75,8 @@ export function useUpdateTrip(tripId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
       queryClient.invalidateQueries({ queryKey: tripKeys.lists() });
+      // Also invalidate balances since simplify_debts affects balance calculation
+      queryClient.invalidateQueries({ queryKey: balanceKeys.trip(tripId) });
     },
   });
 }
@@ -75,8 +88,11 @@ export function useDeleteTrip() {
   return useMutation({
     mutationFn: async (tripId: string) => {
       await api.trips.delete(tripId);
+      return tripId;
     },
-    onSuccess: () => {
+    onSuccess: (tripId) => {
+      // Invalidate both list and detail to prevent stale cache access
+      queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
       queryClient.invalidateQueries({ queryKey: tripKeys.lists() });
     },
   });

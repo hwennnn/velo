@@ -1,16 +1,20 @@
 /**
  * Expense Detail Modal Component
  * Shows detailed information about an expense in a modal
+ * Uses useExpense hook with initial data for instant display
  */
 import { format, parseISO } from "date-fns";
-import { Pencil, Trash2, X } from "lucide-react";
+import { Loader2, Pencil, Trash2, X } from "lucide-react";
 import React, { useState } from "react";
+import { useExpense } from "../hooks/useExpenses";
 import type { Expense, TripMember, UpdateExpenseInput } from "../types";
 import { EditExpenseModal } from "./EditExpenseModal";
 
 interface ExpenseDetailModalProps {
-  isOpen: boolean;
-  expense: Expense | null;
+  tripId: string;
+  expenseId: number | null;
+  /** Initial expense data from list for instant display */
+  initialExpense?: Expense | null;
   baseCurrency: string;
   members: TripMember[];
   currentUserId?: string;
@@ -32,8 +36,9 @@ const CATEGORIES = [
 ];
 
 export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
-  isOpen,
-  expense,
+  tripId,
+  expenseId,
+  initialExpense,
   baseCurrency,
   members,
   currentUserId,
@@ -46,7 +51,44 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
 }) => {
   const [showEditModal, setShowEditModal] = useState(false);
 
-  if (!isOpen || !expense) return null;
+  // Use the useExpense hook with initial data for instant display
+  const { data: expense, isLoading: isLoadingExpense } = useExpense(
+    tripId,
+    expenseId ?? undefined,
+    initialExpense ?? undefined
+  );
+
+  if (!expenseId) return null;
+
+
+  const handleOnClose = () => {
+    if (deletingId !== null) return;
+
+    onClose();
+  };
+
+
+  // Show loading state if no initial data and still fetching
+  if (isLoadingExpense && !expense) {
+    return (
+      <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+          onClick={handleOnClose}
+        />
+        <div className="flex min-h-full items-end justify-center sm:items-center">
+          <div className="relative bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-lg p-8">
+            <div className="flex items-center justify-center gap-3">
+              <Loader2 className="w-6 h-6 text-primary-600 animate-spin" />
+              <span className="text-gray-600">Loading expense...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!expense) return null;
 
   const getCategoryEmoji = (category?: string) => {
     const cat = CATEGORIES.find((c) => c.value === category);
@@ -54,6 +96,7 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
   };
 
   const isSettlement = expense.expense_type === "settlement";
+  const isOptimistic = expense._isOptimistic === true;
   const canEdit = !!currentUserId && expense.created_by === currentUserId;
   const createdAtLabel = format(parseISO(expense.created_at), "PPP");
   const lastUpdatedLabel =
@@ -101,7 +144,7 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
-        onClick={onClose}
+        onClick={handleOnClose}
       />
 
       {/* Modal */}
@@ -142,7 +185,7 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                 </div>
               </div>
               <button
-                onClick={onClose}
+                onClick={handleOnClose}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <X className="w-5 h-5 text-gray-500" />
@@ -152,6 +195,14 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
 
           {/* Content */}
           <div className="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
+            {/* Optimistic Update Indicator */}
+            {isOptimistic && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-center gap-2">
+                <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+                <span className="text-sm text-blue-700">Saving changes...</span>
+              </div>
+            )}
+
             {/* Amount Card */}
             <div className="bg-gradient-to-br from-primary-50 to-primary-100 rounded-xl p-4">
               <div className="flex items-center justify-between mb-2">
@@ -173,7 +224,7 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
             </div>
 
             {/* User Balance - What they need to pay or will get back */}
-            {userBalance && (
+            {userBalance && !isOptimistic && (
               <div
                 className={`rounded-xl p-4 ${userBalance.type === "get_back"
                   ? "bg-green-50 border-2 border-green-200"
@@ -231,6 +282,14 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
               </div>
             )}
 
+            {/* Optimistic placeholder for user balance */}
+            {isOptimistic && !isSettlement && (
+              <div className="bg-gray-50 rounded-xl p-4 animate-pulse">
+                <div className="h-4 bg-gray-200 rounded w-1/3 mb-2"></div>
+                <div className="h-8 bg-gray-200 rounded w-1/2"></div>
+              </div>
+            )}
+
             {/* Currency Conversion Info */}
             {expense.currency !== baseCurrency && !isSettlement && (
               <div className="bg-blue-50 rounded-xl p-4">
@@ -262,8 +321,8 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
               </div>
             )}
 
-            {/* Split Details */}
-            {expense.splits.length > 1 && (
+            {/* Split Details - Show shimmer when optimistic */}
+            {expense.splits.length > 1 && !isOptimistic && (
               <div className="bg-gray-50 rounded-xl p-4">
                 <h3 className="text-sm font-semibold text-gray-900 mb-3">
                   Split Between
@@ -287,6 +346,24 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                           </span>
                         )}
                       </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Optimistic placeholder for splits */}
+            {isOptimistic && !isSettlement && (
+              <div className="bg-gray-50 rounded-xl p-4">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  Split Between
+                  <Loader2 className="w-3 h-3 text-gray-400 animate-spin" />
+                </h3>
+                <div className="space-y-2 animate-pulse">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex justify-between items-center py-2">
+                      <div className="h-4 bg-gray-200 rounded w-24"></div>
+                      <div className="h-4 bg-gray-200 rounded w-16"></div>
                     </div>
                   ))}
                 </div>
@@ -319,7 +396,8 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                 {canEdit && (
                   <button
                     onClick={() => setShowEditModal(true)}
-                    className="w-full mb-3 px-4 py-3 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
+                    disabled={isOptimistic || deletingId === expense.id}
+                    className="w-full mb-3 px-4 py-3 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Pencil className="w-4 h-4" />
                     Edit {isSettlement ? "Settlement" : "Expense"}
@@ -327,7 +405,7 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                 )}
                 <button
                   onClick={() => onDelete(expense.id)}
-                  disabled={deletingId === expense.id}
+                  disabled={deletingId === expense.id || isOptimistic}
                   className="w-full px-4 py-3 bg-red-50 text-red-600 rounded-xl text-sm font-semibold hover:bg-red-100 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   <Trash2 className="w-4 h-4" />

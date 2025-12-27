@@ -177,9 +177,7 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
   };
 
   const handleClose = () => {
-    if (!isLoading) {
-      onClose();
-    }
+    onClose();
   };
 
   if (!isOpen) return null;

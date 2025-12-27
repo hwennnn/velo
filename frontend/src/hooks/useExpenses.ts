@@ -1,9 +1,9 @@
 /**
  * React Query hooks for Expense operations
  */
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { api } from '../services/api';
-import type { CreateExpenseInput, Expense, UpdateExpenseInput } from '../types';
+import type { CreateExpenseInput, Expense, TripMember, UpdateExpenseInput } from '../types';
 import { balanceKeys } from './useBalances';
 import { tripKeys } from './useTrips';
 
@@ -54,80 +54,328 @@ export function useExpenses(tripId: string | undefined, filters?: ExpenseFilters
   });
 }
 
-// Create expense mutation
-export function useCreateExpense(tripId: string) {
+// Fetch single expense by ID (with initial data from list cache for faster FMP)
+export function useExpense(tripId: string | undefined, expenseId: number | undefined, initialExpense?: Expense) {
+  const queryClient = useQueryClient();
+
+  return useQuery({
+    queryKey: expenseKeys.detail(tripId ?? '', expenseId ?? 0),
+    queryFn: async () => {
+      const response = await api.expenses.getById(tripId!, expenseId!);
+      return response.data as Expense;
+    },
+    enabled: !!tripId && !!expenseId && expenseId > 0, // Don't fetch for optimistic (negative) IDs
+    // Use provided initial expense or search in infinite query cache
+    initialData: () => {
+      if (initialExpense) return initialExpense;
+      if (!tripId || !expenseId) return undefined;
+      
+      // Try to find in infinite query cache
+      const infiniteQueries = queryClient.getQueriesData<InfiniteData<ExpensePage>>({
+        queryKey: expenseKeys.lists(),
+        predicate: (q) => q.queryKey.includes(tripId)
+      });
+      
+      for (const [, data] of infiniteQueries) {
+        if (data?.pages) {
+          for (const page of data.pages) {
+            const found = page.expenses.find(e => e.id === expenseId);
+            if (found) return found;
+          }
+        }
+      }
+      return undefined;
+    },
+    initialDataUpdatedAt: () => {
+      if (!tripId) return undefined;
+      
+      // Get most recent update time from any expense list query
+      const states = queryClient.getQueriesData<InfiniteData<ExpensePage>>({
+        queryKey: expenseKeys.lists(),
+        predicate: (q) => q.queryKey.includes(tripId)
+      });
+      
+      let latestUpdate = 0;
+      for (const [key] of states) {
+        const state = queryClient.getQueryState(key);
+        if (state?.dataUpdatedAt && state.dataUpdatedAt > latestUpdate) {
+          latestUpdate = state.dataUpdatedAt;
+        }
+      }
+      return latestUpdate || undefined;
+    },
+  });
+}
+
+// Create expense mutation with optimistic update
+export function useCreateExpense(tripId: string, members?: TripMember[], currentUserId?: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (data: CreateExpenseInput) => {
       const response = await api.expenses.create(tripId, data);
-      return response.data;
+      return response.data as Expense;
     },
-    onSuccess: () => {
-      // Invalidate all expense queries for this trip (including infinite queries with different filters)
+    onMutate: async (newExpenseData) => {
+      // Cancel any outgoing refetches for expense queries
+      await queryClient.cancelQueries({ 
+        queryKey: expenseKeys.lists(),
+        predicate: (q) => q.queryKey.includes(tripId) 
+      });
+      
+      // Snapshot current data for rollback
+      const previousData = queryClient.getQueriesData<InfiniteData<ExpensePage>>({ 
+        queryKey: expenseKeys.lists(),
+        predicate: (q) => q.queryKey.includes(tripId)
+      });
+      
+      // Build optimistic expense
+      const optimisticId = `optimistic-${Date.now()}`;
+      const payer = members?.find(m => m.id === newExpenseData.paid_by_member_id);
+      const optimisticExpense: Expense = {
+        id: -Date.now(), // Temporary negative ID
+        trip_id: Number(tripId),
+        description: newExpenseData.description,
+        amount: newExpenseData.amount,
+        currency: newExpenseData.currency,
+        exchange_rate_to_base: 1, // Placeholder
+        amount_in_base_currency: newExpenseData.amount, // Placeholder
+        paid_by_member_id: newExpenseData.paid_by_member_id,
+        paid_by_nickname: payer?.nickname || 'Unknown',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        category: newExpenseData.category,
+        notes: newExpenseData.notes,
+        receipt_url: newExpenseData.receipt_url,
+        expense_type: newExpenseData.expense_type || 'expense',
+        created_by: currentUserId || '',
+        splits: [], // Will be calculated server-side
+        _isOptimistic: true,
+        _optimisticId: optimisticId,
+      };
+      
+      // Optimistically add to all expense queries for this trip
+      queryClient.setQueriesData<InfiniteData<ExpensePage>>(
+        { queryKey: expenseKeys.lists(), predicate: (q) => q.queryKey.includes(tripId) },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page, index) => 
+              index === 0 
+                ? { ...page, expenses: [optimisticExpense, ...page.expenses], total: page.total + 1 }
+                : page
+            ),
+          };
+        }
+      );
+      
+      return { previousData, optimisticId };
+    },
+    onSuccess: (data, _variables, context) => {
+      // Replace optimistic expense with real data
+      queryClient.setQueriesData<InfiniteData<ExpensePage>>(
+        { queryKey: expenseKeys.lists(), predicate: (q) => q.queryKey.includes(tripId) },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              expenses: page.expenses.map((exp) =>
+                exp._optimisticId === context?.optimisticId ? { ...data, _isOptimistic: false } : exp
+              ),
+            })),
+          };
+        }
+      );
+      
+      // Invalidate to ensure sync with server
       queryClient.invalidateQueries({ 
         queryKey: expenseKeys.lists(),
-        predicate: (query) => {
-          // Match any expense query that includes this tripId
-          return query.queryKey.includes(tripId);
-        }
+        predicate: (q) => q.queryKey.includes(tripId)
       });
-      // Invalidate trip data (for totals and metadata)
       queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
-      // Invalidate balances and settlements (debts changed)
       queryClient.invalidateQueries({ queryKey: balanceKeys.trip(tripId) });
-      queryClient.invalidateQueries({ queryKey: balanceKeys.settlements(tripId) });
+    },
+    onError: (_error, _variables, context) => {
+      // Rollback to previous data on error
+      if (context?.previousData) {
+        context.previousData.forEach(([queryKey, data]) => {
+          if (data) queryClient.setQueryData(queryKey, data);
+        });
+      }
     },
   });
 }
 
-// Delete expense mutation
+// Delete expense mutation with optimistic removal
 export function useDeleteExpense(tripId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (expenseId: number) => {
       await api.expenses.delete(tripId, expenseId);
+      return expenseId;
     },
-    onSuccess: () => {
-      // Invalidate all expense queries for this trip (including infinite queries with different filters)
+    onMutate: async (expenseId) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ 
+        queryKey: expenseKeys.lists(),
+        predicate: (q) => q.queryKey.includes(tripId) 
+      });
+      
+      // Snapshot for rollback
+      const previousData = queryClient.getQueriesData<InfiniteData<ExpensePage>>({ 
+        queryKey: expenseKeys.lists(),
+        predicate: (q) => q.queryKey.includes(tripId)
+      });
+      
+      // Optimistically remove expense from all queries
+      queryClient.setQueriesData<InfiniteData<ExpensePage>>(
+        { queryKey: expenseKeys.lists(), predicate: (q) => q.queryKey.includes(tripId) },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              expenses: page.expenses.filter((exp) => exp.id !== expenseId),
+              total: Math.max(0, page.total - 1),
+            })),
+          };
+        }
+      );
+      
+      return { previousData };
+    },
+    onError: (_error, _expenseId, context) => {
+      // Rollback on error
+      if (context?.previousData) {
+        context.previousData.forEach(([queryKey, data]) => {
+          if (data) queryClient.setQueryData(queryKey, data);
+        });
+      }
+    },
+    onSettled: () => {
+      // Always refetch to ensure sync
       queryClient.invalidateQueries({ 
         queryKey: expenseKeys.lists(),
-        predicate: (query) => {
-          // Match any expense query that includes this tripId
-          return query.queryKey.includes(tripId);
-        }
+        predicate: (q) => q.queryKey.includes(tripId)
       });
-      // Invalidate trip data (for totals and metadata)
       queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
-      // Invalidate balances and settlements (debts changed)
       queryClient.invalidateQueries({ queryKey: balanceKeys.trip(tripId) });
-      queryClient.invalidateQueries({ queryKey: balanceKeys.settlements(tripId) });
     },
   });
 }
 
-// Update expense mutation (supports updating split_type + splits)
+// Update expense mutation with optimistic update
 export function useUpdateExpense(tripId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (params: { expenseId: number; data: UpdateExpenseInput }) => {
       const response = await api.expenses.update(tripId, params.expenseId, params.data);
-      return response.data;
+      return response.data as Expense;
     },
-    onSuccess: () => {
-      // Invalidate all expense queries for this trip (including infinite queries with different filters)
-      queryClient.invalidateQueries({
+    onMutate: async ({ expenseId, data }) => {
+      // Cancel outgoing refetches for both list and detail queries
+      await queryClient.cancelQueries({ 
         queryKey: expenseKeys.lists(),
-        predicate: (query) => query.queryKey.includes(tripId),
+        predicate: (q) => q.queryKey.includes(tripId) 
       });
-      // Invalidate trip data (for totals and metadata)
+      await queryClient.cancelQueries({ 
+        queryKey: expenseKeys.detail(tripId, expenseId) 
+      });
+      
+      // Snapshot for rollback
+      const previousListData = queryClient.getQueriesData<InfiniteData<ExpensePage>>({ 
+        queryKey: expenseKeys.lists(),
+        predicate: (q) => q.queryKey.includes(tripId)
+      });
+      const previousDetailData = queryClient.getQueryData<Expense>(
+        expenseKeys.detail(tripId, expenseId)
+      );
+      
+      // Optimistically update expense (only update display fields, not splits)
+      const { splits: _splits, split_type: _splitType, ...displayFields } = data;
+      
+      // Update in list queries
+      queryClient.setQueriesData<InfiniteData<ExpensePage>>(
+        { queryKey: expenseKeys.lists(), predicate: (q) => q.queryKey.includes(tripId) },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              expenses: page.expenses.map((exp) =>
+                exp.id === expenseId 
+                  ? { ...exp, ...displayFields, _isOptimistic: true, updated_at: new Date().toISOString() }
+                  : exp
+              ),
+            })),
+          };
+        }
+      );
+      
+      // Update in detail query (useExpense)
+      queryClient.setQueryData<Expense>(
+        expenseKeys.detail(tripId, expenseId),
+        (old) => old ? { ...old, ...displayFields, _isOptimistic: true, updated_at: new Date().toISOString() } : old
+      );
+      
+      return { previousListData, previousDetailData, expenseId };
+    },
+    onSuccess: (data, { expenseId }) => {
+      // Replace with real data from server in list queries
+      queryClient.setQueriesData<InfiniteData<ExpensePage>>(
+        { queryKey: expenseKeys.lists(), predicate: (q) => q.queryKey.includes(tripId) },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              expenses: page.expenses.map((exp) =>
+                exp.id === expenseId ? { ...data, _isOptimistic: false } : exp
+              ),
+            })),
+          };
+        }
+      );
+      
+      // Update detail query with real data
+      queryClient.setQueryData<Expense>(
+        expenseKeys.detail(tripId, expenseId),
+        { ...data, _isOptimistic: false }
+      );
+      
+      // Invalidate to ensure sync
+      queryClient.invalidateQueries({ 
+        queryKey: expenseKeys.lists(),
+        predicate: (q) => q.queryKey.includes(tripId)
+      });
+      queryClient.invalidateQueries({ queryKey: expenseKeys.detail(tripId, expenseId) });
       queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
-      // Invalidate balances and settlements (debts changed)
       queryClient.invalidateQueries({ queryKey: balanceKeys.trip(tripId) });
-      queryClient.invalidateQueries({ queryKey: balanceKeys.settlements(tripId) });
+    },
+    onError: (_error, { expenseId }, context) => {
+      // Rollback list data on error
+      if (context?.previousListData) {
+        context.previousListData.forEach(([queryKey, data]) => {
+          if (data) queryClient.setQueryData(queryKey, data);
+        });
+      }
+      // Rollback detail data on error
+      if (context?.previousDetailData) {
+        queryClient.setQueryData(
+          expenseKeys.detail(tripId, expenseId),
+          context.previousDetailData
+        );
+      }
     },
   });
 }
+
 

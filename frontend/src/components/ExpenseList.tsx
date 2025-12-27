@@ -101,6 +101,14 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
     const groups: { [key: string]: Expense[] } = {};
 
     filteredExpenses.forEach((expense) => {
+      // Safety check for optimistic expenses that may not have created_at
+      if (!expense.created_at) {
+        const todayKey = format(new Date(), 'yyyy-MM-dd');
+        if (!groups[todayKey]) groups[todayKey] = [];
+        groups[todayKey].push(expense);
+        return;
+      }
+
       const date = format(parseISO(expense.created_at), 'yyyy-MM-dd');
       if (!groups[date]) {
         groups[date] = [];
@@ -220,51 +228,66 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
 
                 {/* Expenses for this date */}
                 <div className="space-y-2">
-                  {dateExpenses.map((expense) => (
-                    <button
-                      key={expense.id}
-                      onClick={() => handleExpenseClick(expense)}
-                      className="w-full bg-white rounded-xl p-4 hover:shadow-sm transition-shadow text-left"
-                    >
-                      <div className="flex items-center gap-3">
-                        {/* Icon */}
-                        {expense.expense_type === 'settlement' ? (
-                          <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                            <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                          </div>
-                        ) : (
-                          <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-xl flex-shrink-0">
-                            {getCategoryEmoji(expense.category)}
-                          </div>
-                        )}
+                  {dateExpenses.map((expense) => {
+                    const isOptimistic = expense._isOptimistic;
 
-                        {/* Content */}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-base font-semibold text-gray-900 truncate">
-                            {expense.expense_type === 'settlement' ? 'Settlement' : expense.description}
-                          </h3>
-                          <p className="text-sm text-gray-500">
-                            {expense.expense_type === 'settlement'
-                              ? expense.description
-                              : `${expense.paid_by_nickname} paid`
-                            }
-                          </p>
-                        </div>
+                    return (
+                      <button
+                        key={expense.id}
+                        onClick={() => !isOptimistic && handleExpenseClick(expense)}
+                        disabled={isOptimistic}
+                        className={`w-full bg-white rounded-xl p-4 transition-all text-left relative ${isOptimistic
+                          ? 'opacity-75 cursor-not-allowed animate-pulse'
+                          : 'hover:shadow-sm'
+                          }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          {/* Icon */}
+                          {expense.expense_type === 'settlement' ? (
+                            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                              <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </div>
+                          ) : (
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl flex-shrink-0 ${isOptimistic ? 'bg-blue-100' : 'bg-gray-100'
+                              }`}>
+                              {isOptimistic ? (
+                                <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                              ) : (
+                                getCategoryEmoji(expense.category)
+                              )}
+                            </div>
+                          )}
 
-                        {/* Amount */}
-                        <div className="text-right flex-shrink-0">
-                          <div className="text-base font-semibold text-gray-900">
-                            {expense.currency} {Number(expense.amount).toFixed(2)}
+                          {/* Content */}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-base font-semibold text-gray-900 truncate">
+                              {expense.expense_type === 'settlement' ? 'Settlement' : expense.description}
+                            </h3>
+                            <p className="text-sm text-gray-500">
+                              {isOptimistic
+                                ? 'Processing...'
+                                : expense.expense_type === 'settlement'
+                                  ? expense.description
+                                  : `${expense.paid_by_nickname} paid`
+                              }
+                            </p>
                           </div>
-                          <p className="text-xs text-gray-400">
-                            {format(parseISO(expense.created_at), 'MMM d')}
-                          </p>
+
+                          {/* Amount */}
+                          <div className="text-right flex-shrink-0">
+                            <div className="text-base font-semibold text-gray-900">
+                              {expense.currency} {Number(expense.amount).toFixed(2)}
+                            </div>
+                            <p className="text-xs text-gray-400">
+                              {isOptimistic || !expense.created_at ? 'Saving...' : format(parseISO(expense.created_at), 'MMM d')}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             ))}
@@ -292,19 +315,22 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
       </div>
 
       {/* Expense Detail Modal */}
-      <ExpenseDetailModal
-        isOpen={showDetailModal}
-        expense={selectedExpense}
-        baseCurrency={baseCurrency}
-        members={members}
-        currentUserId={currentUserId}
-        currentUserMemberId={currentUserMemberId}
-        isCurrentUserAdmin={isCurrentUserAdmin}
-        onClose={handleCloseModal}
-        onDelete={handleDelete}
-        onUpdate={handleUpdate}
-        deletingId={deletingId}
-      />
+      {showDetailModal && (
+        <ExpenseDetailModal
+          tripId={tripId}
+          expenseId={selectedExpense?.id ?? null}
+          initialExpense={selectedExpense}
+          baseCurrency={baseCurrency}
+          members={members}
+          currentUserId={currentUserId}
+          currentUserMemberId={currentUserMemberId}
+          isCurrentUserAdmin={isCurrentUserAdmin}
+          onClose={handleCloseModal}
+          onDelete={handleDelete}
+          onUpdate={handleUpdate}
+          deletingId={deletingId}
+        />
+      )}
     </div>
   );
 };

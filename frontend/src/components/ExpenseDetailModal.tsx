@@ -3,11 +3,12 @@
  * Shows detailed information about an expense in a modal
  * Uses useExpense hook with initial data for instant display
  */
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
 import { Loader2, Pencil, Trash2, X } from "lucide-react";
 import React, { useState } from "react";
 import { useExpense } from "../hooks/useExpenses";
 import type { Expense, TripMember, UpdateExpenseInput } from "../types";
+import { parseUTCDate } from "../utils/dateUtils";
 import { EditExpenseModal } from "./EditExpenseModal";
 
 interface ExpenseDetailModalProps {
@@ -98,10 +99,10 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
   const isSettlement = expense.expense_type === "settlement";
   const isOptimistic = expense._isOptimistic === true;
   const canEdit = !!currentUserId && expense.created_by === currentUserId;
-  const createdAtLabel = format(parseISO(expense.created_at), "PPP");
+  const createdAtLabel = format(parseUTCDate(expense.created_at), "PPP");
   const lastUpdatedLabel =
     expense.updated_at && expense.updated_at !== expense.created_at
-      ? format(parseISO(expense.updated_at), "PPP p")
+      ? format(parseUTCDate(expense.updated_at), "PPP p")
       : null;
 
   // Calculate what the user needs to pay or will get back

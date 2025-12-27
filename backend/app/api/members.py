@@ -10,6 +10,7 @@ from sqlmodel import select
 
 from app.core.auth import get_current_user
 from app.core.database import get_session
+from app.core.datetime_utils import utcnow, to_utc_isoformat
 from app.models.user import User
 from app.models.trip import Trip
 from app.models.trip_member import TripMember
@@ -41,8 +42,8 @@ async def build_member_response(
         is_fictional=member.is_fictional,
         is_admin=member.is_admin,
         user_id=member.user_id,
-        created_at=member.created_at.isoformat() if member.created_at else None,
-        joined_at=member.joined_at.isoformat() if member.joined_at else None,
+        created_at=to_utc_isoformat(member.created_at),
+        joined_at=to_utc_isoformat(member.joined_at),
     )
 
     # Add user details if real member
@@ -163,7 +164,7 @@ async def add_member(
     )
 
     if not member_data.is_fictional:
-        member.joined_at = datetime.utcnow()
+        member.joined_at = utcnow()
 
     session.add(member)
     await session.commit()
@@ -359,7 +360,7 @@ async def claim_member(
     # Claim the fictional member
     fictional_member.user_id = current_user.id
     fictional_member.is_fictional = False
-    fictional_member.joined_at = datetime.utcnow()
+    fictional_member.joined_at = utcnow()
 
     session.add(fictional_member)
     await session.commit()
@@ -442,7 +443,7 @@ async def join_trip_via_invite(
         is_fictional=False,
         is_admin=False,
     )
-    member.joined_at = datetime.utcnow()
+    member.joined_at = utcnow()
 
     session.add(member)
     await session.commit()

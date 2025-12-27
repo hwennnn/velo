@@ -5,6 +5,7 @@
 import { format } from 'date-fns';
 import { Calendar, Mail, Shield, User, UserCheck, X } from 'lucide-react';
 import type { TripMember } from '../types';
+import { parseUTCDate } from '../utils/dateUtils';
 import { Avatar } from './Avatar';
 
 interface MemberDetailModalProps {
@@ -175,7 +176,7 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                         <div className="text-sm font-medium text-gray-700 mb-1">Created</div>
                         {member.created_at && (
                           <div className="text-sm text-gray-900">
-                            {format(new Date(member.created_at), 'MMMM d, yyyy')}
+                            {format(parseUTCDate(member.created_at), 'MMMM d, yyyy')}
                           </div>
                         )}
                       </>
@@ -185,11 +186,11 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                           <>
                             <div className="text-sm font-medium text-gray-700 mb-1">Joined</div>
                             <div className="text-sm text-gray-900">
-                              {format(new Date(member.joined_at), 'MMMM d, yyyy')}
+                              {format(parseUTCDate(member.joined_at), 'MMMM d, yyyy')}
                             </div>
                             {member.created_at && member.created_at !== member.joined_at && (
                               <div className="text-xs text-gray-500 mt-1">
-                                Originally created: {format(new Date(member.created_at), 'MMMM d, yyyy')}
+                                Originally created: {format(parseUTCDate(member.created_at), 'MMMM d, yyyy')}
                               </div>
                             )}
                           </>
@@ -197,7 +198,7 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                           <>
                             <div className="text-sm font-medium text-gray-700 mb-1">Added</div>
                             <div className="text-sm text-gray-900">
-                              {format(new Date(member.created_at), 'MMMM d, yyyy')}
+                              {format(parseUTCDate(member.created_at), 'MMMM d, yyyy')}
                             </div>
                           </>
                         ) : null}

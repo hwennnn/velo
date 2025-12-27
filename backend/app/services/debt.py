@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, delete, and_
 
 from datetime import datetime
+from app.core.datetime_utils import utcnow
 from app.models.expense import Expense
 from app.models.split import Split
 from app.models.member_debt import MemberDebt
@@ -218,7 +219,7 @@ async def record_settlement(
 
     # Create settlement as an expense
     # The debtor (payer) is the one who "paid" this expense
-    now = datetime.utcnow()
+    now = utcnow()
     
     settlement_expense = Expense(
         trip_id=trip_id,
@@ -518,7 +519,7 @@ async def convert_all_debts_to_currency(
         if target_debt:
             # Add to existing debt
             target_debt.amount += converted_amount
-            target_debt.updated_at = datetime.utcnow()
+            target_debt.updated_at = utcnow()
             session.add(target_debt)
         else:
             # Create new debt in target currency

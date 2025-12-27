@@ -7,6 +7,7 @@ from typing import Optional
 from decimal import Decimal
 from sqlmodel import Field, SQLModel, Column
 from sqlalchemy import Numeric
+from ..core.datetime_utils import utcnow
 
 
 class TripMember(SQLModel, table=True):
@@ -52,7 +53,7 @@ class TripMember(SQLModel, table=True):
         description="Total amount owed to this member in base currency (cached)",
     )
 
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
     joined_at: Optional[datetime] = Field(
         default=None, description="When a fictional member was claimed by a user"
     )

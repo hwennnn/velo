@@ -5,6 +5,7 @@ from typing import Optional
 from decimal import Decimal
 from sqlmodel import Field, SQLModel, Column
 from sqlalchemy import Numeric
+from ..core.datetime_utils import utcnow
 
 
 class Expense(SQLModel, table=True):
@@ -51,8 +52,8 @@ class Expense(SQLModel, table=True):
     notes: Optional[str] = Field(default=None, description="Additional notes")
     receipt_url: Optional[str] = Field(default=None, description="Receipt image URL")
 
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
 
     created_by: str = Field(
         foreign_key="users.id", description="User who created this expense"

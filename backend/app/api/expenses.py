@@ -12,6 +12,7 @@ from sqlmodel import select, func
 
 from app.core.auth import get_current_user
 from app.core.database import get_session
+from app.core.datetime_utils import utcnow
 from app.models.user import User
 from app.models.trip import Trip
 from app.models.trip_member import TripMember
@@ -94,7 +95,7 @@ async def create_expense(
     # Get exchange rate
     exchange_rate = await get_exchange_rate(expense_data.currency, trip.base_currency)
 
-    now = datetime.utcnow()
+    now = utcnow()
 
     # Create expense
     expense = Expense(
@@ -477,7 +478,7 @@ async def update_expense(
         if field not in ["split_type", "splits"]:
             setattr(expense, field, value)
 
-    expense.updated_at = datetime.utcnow()
+    expense.updated_at = utcnow()
     session.add(expense)
 
     # For settlements: if amount changed but no splits provided, auto-update the split
@@ -654,7 +655,7 @@ async def update_expense(
     ):
         new_amount_in_base = expense.amount * expense.exchange_rate_to_base
         trip.total_spent = trip.total_spent - old_amount_in_base + new_amount_in_base
-        trip.updated_at = datetime.utcnow()
+        trip.updated_at = utcnow()
         session.add(trip)
 
     await session.commit()
@@ -719,7 +720,7 @@ async def delete_expense(
     if expense.expense_type == "expense":
         trip.total_spent -= amount_in_base
         trip.expense_count -= 1
-        trip.updated_at = datetime.utcnow()
+        trip.updated_at = utcnow()
         session.add(trip)
 
     await session.commit()

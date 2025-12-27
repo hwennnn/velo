@@ -13,6 +13,7 @@ import { TripListSkeleton } from '../components/TripListSkeleton';
 import { useAuth } from '../hooks/useAuth';
 import { useCreateTrip, useTrips } from '../hooks/useTrips';
 import type { CreateTripInput } from '../types';
+import { formatDateRange } from '../utils/dateUtils';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -28,12 +29,6 @@ export default function Home() {
     setIsModalOpen(false);
   };
 
-  const formatDateRange = (startDate?: string, endDate?: string) => {
-    if (!startDate && !endDate) return null;
-    if (startDate && !endDate) return `From ${format(new Date(startDate), 'MMM d, yyyy')}`;
-    if (!startDate && endDate) return `Until ${format(new Date(endDate), 'MMM d, yyyy')}`;
-    return `${format(new Date(startDate!), 'MMM d')} - ${format(new Date(endDate!), 'MMM d, yyyy')}`;
-  };
 
   const formatCurrency = (amount: number, currency: string) => {
     const currencySymbols: Record<string, string> = {
@@ -117,9 +112,9 @@ export default function Home() {
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <h3 className="text-lg font-bold text-gray-900 mb-0.5">{trip.name}</h3>
-                      {formatDateRange(trip.start_date, trip.end_date) && (
+                      {formatDateRange(trip.start_date, trip.end_date, format) && (
                         <p className="text-xs text-gray-500 uppercase tracking-wide">
-                          {formatDateRange(trip.start_date, trip.end_date)}
+                          {formatDateRange(trip.start_date, trip.end_date, format)}
                         </p>
                       )}
                     </div>

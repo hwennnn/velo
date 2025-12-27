@@ -3,12 +3,13 @@
  * 
  * Displays a list of expenses grouped by date with timeline headers.
  */
-import { format, isToday, isYesterday, parseISO } from 'date-fns';
+import { format, isToday, isYesterday } from 'date-fns';
 import { Filter, Loader2, Receipt } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAlert } from '../contexts/AlertContext';
 import { useDeleteExpense, useUpdateExpense } from '../hooks/useExpenses';
 import type { Expense, TripMember, UpdateExpenseInput } from '../types';
+import { parseUTCDate } from '../utils/dateUtils';
 import { ExpenseDetailModal } from './ExpenseDetailModal';
 import { ExpenseListSkeleton } from './ExpenseListSkeleton';
 
@@ -109,7 +110,8 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
         return;
       }
 
-      const date = format(parseISO(expense.created_at), 'yyyy-MM-dd');
+      const date = format(parseUTCDate(expense.created_at), 'yyyy-MM-dd');
+      console.log(parseUTCDate(expense.created_at), expense.created_at)
       if (!groups[date]) {
         groups[date] = [];
       }
@@ -131,7 +133,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
   }
 
   const getDateLabel = (dateString: string) => {
-    const date = parseISO(dateString);
+    const date = parseUTCDate(dateString);
     if (isToday(date)) return 'Today';
     if (isYesterday(date)) return 'Yesterday';
     return format(date, 'EEEE, MMMM d, yyyy');
@@ -281,7 +283,7 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
                               {expense.currency} {Number(expense.amount).toFixed(2)}
                             </div>
                             <p className="text-xs text-gray-400">
-                              {isOptimistic || !expense.created_at ? 'Saving...' : format(parseISO(expense.created_at), 'MMM d')}
+                              {isOptimistic || !expense.created_at ? 'Saving...' : format(parseUTCDate(expense.created_at), 'MMM d')}
                             </p>
                           </div>
                         </div>

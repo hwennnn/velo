@@ -9,8 +9,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../services/api';
 import type { Trip } from '../types';
+import { formatDateRange } from '../utils/dateUtils';
 
-type JoinStatus = 
+type JoinStatus =
   | 'validating'       // Validating link format
   | 'loading_trip'     // Loading trip details
   | 'ready_to_join'    // Showing confirmation screen
@@ -84,7 +85,7 @@ export default function JoinTrip() {
       // Try to get trip details
       const response = await api.trips.getById(tripId!);
       setTrip(response.data);
-      
+
       // If we can access the trip, user might already be a member
       setStatus('already_member');
     } catch (err: any) {
@@ -111,13 +112,13 @@ export default function JoinTrip() {
     try {
       // Join the trip
       await api.trips.joinViaInvite(tripId);
-      
+
       // Load trip details now that we're a member
       const tripResponse = await api.trips.getById(tripId);
       setTrip(tripResponse.data);
-      
+
       setStatus('success');
-      
+
       // Redirect after 2 seconds
       setTimeout(() => {
         navigate(`/trips/${tripId}`);
@@ -125,7 +126,7 @@ export default function JoinTrip() {
     } catch (err: any) {
       console.error('Join trip error:', err);
       setIsJoining(false);
-      
+
       if (err.response?.status === 404) {
         setStatus('trip_not_found');
         setError('This trip does not exist or has been deleted');
@@ -147,13 +148,6 @@ export default function JoinTrip() {
     if (tripId) {
       navigate(`/trips/${tripId}`);
     }
-  };
-
-  const formatDateRange = (startDate?: string, endDate?: string) => {
-    if (!startDate && !endDate) return 'No dates set';
-    if (startDate && !endDate) return `From ${format(new Date(startDate), 'MMM d, yyyy')}`;
-    if (!startDate && endDate) return `Until ${format(new Date(endDate), 'MMM d, yyyy')}`;
-    return `${format(new Date(startDate!), 'MMM d')} - ${format(new Date(endDate!), 'MMM d, yyyy')}`;
   };
 
   // Loading state
@@ -238,7 +232,7 @@ export default function JoinTrip() {
                   </span>
                   <span className="flex items-center gap-1">
                     <Calendar className="w-4 h-4" />
-                    {formatDateRange(trip.start_date, trip.end_date)}
+                    {formatDateRange(trip.start_date, trip.end_date, format)}
                   </span>
                   <span className="flex items-center gap-1">
                     <Users className="w-4 h-4" />
@@ -351,7 +345,7 @@ export default function JoinTrip() {
           )}
         </div>
 
-    
+
       </div>
     </div>
   );

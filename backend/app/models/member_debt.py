@@ -8,6 +8,7 @@ from typing import Optional
 from decimal import Decimal
 from sqlmodel import Field, SQLModel, Column
 from sqlalchemy import Numeric, Index, UniqueConstraint
+from ..core.datetime_utils import utcnow
 
 
 class MemberDebt(SQLModel, table=True):
@@ -65,8 +66,8 @@ class MemberDebt(SQLModel, table=True):
     currency: str = Field(description="Currency code (ISO 4217)")
 
     # For audit trail
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
 
     # Optional: track what created this debt
     source_expense_id: Optional[int] = Field(

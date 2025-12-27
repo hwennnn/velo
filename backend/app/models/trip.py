@@ -9,6 +9,7 @@ from sqlmodel import Field, SQLModel, Relationship, Column
 from sqlalchemy import Numeric
 from pydantic import model_validator
 from ..core.currencies import DEFAULT_CURRENCY
+from ..core.datetime_utils import utcnow
 
 
 class Trip(SQLModel, table=True):
@@ -48,8 +49,8 @@ class Trip(SQLModel, table=True):
     created_by: str = Field(
         foreign_key="users.id", description="User who created the trip"
     )
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
 
     is_deleted: bool = Field(default=False, description="Soft delete flag")
     deleted_at: Optional[datetime] = Field(

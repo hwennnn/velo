@@ -10,6 +10,7 @@ from sqlmodel import select, func
 
 from app.core.auth import get_current_user
 from app.core.database import get_session
+from app.core.datetime_utils import utcnow, to_utc_isoformat
 from app.models.user import User
 from app.models.trip import Trip
 from app.models.trip_member import TripMember
@@ -36,7 +37,7 @@ async def create_trip(
     The current user becomes the creator and first admin member.
     """
     # Create trip
-    now = datetime.utcnow()
+    now = utcnow()
     
     trip = Trip(
         name=trip_data.name,
@@ -62,7 +63,7 @@ async def create_trip(
         is_fictional=False,
         is_admin=True,
     )
-    member.joined_at = datetime.utcnow()
+    member.joined_at = utcnow()
 
     session.add(member)
     await session.commit()
@@ -70,6 +71,11 @@ async def create_trip(
     # Return trip with member count
     response = TripResponse.model_validate(trip)
     response.member_count = 1
+
+     # Get all members
+    members_statement = select(TripMember).where(TripMember.trip_id == response.id)
+    result = await session.execute(members_statement)
+    response.members = result.scalars().all()
 
     return response
 
@@ -134,8 +140,8 @@ async def list_trips(
                 is_fictional=m.is_fictional,
                 is_admin=m.is_admin,
                 user_id=m.user_id,
-                created_at=m.created_at.isoformat() if m.created_at else None,
-                joined_at=m.joined_at.isoformat() if m.joined_at else None,
+                created_at=to_utc_isoformat(m.created_at),
+                joined_at=to_utc_isoformat(m.joined_at),
             )
 
             # Add user details if real member
@@ -215,8 +221,8 @@ async def get_trip(
             is_fictional=m.is_fictional,
             is_admin=m.is_admin,
             user_id=m.user_id,
-            created_at=m.created_at.isoformat() if m.created_at else None,
-            joined_at=m.joined_at.isoformat() if m.joined_at else None,
+            created_at=to_utc_isoformat(m.created_at),
+            joined_at=to_utc_isoformat(m.joined_at),
         )
 
         # Add user details if real member
@@ -289,7 +295,7 @@ async def update_trip(
                 detail="End date cannot be before start date",
             )
 
-    trip.updated_at = datetime.utcnow()
+    trip.updated_at = utcnow()
 
     session.add(trip)
     await session.commit()
@@ -343,7 +349,7 @@ async def delete_trip(
 
     # Soft delete
     trip.is_deleted = True
-    trip.deleted_at = datetime.utcnow()
+    trip.deleted_at = utcnow()
 
     session.add(trip)
     await session.commit()

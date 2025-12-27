@@ -22,6 +22,7 @@ import { useCreateExpense, useExpenses, type ExpenseFilters } from '../hooks/use
 import { useAddMember, useClaimMember, useLeaveTrip, useRemoveMember, useUpdateMember } from '../hooks/useMembers';
 import { useGenerateInvite, useTrip } from '../hooks/useTrips';
 import type { AddMemberInput, CreateExpenseInput, TripMember } from '../types';
+import { formatDateRange } from '../utils/dateUtils';
 
 export default function TripDetail() {
   const { tripId } = useParams<{ tripId: string }>();
@@ -210,13 +211,6 @@ export default function TripDetail() {
     }
   };
 
-  const formatDateRange = (startDate?: string, endDate?: string) => {
-    if (!startDate && !endDate) return '';
-    if (startDate && !endDate) return `From ${format(new Date(startDate), 'MMM d, yyyy')}`;
-    if (!startDate && endDate) return `Until ${format(new Date(endDate), 'MMM d, yyyy')}`;
-    return `${format(new Date(startDate!), 'MMM d')} - ${format(new Date(endDate!), 'MMM d, yyyy')}`;
-  };
-
   const formatCurrency = (amount: number, currency: string) => {
     const formatted = amount.toLocaleString('en-US', {
       minimumFractionDigits: 2,
@@ -271,7 +265,7 @@ export default function TripDetail() {
           <div className="flex-1 text-center px-4">
             <h1 className="text-xl font-bold text-gray-900">{trip.name}</h1>
             <p className="text-xs text-gray-500 mt-0.5">
-              {formatDateRange(trip.start_date, trip.end_date)}
+              {formatDateRange(trip.start_date, trip.end_date, format)}
             </p>
           </div>
           <button

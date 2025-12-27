@@ -3,8 +3,12 @@
 from datetime import datetime
 from typing import Optional
 from decimal import Decimal
-from pydantic import BaseModel, Field, model_validator
+from datetime import datetime
+from typing import Optional
+from decimal import Decimal
+from pydantic import BaseModel, Field, model_validator, field_serializer
 from ..core.currencies import is_supported_currency
+from ..core.datetime_utils import to_utc_isoformat
 
 
 class SplitCreate(BaseModel):
@@ -260,6 +264,12 @@ class ExpenseResponse(BaseModel):
     created_by: str
     created_at: datetime
     updated_at: datetime
+
+    updated_at: datetime
+
+    @field_serializer("created_at", "updated_at")
+    def serialize_dt(self, dt: datetime, _info):
+        return to_utc_isoformat(dt)
 
     class Config:
         from_attributes = True

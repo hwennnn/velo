@@ -4,6 +4,7 @@ User model - synced with Supabase auth.users
 from datetime import datetime
 from typing import Optional
 from sqlmodel import Field, SQLModel
+from ..core.datetime_utils import utcnow
 
 
 class User(SQLModel, table=True):
@@ -18,8 +19,8 @@ class User(SQLModel, table=True):
     display_name: Optional[str] = Field(default=None, description="User display name")
     avatar_url: Optional[str] = Field(default=None, description="Profile picture URL")
     
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
 
     class Config:
         json_schema_extra = {

@@ -381,10 +381,11 @@ export default function TripDetail() {
       {/* Floating Action Button */}
       <button
         onClick={() => setShowAddExpenseModal(true)}
-        className="absolute bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 text-white rounded-full hover:from-primary-600 hover:to-primary-700 transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center z-50 shadow-lg hover:shadow-xl"
+        className="absolute bottom-6 right-6 h-11 px-4 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center gap-1.5 z-10 shadow-lg hover:shadow-xl"
         aria-label="Add expense"
       >
-        <Plus className="w-7 h-7" />
+        <Plus className="w-4 h-4" />
+        <span className="text-sm font-semibold">Expense</span>
       </button>
 
       {/* Members Modal */}

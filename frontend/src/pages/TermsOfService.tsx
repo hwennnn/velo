@@ -9,7 +9,7 @@ export default function TermsOfService() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col pb-20">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <header className="bg-white px-5 py-4 safe-top shadow-sm border-b border-gray-100 sticky top-0 z-10">
         <div className="flex items-center gap-4 mt-4 mb-2">
@@ -60,7 +60,7 @@ export default function TermsOfService() {
 
             <section className="mb-8">
               <h2 className="text-xl font-bold text-gray-900 mb-4">3. User Accounts</h2>
-              
+
               <h3 className="text-lg font-semibold text-gray-800 mb-3">3.1 Account Creation</h3>
               <p className="text-gray-700 leading-relaxed mb-4">
                 To use Velo, you must create an account using a supported authentication provider (Google or GitHub). You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account.
@@ -103,7 +103,7 @@ export default function TermsOfService() {
 
             <section className="mb-8">
               <h2 className="text-xl font-bold text-gray-900 mb-4">5. Content and Data</h2>
-              
+
               <h3 className="text-lg font-semibold text-gray-800 mb-3">5.1 Your Content</h3>
               <p className="text-gray-700 leading-relaxed mb-4">
                 You retain ownership of all content and data you submit to the Service, including trip information, expenses, and member data. By using the Service, you grant us a license to store, process, and display your content as necessary to provide the Service.
@@ -204,7 +204,7 @@ export default function TermsOfService() {
               </p>
             </section>
 
-            <section className="mb-8">
+            <section className="mb-14">
               <h2 className="text-xl font-bold text-gray-900 mb-4">15. Contact Information</h2>
               <p className="text-gray-700 leading-relaxed mb-4">
                 If you have any questions about these Terms of Service, please contact us:

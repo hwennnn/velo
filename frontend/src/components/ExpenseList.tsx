@@ -183,7 +183,12 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
             onClick={onFilterClick}
             className="flex items-center gap-1 px-3 py-1.5 text-sm text-primary-600 font-medium hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
           >
-            <Filter className="w-4 h-4" />
+            <span className="relative">
+              <Filter className="w-4 h-4" />
+              {hasActiveFilters && (
+                <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
+              )}
+            </span>
             Filter
           </button>
         </div>

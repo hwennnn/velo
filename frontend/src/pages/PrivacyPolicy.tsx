@@ -9,7 +9,7 @@ export default function PrivacyPolicy() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col pb-20">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <header className="bg-white px-5 py-4 safe-top shadow-sm border-b border-gray-100 sticky top-0 z-10">
         <div className="flex items-center gap-4 mt-4 mb-2">
@@ -43,7 +43,7 @@ export default function PrivacyPolicy() {
 
             <section className="mb-8">
               <h2 className="text-xl font-bold text-gray-900 mb-4">2. Information We Collect</h2>
-              
+
               <h3 className="text-lg font-semibold text-gray-800 mb-3">2.1 Account Information</h3>
               <p className="text-gray-700 leading-relaxed mb-4">
                 When you create an account, we collect:
@@ -97,7 +97,7 @@ export default function PrivacyPolicy() {
 
             <section className="mb-8">
               <h2 className="text-xl font-bold text-gray-900 mb-4">4. Data Sharing and Disclosure</h2>
-              
+
               <h3 className="text-lg font-semibold text-gray-800 mb-3">4.1 Within Your Trips</h3>
               <p className="text-gray-700 leading-relaxed mb-4">
                 Trip and expense data is shared with other members of the same trip. All members can view expenses, balances, and settlement information for trips they belong to.
@@ -175,7 +175,7 @@ export default function PrivacyPolicy() {
               </p>
             </section>
 
-            <section className="mb-8">
+            <section className="mb-12">
               <h2 className="text-xl font-bold text-gray-900 mb-4">11. Contact Us</h2>
               <p className="text-gray-700 leading-relaxed mb-4">
                 If you have any questions about this Privacy Policy or our data practices, please contact us:

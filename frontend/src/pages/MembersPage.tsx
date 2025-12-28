@@ -4,8 +4,8 @@
  * Full page for managing trip members.
  * Includes add, remove, promote/demote, and invite functionality.
  */
-import { ArrowLeft, Link2, Plus, Shield, Users } from 'lucide-react';
-import { useState } from 'react';
+import { ArrowLeft, ChevronDown, Link2, Plus, Shield, Users } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AddMemberModal } from '../components/AddMemberModal';
 import { Avatar } from '../components/Avatar';
@@ -31,6 +31,25 @@ export default function MembersPage() {
     const [showInviteModal, setShowInviteModal] = useState(false);
     const [selectedMember, setSelectedMember] = useState<TripMember | null>(null);
     const [showMemberDetail, setShowMemberDetail] = useState(false);
+    const [openActionMenuId, setOpenActionMenuId] = useState<number | null>(null);
+    const actionMenuRef = useRef<HTMLDivElement>(null);
+
+    // Close action menu when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (actionMenuRef.current && !actionMenuRef.current.contains(event.target as Node)) {
+                setOpenActionMenuId(null);
+            }
+        };
+
+        if (openActionMenuId !== null) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [openActionMenuId]);
 
     // Data & Mutations
     const { data: trip, isLoading } = useTrip(tripId);
@@ -279,57 +298,83 @@ export default function MembersPage() {
                                                 </div>
                                             </div>
 
-                                            {/* Actions */}
-                                            <div className="flex items-center gap-1">
-                                                {isCurrentUserAdmin && !isCurrentUser && member.status === 'active' && (
-                                                    <>
-                                                        {member.is_admin ? (
-                                                            <button
-                                                                onClick={() => handleDemoteAdmin(member)}
-                                                                className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors text-xs font-medium"
-                                                                title="Remove admin"
-                                                            >
-                                                                Demote
-                                                            </button>
-                                                        ) : (
-                                                            <button
-                                                                onClick={() => handlePromoteToAdmin(member)}
-                                                                className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors text-xs font-medium"
-                                                                title="Make admin"
-                                                            >
-                                                                Promote
-                                                            </button>
-                                                        )}
-                                                    </>
-                                                )}
-                                                {isCurrentUserAdmin && !isCurrentUser && (
+                                            {/* Actions Dropdown */}
+                                            {((isCurrentUserAdmin && !isCurrentUser) || isCurrentUser) && (
+                                                <div className="relative" ref={openActionMenuId === member.id ? actionMenuRef : undefined}>
                                                     <button
-                                                        onClick={() => {
-                                                            setSelectedMember(member);
-                                                            setShowEditMemberModal(true);
-                                                        }}
-                                                        className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-xs font-medium"
+                                                        onClick={() => setOpenActionMenuId(openActionMenuId === member.id ? null : member.id)}
+                                                        className="flex items-center gap-1 px-2.5 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-xs font-medium"
                                                     >
-                                                        Edit
+                                                        Actions
+                                                        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${openActionMenuId === member.id ? 'rotate-180' : ''}`} />
                                                     </button>
-                                                )}
-                                                {isCurrentUserAdmin && !isCurrentUser && (
-                                                    <button
-                                                        onClick={() => handleRemoveMember(member)}
-                                                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-xs font-medium"
-                                                    >
-                                                        Remove
-                                                    </button>
-                                                )}
-                                                {isCurrentUser && (
-                                                    <button
-                                                        onClick={handleLeaveTrip}
-                                                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-xs font-medium"
-                                                    >
-                                                        Leave
-                                                    </button>
-                                                )}
-                                            </div>
+
+                                                    {/* Dropdown Menu */}
+                                                    {openActionMenuId === member.id && (
+                                                        <div className="absolute right-0 top-full mt-1 w-36 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                                                            {isCurrentUserAdmin && !isCurrentUser && member.status === 'active' && (
+                                                                <>
+                                                                    {member.is_admin ? (
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                handleDemoteAdmin(member);
+                                                                                setOpenActionMenuId(null);
+                                                                            }}
+                                                                            className="w-full px-3 py-2 text-left text-sm text-amber-600 hover:bg-amber-50 transition-colors"
+                                                                        >
+                                                                            Demote Admin
+                                                                        </button>
+                                                                    ) : (
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                handlePromoteToAdmin(member);
+                                                                                setOpenActionMenuId(null);
+                                                                            }}
+                                                                            className="w-full px-3 py-2 text-left text-sm text-primary-600 hover:bg-primary-50 transition-colors"
+                                                                        >
+                                                                            Make Admin
+                                                                        </button>
+                                                                    )}
+                                                                </>
+                                                            )}
+                                                            {isCurrentUserAdmin && !isCurrentUser && (
+                                                                <>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setSelectedMember(member);
+                                                                            setShowEditMemberModal(true);
+                                                                            setOpenActionMenuId(null);
+                                                                        }}
+                                                                        className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                                                                    >
+                                                                        Edit Member
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            handleRemoveMember(member);
+                                                                            setOpenActionMenuId(null);
+                                                                        }}
+                                                                        className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 transition-colors"
+                                                                    >
+                                                                        Remove
+                                                                    </button>
+                                                                </>
+                                                            )}
+                                                            {isCurrentUser && (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        handleLeaveTrip();
+                                                                        setOpenActionMenuId(null);
+                                                                    }}
+                                                                    className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 transition-colors"
+                                                                >
+                                                                    Leave Trip
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 );

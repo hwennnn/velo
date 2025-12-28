@@ -1,4 +1,4 @@
-import { X } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 import React from 'react';
 import { SUPPORTED_CURRENCIES } from '../../config/currencies';
 import type { TripMember } from '../../types';
@@ -121,37 +121,43 @@ export const SettleConvertModal: React.FC<SettleConvertModalProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">From</label>
-                  <select
-                    value={settlementDraft.from_member_id}
-                    disabled={lockParticipants}
-                    onChange={(e) => {
-                      const id = Number(e.target.value);
-                      const m = membersById.get(id);
-                      setSettlementDraft(prev => prev ? { ...prev, from_member_id: id, from_nickname: m?.nickname } : prev);
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
-                  >
-                    {(members || []).map((m: TripMember) => (
-                      <option key={m.id} value={m.id}>{m.nickname}</option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={settlementDraft.from_member_id}
+                      disabled={lockParticipants}
+                      onChange={(e) => {
+                        const id = Number(e.target.value);
+                        const m = membersById.get(id);
+                        setSettlementDraft(prev => prev ? { ...prev, from_member_id: id, from_nickname: m?.nickname } : prev);
+                      }}
+                      className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-lg disabled:bg-gray-100 disabled:text-gray-500 appearance-none bg-white"
+                    >
+                      {(members || []).map((m: TripMember) => (
+                        <option key={m.id} value={m.id}>{m.nickname}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
-                  <select
-                    value={settlementDraft.to_member_id}
-                    disabled={lockParticipants}
-                    onChange={(e) => {
-                      const id = Number(e.target.value);
-                      const m = membersById.get(id);
-                      setSettlementDraft(prev => prev ? { ...prev, to_member_id: id, to_nickname: m?.nickname } : prev);
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg disabled:bg-gray-100 disabled:text-gray-500"
-                  >
-                    {(members || []).map((m: TripMember) => (
-                      <option key={m.id} value={m.id}>{m.nickname}</option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={settlementDraft.to_member_id}
+                      disabled={lockParticipants}
+                      onChange={(e) => {
+                        const id = Number(e.target.value);
+                        const m = membersById.get(id);
+                        setSettlementDraft(prev => prev ? { ...prev, to_member_id: id, to_nickname: m?.nickname } : prev);
+                      }}
+                      className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-lg disabled:bg-gray-100 disabled:text-gray-500 appearance-none bg-white"
+                    >
+                      {(members || []).map((m: TripMember) => (
+                        <option key={m.id} value={m.id}>{m.nickname}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  </div>
                 </div>
               </div>
 
@@ -168,17 +174,20 @@ export const SettleConvertModal: React.FC<SettleConvertModalProps> = ({
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
-                  <select
-                    value={settlementDraft.currency}
-                    onChange={(e) => setSettlementDraft(prev => prev ? { ...prev, currency: e.target.value } : prev)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    {SUPPORTED_CURRENCIES.map((curr) => (
-                      <option key={curr.code} value={curr.code}>
-                        {curr.code} ({curr.symbol})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={settlementDraft.currency}
+                      onChange={(e) => setSettlementDraft(prev => prev ? { ...prev, currency: e.target.value } : prev)}
+                      className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-lg appearance-none bg-white"
+                    >
+                      {SUPPORTED_CURRENCIES.map((curr) => (
+                        <option key={curr.code} value={curr.code}>
+                          {curr.code} ({curr.symbol})
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  </div>
                 </div>
               </div>
 
@@ -224,17 +233,20 @@ export const SettleConvertModal: React.FC<SettleConvertModalProps> = ({
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Convert to</label>
-                    <select
-                      value={convertDraft.to_currency}
-                      onChange={(e) => onConvertCurrencyChange(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    >
-                      {SUPPORTED_CURRENCIES.map((curr) => (
-                        <option key={curr.code} value={curr.code}>
-                          {curr.code} ({curr.symbol})
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <select
+                        value={convertDraft.to_currency}
+                        onChange={(e) => onConvertCurrencyChange(e.target.value)}
+                        className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-lg appearance-none bg-white"
+                      >
+                        {SUPPORTED_CURRENCIES.map((curr) => (
+                          <option key={curr.code} value={curr.code}>
+                            {curr.code} ({curr.symbol})
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    </div>
                   </div>
                 </div>
 

@@ -4,7 +4,7 @@
  * Modal for editing an existing expense.
  * Supports updating amount, payer, currency, date, notes, and split logic.
  */
-import { Check, DollarSign, FileText, Users, X } from "lucide-react";
+import { Check, ChevronDown, DollarSign, FileText, Users, X } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 import { SUPPORTED_CURRENCIES } from "../config/currencies";
 import type {
@@ -14,6 +14,7 @@ import type {
   UpdateExpenseInput,
 } from "../types";
 import { getMemberInitials } from "../utils/memberUtils";
+import { Avatar } from "./Avatar";
 
 interface EditExpenseModalProps {
   isOpen: boolean;
@@ -336,18 +337,21 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
               <label className="block text-sm font-medium text-gray-700">
                 Currency
               </label>
-              <select
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                disabled={isLoading}
-              >
-                {SUPPORTED_CURRENCIES.map((curr) => (
-                  <option key={curr.code} value={curr.code}>
-                    {curr.code} ({curr.symbol})
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  className="w-full pl-4 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none bg-white"
+                  disabled={isLoading}
+                >
+                  {SUPPORTED_CURRENCIES.map((curr) => (
+                    <option key={curr.code} value={curr.code}>
+                      {curr.code} ({curr.symbol})
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+              </div>
             </div>
           </div>
 
@@ -369,7 +373,10 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
                       }`}
                   >
                     <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-xs font-semibold text-gray-700">
-                      {getMemberInitials(member.nickname)}
+                      <Avatar
+                        member={member}
+                        size="sm"
+                      />
                     </div>
                     <div className="min-w-0">
                       <div className="text-sm font-medium text-gray-900 truncate">
@@ -415,19 +422,22 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
                 <label className="block text-sm font-medium text-gray-700">
                   Category
                 </label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  disabled={isLoading}
-                >
-                  <option value="">No category</option>
-                  {CATEGORIES.map((c) => (
-                    <option key={c.value} value={c.value}>
-                      {c.emoji} {c.label}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full pl-4 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none bg-white"
+                    disabled={isLoading}
+                  >
+                    <option value="">No category</option>
+                    {CATEGORIES.map((c) => (
+                      <option key={c.value} value={c.value}>
+                        {c.emoji} {c.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                </div>
               </div>
             )
           }

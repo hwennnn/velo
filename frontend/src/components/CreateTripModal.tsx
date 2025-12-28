@@ -2,7 +2,7 @@
  * Create Trip Modal Component
  * Beautiful animated modal for creating new trips
  */
-import { Calendar, DollarSign, FileText, MapPin, X } from 'lucide-react';
+import { Calendar, ChevronDown, DollarSign, FileText, MapPin, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { DEFAULT_CURRENCY, SUPPORTED_CURRENCIES } from '../config/currencies';
 import type { CreateTripInput } from '../types';
@@ -231,18 +231,21 @@ export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTri
             </label>
             <div className="relative">
               <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <select
-                id="currency"
-                value={formData.base_currency}
-                onChange={(e) => setFormData({ ...formData, base_currency: e.target.value })}
-                className="w-full pl-11 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow appearance-none bg-white"
-              >
-                {SUPPORTED_CURRENCIES.map((currency) => (
-                  <option key={currency.code} value={currency.code}>
-                    {currency.symbol} {currency.code} - {currency.name}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  id="currency"
+                  value={formData.base_currency}
+                  onChange={(e) => setFormData({ ...formData, base_currency: e.target.value })}
+                  className="w-full pl-11 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow appearance-none bg-white"
+                >
+                  {SUPPORTED_CURRENCIES.map((currency) => (
+                    <option key={currency.code} value={currency.code}>
+                      {currency.symbol} {currency.code} - {currency.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+              </div>
             </div>
             <p className="mt-1 text-xs text-gray-500">
               The base currency is used to calculate balances and settlements.

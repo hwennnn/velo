@@ -4,7 +4,7 @@
  * Modal for creating new expenses with split management.
  * Supports equal, percentage, and custom splits.
  */
-import { Check, DollarSign, FileText, Receipt, Users, X } from 'lucide-react';
+import { Check, ChevronDown, DollarSign, FileText, Receipt, Users, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { SUPPORTED_CURRENCIES } from '../config/currencies';
 import type { CreateExpenseInput, SplitInput, TripMember } from '../types';
@@ -267,19 +267,22 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
               <label htmlFor="currency" className="block text-sm font-medium text-gray-700">
                 Currency
               </label>
-              <select
-                id="currency"
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                disabled={isLoading}
-              >
-                {SUPPORTED_CURRENCIES.map((curr) => (
-                  <option key={curr.code} value={curr.code}>
-                    {curr.code} ({curr.symbol})
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  id="currency"
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  className="w-full px-4 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none bg-white"
+                  disabled={isLoading}
+                >
+                  {SUPPORTED_CURRENCIES.map((curr) => (
+                    <option key={curr.code} value={curr.code}>
+                      {curr.code} ({curr.symbol})
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+              </div>
             </div>
           </div>
 
@@ -332,20 +335,23 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
             <label htmlFor="category" className="block text-sm font-medium text-gray-700">
               Category
             </label>
-            <select
-              id="category"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              disabled={isLoading}
-            >
-              <option value="">Select category...</option>
-              {CATEGORIES.map((cat) => (
-                <option key={cat.value} value={cat.value}>
-                  {cat.emoji} {cat.label}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                id="category"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full px-4 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none bg-white"
+                disabled={isLoading}
+              >
+                <option value="">Select category...</option>
+                {CATEGORIES.map((cat) => (
+                  <option key={cat.value} value={cat.value}>
+                    {cat.emoji} {cat.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+            </div>
           </div>
 
           {/* Split With */}

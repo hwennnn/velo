@@ -120,12 +120,12 @@ async def add_member(
 ) -> MemberResponse:
     """
     Add a member to a trip.
-    
+
     Status is auto-determined:
     - No email -> 'placeholder'
-    - Email provided + user exists -> 'active' 
+    - Email provided + user exists -> 'active'
     - Email provided + user doesn't exist -> 'pending'
-    
+
     Only trip admins can add members.
     """
     # Check admin access
@@ -144,11 +144,11 @@ async def add_member(
             or_(
                 TripMember.invited_email == member_data.email,
                 # Also check active members by user email
-            )
+            ),
         )
         result = await session.execute(existing_email_statement)
         existing_with_email = result.scalar_one_or_none()
-        
+
         if existing_with_email:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -241,7 +241,7 @@ async def update_member(
     """
     Update a trip member.
     Only trip admins can update members.
-    
+
     Email can only be changed for pending/placeholder members.
     Changing email:
     - Updates invited_email and sets invited_at
@@ -266,7 +266,7 @@ async def update_member(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot change email for active members",
             )
-        
+
         if member_data.email:  # Non-empty email
             # Check for duplicate email in this trip
             existing_email_statement = select(TripMember).where(
@@ -280,7 +280,7 @@ async def update_member(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="A member with this email already exists in this trip",
                 )
-            
+
             # Update email and status
             member.invited_email = member_data.email
             member.status = "pending"
@@ -303,65 +303,65 @@ async def update_member(
     return await build_member_response(member, session)
 
 
-@router.delete(
-    "/trips/{trip_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT
-)
-async def remove_member(
-    trip_id: int,
-    member_id: int,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
-) -> None:
-    """
-    Remove a member from a trip.
-    Only trip admins can remove members.
-    Cannot remove the last admin.
-    Cannot remove a member with unsettled debts.
-    """
-    # Check admin access
-    await check_trip_access(trip_id, current_user, session, require_admin=True)
+# @router.delete(
+#     "/trips/{trip_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT
+# )
+# async def remove_member(
+#     trip_id: int,
+#     member_id: int,
+#     current_user: User = Depends(get_current_user),
+#     session: AsyncSession = Depends(get_session),
+# ) -> None:
+#     """
+#     Remove a member from a trip.
+#     Only trip admins can remove members.
+#     Cannot remove the last admin.
+#     Cannot remove a member with unsettled debts.
+#     """
+#     # Check admin access
+#     await check_trip_access(trip_id, current_user, session, require_admin=True)
 
-    # Get member
-    member = await session.get(TripMember, member_id)
-    if not member or member.trip_id != trip_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Member not found",
-        )
+#     # Get member
+#     member = await session.get(TripMember, member_id)
+#     if not member or member.trip_id != trip_id:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail="Member not found",
+#         )
 
-    # Check if this is the last admin
-    if member.is_admin:
-        admin_count_statement = select(TripMember).where(
-            TripMember.trip_id == trip_id,
-            TripMember.is_admin == True,
-        )
-        result = await session.execute(admin_count_statement)
-        admin_count = len(result.scalars().all())
+#     # Check if this is the last admin
+#     if member.is_admin:
+#         admin_count_statement = select(TripMember).where(
+#             TripMember.trip_id == trip_id,
+#             TripMember.is_admin == True,
+#         )
+#         result = await session.execute(admin_count_statement)
+#         admin_count = len(result.scalars().all())
 
-        if admin_count <= 1:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot remove the last admin. Promote another member first.",
-            )
+#         if admin_count <= 1:
+#             raise HTTPException(
+#                 status_code=status.HTTP_400_BAD_REQUEST,
+#                 detail="Cannot remove the last admin. Promote another member first.",
+#             )
 
-    # Check for unsettled debts
-    debt_statement = select(MemberDebt).where(
-        or_(
-            MemberDebt.debtor_member_id == member_id,
-            MemberDebt.creditor_member_id == member_id
-        ),
-        MemberDebt.amount > 0
-    )
-    result = await session.execute(debt_statement)
-    if result.scalars().first():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot remove member with unsettled debts. Settle all debts first.",
-        )
+#     # Check for unsettled debts
+#     debt_statement = select(MemberDebt).where(
+#         or_(
+#             MemberDebt.debtor_member_id == member_id,
+#             MemberDebt.creditor_member_id == member_id,
+#         ),
+#         MemberDebt.amount > 0,
+#     )
+#     result = await session.execute(debt_statement)
+#     if result.scalars().first():
+#         raise HTTPException(
+#             status_code=status.HTTP_400_BAD_REQUEST,
+#             detail="Cannot remove member with unsettled debts. Settle all debts first.",
+#         )
 
-    # Delete member
-    await session.delete(member)
-    await session.commit()
+#     # Delete member
+#     await session.delete(member)
+#     await session.commit()
 
 
 @router.post("/trips/{trip_id}/invite", response_model=InviteLinkResponse)
@@ -373,7 +373,7 @@ async def generate_invite_link(
     """
     Generate or retrieve an invite link for a trip.
     Only trip admins can generate invite links.
-    
+
     - If an invite already exists for this trip, reuse it and extend expiration.
     - If no invite exists, create a new one.
     - Expiration is always set/extended to 7 days from now.
@@ -435,7 +435,7 @@ async def decode_invite_link(
     Returns trip details so the user can see what they're joining.
     """
     # Validate code format
-    if len(code) != 16 or not all(c in '0123456789abcdef' for c in code.lower()):
+    if len(code) != 16 or not all(c in "0123456789abcdef" for c in code.lower()):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid invite code format",
@@ -497,12 +497,12 @@ async def join_trip_via_invite(
 ) -> MemberResponse:
     """
     Join a trip via invite code.
-    
+
     If there's a pending invitation for this user's email, claims it.
     Otherwise, adds the user as a new member.
     """
     # Validate code format
-    if len(code) != 16 or not all(c in '0123456789abcdef' for c in code.lower()):
+    if len(code) != 16 or not all(c in "0123456789abcdef" for c in code.lower()):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid invite code format",
@@ -585,4 +585,3 @@ async def join_trip_via_invite(
 
     # Build response
     return await build_member_response(member, session)
-

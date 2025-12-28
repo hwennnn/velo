@@ -20,7 +20,6 @@ from app.schemas.trip import (
     TripListResponse,
     TripMemberResponse,
 )
-from app.services.avatar import get_avatar_for_member
 
 router = APIRouter()
 

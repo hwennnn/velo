@@ -22,6 +22,7 @@ const Profile = lazy(() => import('./pages/Profile'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const TripDetail = lazy(() => import('./pages/TripDetail'));
 const TripSettings = lazy(() => import('./pages/TripSettings'));
+const SettleUpPage = lazy(() => import('./pages/SettleUpPage'));
 
 // Custom loading component with brand styling
 function PageLoader() {
@@ -36,13 +37,13 @@ function PageLoader() {
             className="w-20 h-20 animate-pulse"
           />
         </div>
-        
+
         {/* Loading text with fade animation */}
         <div className="flex flex-col items-center gap-2">
           <h2 className="text-xl font-bold text-gray-900 animate-pulse">Velo</h2>
           <p className="text-gray-600 text-sm animate-pulse">Loading your trips...</p>
         </div>
-        
+
         {/* Animated dots */}
         <div className="flex gap-2">
           <div className="w-2 h-2 bg-primary-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
@@ -69,7 +70,7 @@ function App() {
                   <Route path="/join" element={<JoinTrip />} />
                   <Route path="/privacy-policy" element={<PrivacyPolicy />} />
                   <Route path="/terms-of-service" element={<TermsOfService />} />
-                  
+
                   {/* Protected routes */}
                   <Route
                     path="/trips"
@@ -104,6 +105,14 @@ function App() {
                     }
                   />
                   <Route
+                    path="/trips/:tripId/settle-up"
+                    element={
+                      <ProtectedRoute>
+                        <SettleUpPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
                     path="/account"
                     element={
                       <ProtectedRoute>
@@ -111,10 +120,10 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
-                  
+
                   {/* Redirect root to trips */}
                   <Route path="/" element={<Navigate to="/trips" replace />} />
-                  
+
                   {/* 404 - Redirect to trips */}
                   <Route path="*" element={<Navigate to="/trips" replace />} />
                 </Routes>

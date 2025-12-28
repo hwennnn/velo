@@ -3,7 +3,7 @@
  * Optimized with React Query, broken into smaller components
  */
 import { format } from 'date-fns';
-import { ArrowLeft, Plus, Settings, TrendingUp, Users, Wallet } from 'lucide-react';
+import { ArrowLeft, HandCoins, Plus, Settings, TrendingUp, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AddMemberModal } from '../components/AddMemberModal';
@@ -345,11 +345,11 @@ export default function TripDetail() {
             </button>
 
             <button
-              onClick={() => setShowMembersModal(true)}
+              onClick={() => navigate(`/trips/${tripId}/settle-up`)}
               className="bg-white rounded-xl p-3 shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 border border-gray-100"
             >
-              <Users className="w-4 h-4 text-blue-600" />
-              <span className="text-sm font-medium text-gray-900">Members</span>
+              <HandCoins className="w-4 h-4 text-blue-600" />
+              <span className="text-sm font-medium text-gray-900">Settle Up</span>
             </button>
           </div>
         </div>

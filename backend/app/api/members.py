@@ -54,6 +54,7 @@ async def build_member_response(
         invited_at=to_utc_isoformat(member.invited_at),
         created_at=to_utc_isoformat(member.created_at),
         joined_at=to_utc_isoformat(member.joined_at),
+        is_deleted=member.is_deleted,
     )
 
     # Add user details if active member with user_id
@@ -87,6 +88,7 @@ async def check_trip_access(
     member_statement = select(TripMember).where(
         TripMember.trip_id == trip_id,
         TripMember.user_id == user.id,
+        TripMember.is_deleted == False,
     )
     result = await session.execute(member_statement)
     member = result.scalar_one_or_none()
@@ -120,12 +122,12 @@ async def add_member(
 ) -> MemberResponse:
     """
     Add a member to a trip.
-    
+
     Status is auto-determined:
     - No email -> 'placeholder'
-    - Email provided + user exists -> 'active' 
+    - Email provided + user exists -> 'active'
     - Email provided + user doesn't exist -> 'pending'
-    
+
     Only trip admins can add members.
     """
     # Check admin access
@@ -138,17 +140,40 @@ async def add_member(
     invited_at = None
 
     if member_data.email:
-        # Check for duplicate email in this trip (active, pending, or placeholder with email)
+        # Check for soft-deleted member with same email - restore if found
+        deleted_member_statement = select(TripMember).where(
+            TripMember.trip_id == trip_id,
+            TripMember.invited_email == member_data.email,
+            TripMember.is_deleted == True,
+        )
+        result = await session.execute(deleted_member_statement)
+        deleted_member = result.scalar_one_or_none()
+
+        if deleted_member:
+            # Restore the deleted member
+            deleted_member.is_deleted = False
+            deleted_member.deleted_at = None
+            deleted_member.nickname = member_data.nickname
+            deleted_member.is_admin = member_data.is_admin
+            deleted_member.status = "pending"
+            deleted_member.invited_at = utcnow()
+            session.add(deleted_member)
+            await session.commit()
+            await session.refresh(deleted_member)
+            return await build_member_response(deleted_member, session)
+
+        # Check for duplicate email in this trip (non-deleted members)
         existing_email_statement = select(TripMember).where(
             TripMember.trip_id == trip_id,
+            TripMember.is_deleted == False,
             or_(
                 TripMember.invited_email == member_data.email,
                 # Also check active members by user email
-            )
+            ),
         )
         result = await session.execute(existing_email_statement)
         existing_with_email = result.scalar_one_or_none()
-        
+
         if existing_with_email:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -169,6 +194,7 @@ async def add_member(
             existing_member_statement = select(TripMember).where(
                 TripMember.trip_id == trip_id,
                 TripMember.user_id == user_id,
+                TripMember.is_deleted == False,
             )
             result = await session.execute(existing_member_statement)
             if result.scalar_one_or_none():
@@ -220,8 +246,10 @@ async def list_members(
     # Check access
     await check_trip_access(trip_id, current_user, session)
 
-    # Get all members
-    members_statement = select(TripMember).where(TripMember.trip_id == trip_id)
+    # Get all non-deleted members
+    members_statement = select(TripMember).where(
+        TripMember.trip_id == trip_id, TripMember.is_deleted == False
+    )
     result = await session.execute(members_statement)
     members = result.scalars().all()
 
@@ -241,7 +269,7 @@ async def update_member(
     """
     Update a trip member.
     Only trip admins can update members.
-    
+
     Email can only be changed for pending/placeholder members.
     Changing email:
     - Updates invited_email and sets invited_at
@@ -253,7 +281,7 @@ async def update_member(
 
     # Get member
     member = await session.get(TripMember, member_id)
-    if not member or member.trip_id != trip_id:
+    if not member or member.trip_id != trip_id or member.is_deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Member not found",
@@ -266,7 +294,7 @@ async def update_member(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot change email for active members",
             )
-        
+
         if member_data.email:  # Non-empty email
             # Check for duplicate email in this trip
             existing_email_statement = select(TripMember).where(
@@ -280,7 +308,7 @@ async def update_member(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="A member with this email already exists in this trip",
                 )
-            
+
             # Update email and status
             member.invited_email = member_data.email
             member.status = "pending"
@@ -313,27 +341,29 @@ async def remove_member(
     session: AsyncSession = Depends(get_session),
 ) -> None:
     """
-    Remove a member from a trip.
+    Remove a member from a trip (soft-delete).
     Only trip admins can remove members.
     Cannot remove the last admin.
-    Cannot remove a member with unsettled debts.
+
+    Soft-delete preserves the member record and nickname for historical expense data.
     """
     # Check admin access
     await check_trip_access(trip_id, current_user, session, require_admin=True)
 
     # Get member
     member = await session.get(TripMember, member_id)
-    if not member or member.trip_id != trip_id:
+    if not member or member.trip_id != trip_id or member.is_deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Member not found",
         )
 
-    # Check if this is the last admin
+    # Check if this is the last admin (only among non-deleted members)
     if member.is_admin:
         admin_count_statement = select(TripMember).where(
             TripMember.trip_id == trip_id,
             TripMember.is_admin == True,
+            TripMember.is_deleted == False,
         )
         result = await session.execute(admin_count_statement)
         admin_count = len(result.scalars().all())
@@ -344,23 +374,32 @@ async def remove_member(
                 detail="Cannot remove the last admin. Promote another member first.",
             )
 
-    # Check for unsettled debts
-    debt_statement = select(MemberDebt).where(
-        or_(
-            MemberDebt.debtor_member_id == member_id,
-            MemberDebt.creditor_member_id == member_id
-        ),
-        MemberDebt.amount > 0
-    )
-    result = await session.execute(debt_statement)
-    if result.scalars().first():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot remove member with unsettled debts. Settle all debts first.",
-        )
+    # Check for unsettled debts (using balance calculation to net out debts)
+    from app.services.debt import get_member_balances
 
-    # Delete member
-    await session.delete(member)
+    balances_data = await get_member_balances(trip_id, session, simplify=True)
+
+    # Find this member's balance
+    member_balance = next(
+        (b for b in balances_data["member_balances"] if b["member_id"] == member_id),
+        None,
+    )
+
+    if member_balance:
+        # Check if they have any net balance (either owed or owing)
+        net_balance = abs(member_balance["net_balance"])
+        if net_balance > 0.01:  # Allow small floating point errors
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot remove member with unsettled debts. Settle all debts first.",
+            )
+
+    # Soft-delete member (preserve nickname for historical expenses)
+    member.is_deleted = True
+    member.deleted_at = utcnow()
+    member.user_id = None  # Unlink from user account
+    member.is_admin = False  # Remove admin privileges
+    session.add(member)
     await session.commit()
 
 
@@ -373,7 +412,7 @@ async def generate_invite_link(
     """
     Generate or retrieve an invite link for a trip.
     Only trip admins can generate invite links.
-    
+
     - If an invite already exists for this trip, reuse it and extend expiration.
     - If no invite exists, create a new one.
     - Expiration is always set/extended to 7 days from now.
@@ -435,7 +474,7 @@ async def decode_invite_link(
     Returns trip details so the user can see what they're joining.
     """
     # Validate code format
-    if len(code) != 16 or not all(c in '0123456789abcdef' for c in code.lower()):
+    if len(code) != 16 or not all(c in "0123456789abcdef" for c in code.lower()):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid invite code format",
@@ -468,7 +507,9 @@ async def decode_invite_link(
         )
 
     # Get member count
-    members_statement = select(TripMember).where(TripMember.trip_id == trip.id)
+    members_statement = select(TripMember).where(
+        TripMember.trip_id == trip.id, TripMember.is_deleted == False
+    )
     result = await session.execute(members_statement)
     members = result.scalars().all()
     member_count = len(members)
@@ -497,12 +538,12 @@ async def join_trip_via_invite(
 ) -> MemberResponse:
     """
     Join a trip via invite code.
-    
+
     If there's a pending invitation for this user's email, claims it.
     Otherwise, adds the user as a new member.
     """
     # Validate code format
-    if len(code) != 16 or not all(c in '0123456789abcdef' for c in code.lower()):
+    if len(code) != 16 or not all(c in "0123456789abcdef" for c in code.lower()):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid invite code format",
@@ -536,11 +577,12 @@ async def join_trip_via_invite(
             detail="Trip not found",
         )
 
-    # Check if user is already an active member
+    # Check if user is already an active non-deleted member
     existing_member_statement = select(TripMember).where(
         TripMember.trip_id == trip_id,
         TripMember.user_id == current_user.id,
         TripMember.status == "active",
+        TripMember.is_deleted == False,
     )
     result = await session.execute(existing_member_statement)
     existing_member = result.scalar_one_or_none()
@@ -549,12 +591,34 @@ async def join_trip_via_invite(
         # User is already a member - return their membership
         return await build_member_response(existing_member, session)
 
-    # Check for pending or placeholder invitation with user's email
+    # Check for soft-deleted member with same user_id - restore if found
+    deleted_by_user_statement = select(TripMember).where(
+        TripMember.trip_id == trip_id,
+        TripMember.user_id == current_user.id,
+        TripMember.is_deleted == True,
+    )
+    result = await session.execute(deleted_by_user_statement)
+    deleted_member = result.scalar_one_or_none()
+
+    if deleted_member:
+        # Restore the deleted member
+        deleted_member.is_deleted = False
+        deleted_member.deleted_at = None
+        deleted_member.user_id = current_user.id
+        deleted_member.status = "active"
+        deleted_member.joined_at = utcnow()
+        session.add(deleted_member)
+        await session.commit()
+        await session.refresh(deleted_member)
+        return await build_member_response(deleted_member, session)
+
+    # Check for pending or placeholder invitation with user's email (non-deleted)
     # This allows both pending invites AND placeholders with email to be claimed
     invitation_statement = select(TripMember).where(
         TripMember.trip_id == trip_id,
         TripMember.invited_email == current_user.email,
         TripMember.status.in_(["pending", "placeholder"]),
+        TripMember.is_deleted == False,
     )
     result = await session.execute(invitation_statement)
     invited_member = result.scalar_one_or_none()
@@ -568,6 +632,27 @@ async def join_trip_via_invite(
         await session.commit()
         await session.refresh(invited_member)
         return await build_member_response(invited_member, session)
+
+    # Check for soft-deleted member with same email - restore if found
+    deleted_by_email_statement = select(TripMember).where(
+        TripMember.trip_id == trip_id,
+        TripMember.invited_email == current_user.email,
+        TripMember.is_deleted == True,
+    )
+    result = await session.execute(deleted_by_email_statement)
+    deleted_member = result.scalar_one_or_none()
+
+    if deleted_member:
+        # Restore the deleted member
+        deleted_member.is_deleted = False
+        deleted_member.deleted_at = None
+        deleted_member.user_id = current_user.id
+        deleted_member.status = "active"
+        deleted_member.joined_at = utcnow()
+        session.add(deleted_member)
+        await session.commit()
+        await session.refresh(deleted_member)
+        return await build_member_response(deleted_member, session)
 
     # No pending invitation - add user as a new member
     member = TripMember(
@@ -585,4 +670,3 @@ async def join_trip_via_invite(
 
     # Build response
     return await build_member_response(member, session)
-

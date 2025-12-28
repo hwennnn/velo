@@ -58,8 +58,10 @@ export default function MembersPage() {
     const updateMemberMutation = useUpdateMember(tripId!);
     const leaveTripMutation = useLeaveTrip(tripId!);
 
-    const members = trip?.members || [];
-    const currentMember = members.find(m => m.user_id === user?.id);
+    const allMembers = trip?.members || [];
+    // Only show active members in the list
+    const members = allMembers.filter(m => !m.is_deleted);
+    const currentMember = allMembers.find(m => m.user_id === user?.id);
     const isCurrentUserAdmin = currentMember?.is_admin || false;
 
     // Handlers

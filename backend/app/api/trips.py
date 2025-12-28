@@ -36,7 +36,7 @@ async def create_trip(
     """
     # Create trip
     now = utcnow()
-    
+
     trip = Trip(
         name=trip_data.name,
         description=trip_data.description,
@@ -71,7 +71,9 @@ async def create_trip(
     response.member_count = 1
 
     # Get all members
-    members_statement = select(TripMember).where(TripMember.trip_id == response.id)
+    members_statement = select(TripMember).where(
+        TripMember.trip_id == response.id, TripMember.is_deleted == False
+    )
     result = await session.execute(members_statement)
     members = result.scalars().all()
 
@@ -93,7 +95,8 @@ async def list_trips(
     """
     # Get trip IDs where user is a member
     member_statement = select(TripMember.trip_id).where(
-        TripMember.user_id == current_user.id
+        TripMember.user_id == current_user.id,
+        TripMember.is_deleted == False,
     )
     result = await session.execute(member_statement)
     trip_ids = result.scalars().all()
@@ -166,6 +169,7 @@ async def get_trip(
     member_statement = select(TripMember).where(
         TripMember.trip_id == trip_id,
         TripMember.user_id == current_user.id,
+        TripMember.is_deleted == False,
     )
     result = await session.execute(member_statement)
     member = result.scalar_one_or_none()
@@ -213,6 +217,7 @@ async def update_trip(
         TripMember.trip_id == trip_id,
         TripMember.user_id == current_user.id,
         TripMember.is_admin == True,
+        TripMember.is_deleted == False,
     )
     result = await session.execute(member_statement)
     member = result.scalar_one_or_none()
@@ -244,7 +249,8 @@ async def update_trip(
 
     # Get member count
     member_count_statement = select(func.count(TripMember.id)).where(
-        TripMember.trip_id == trip_id
+        TripMember.trip_id == trip_id,
+        TripMember.is_deleted == False,
     )
     result = await session.execute(member_count_statement)
     member_count = result.scalar_one()
@@ -278,6 +284,7 @@ async def delete_trip(
         TripMember.trip_id == trip_id,
         TripMember.user_id == current_user.id,
         TripMember.is_admin == True,
+        TripMember.is_deleted == False,
     )
     result = await session.execute(member_statement)
     member = result.scalar_one_or_none()
@@ -319,6 +326,7 @@ async def leave_trip(
     member_statement = select(TripMember).where(
         TripMember.trip_id == trip_id,
         TripMember.user_id == current_user.id,
+        TripMember.is_deleted == False,
     )
     result = await session.execute(member_statement)
     member = result.scalar_one_or_none()
@@ -334,6 +342,7 @@ async def leave_trip(
         admin_count_statement = select(TripMember).where(
             TripMember.trip_id == trip_id,
             TripMember.is_admin == True,
+            TripMember.is_deleted == False,
         )
         result = await session.execute(admin_count_statement)
         admin_count = len(result.scalars().all())

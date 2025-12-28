@@ -102,6 +102,7 @@ async def check_trip_access(
     member_statement = select(TripMember).where(
         TripMember.trip_id == trip_id,
         TripMember.user_id == user.id,
+        TripMember.is_deleted == False,
     )
     result = await session.execute(member_statement)
     member = result.scalar_one_or_none()
@@ -228,13 +229,13 @@ async def record_settlement_payment(
 
     expense_id = result["expense_id"]
     expense = await session.get(Expense, expense_id)
-    
+
     if not expense:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve created settlement expense",
         )
-    
+
     return await get_expense_response(expense, session)
 
 

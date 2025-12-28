@@ -40,13 +40,18 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                     className="w-12 h-12"
                     member={{
                       id: balance.member_id,
-                      nickname: member?.nickname ?? balance.member_nickname,
+                      nickname: member?.nickname ?? balance.member_nickname ?? "Unknown",
                       display_name: member?.display_name,
                       avatar_url: member?.avatar_url,
                     }}
                   />
                   <div className="flex-1">
-                    <h4 className="font-medium text-gray-900">{balance.member_nickname}</h4>
+                    <h4 className="font-medium text-gray-900">
+                      {balance.member_nickname}
+                      {(member?.is_deleted || balance.member_is_deleted) && (
+                        <span className="ml-2 text-xs font-normal text-gray-400 italic">(Inactive)</span>
+                      )}
+                    </h4>
                     <div className="flex gap-4 mt-1 text-xs text-gray-500">
                       <span className="flex flex-col">
                         <span>You owe:</span>

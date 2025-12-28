@@ -53,6 +53,7 @@ async def check_trip_access(
     member_statement = select(TripMember).where(
         TripMember.trip_id == trip_id,
         TripMember.user_id == user.id,
+        TripMember.is_deleted == False,
     )
     result = await session.execute(member_statement)
     member = result.scalar_one_or_none()
@@ -86,7 +87,11 @@ async def create_expense(
 
     # Verify paid_by_member exists and belongs to this trip
     paid_by_member = await session.get(TripMember, expense_data.paid_by_member_id)
-    if not paid_by_member or paid_by_member.trip_id != trip_id:
+    if (
+        not paid_by_member
+        or paid_by_member.trip_id != trip_id
+        or paid_by_member.is_deleted
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid paid_by_member_id",
@@ -134,7 +139,9 @@ async def create_expense(
             member_ids = [split.member_id for split in expense_data.splits]
         else:
             # Fallback: Get all trip members
-            members_statement = select(TripMember).where(TripMember.trip_id == trip_id)
+            members_statement = select(TripMember).where(
+                TripMember.trip_id == trip_id,
+            )
             result = await session.execute(members_statement)
             members = result.scalars().all()
             member_ids = [member.id for member in members]
@@ -260,7 +267,7 @@ async def create_expense(
     # Update trip metadata
     trip.total_spent += amount_in_base
     trip.expense_count += 1
-    
+
     session.add(trip)
     await session.commit()
 
@@ -274,6 +281,12 @@ async def get_expense_response(
     """Build expense response with splits"""
     # Get paid by member
     paid_by_member = await session.get(TripMember, expense.paid_by_member_id)
+
+    if not paid_by_member:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid paid_by_member_id",
+        )
 
     # Get splits
     splits_statement = select(Split).where(Split.expense_id == expense.id)
@@ -522,7 +535,8 @@ async def update_expense(
             else:
                 # Get all trip members
                 members_statement = select(TripMember).where(
-                    TripMember.trip_id == trip_id
+                    TripMember.trip_id == trip_id,
+                    TripMember.is_deleted == False,
                 )
                 result = await session.execute(members_statement)
                 members = result.scalars().all()
@@ -639,7 +653,9 @@ async def update_expense(
             # Regular expense: update debts for expense modification
             from app.services.debt import update_debts_for_expense_modification
 
-            await update_debts_for_expense_modification(expense, current_splits, session)
+            await update_debts_for_expense_modification(
+                expense, current_splits, session
+            )
         else:
             # Settlement: update debts for settlement modification
             from app.services.debt import update_debts_for_settlement_modification
@@ -650,9 +666,8 @@ async def update_expense(
 
     # Update trip metadata if amount changed (only for regular expenses, not settlements)
     if (
-        ("amount" in update_data or "currency" in update_data)
-        and expense.expense_type == "expense"
-    ):
+        "amount" in update_data or "currency" in update_data
+    ) and expense.expense_type == "expense":
         new_amount_in_base = expense.amount * expense.exchange_rate_to_base
         trip.total_spent = trip.total_spent - old_amount_in_base + new_amount_in_base
         trip.updated_at = utcnow()

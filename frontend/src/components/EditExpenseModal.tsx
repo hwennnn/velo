@@ -103,7 +103,9 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
     );
     // If no splits present (shouldn’t happen), default to all
     setSelectedMembers(
-      memberIds.size > 0 ? memberIds : new Set(members.map((m) => m.id))
+      memberIds.size > 0
+        ? memberIds
+        : new Set(members.filter(m => !m.is_deleted).map((m) => m.id))
     );
 
     const splitMap: Record<number, string> = {};
@@ -358,26 +360,28 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
                 Who Paid? *
               </label>
               <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
-                {members.map((member) => (
-                  <button
-                    key={member.id}
-                    type="button"
-                    onClick={() => setPaidBy(member.id)}
-                    className={`flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${paidBy === member.id
-                      ? "border-primary-500 bg-primary-50"
-                      : "border-gray-200 hover:bg-gray-50"
-                      }`}
-                  >
-                    <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-xs font-semibold text-gray-700">
-                      {getMemberInitials(member.nickname)}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium text-gray-900 truncate">
-                        {member.nickname}
+                {members
+                  .filter(m => !m.is_deleted || paidBy === m.id)
+                  .map((member) => (
+                    <button
+                      key={member.id}
+                      type="button"
+                      onClick={() => setPaidBy(member.id)}
+                      className={`flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${paidBy === member.id
+                        ? "border-primary-500 bg-primary-50"
+                        : "border-gray-200 hover:bg-gray-50"
+                        }`}
+                    >
+                      <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-xs font-semibold text-gray-700">
+                        {getMemberInitials(member.nickname)}
                       </div>
-                    </div>
-                  </button>
-                ))}
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-gray-900 truncate">
+                          {member.nickname}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
               </div>
             </div>
           )}
@@ -483,32 +487,34 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
                   Who is included?
                 </label>
                 <div className="grid grid-cols-2 gap-2">
-                  {members.map((member) => (
-                    <button
-                      key={member.id}
-                      type="button"
-                      onClick={() => toggleMember(member.id)}
-                      className={`flex items-center justify-between p-3 rounded-lg border text-left ${selectedMembers.has(member.id)
-                        ? "border-primary-500 bg-primary-50"
-                        : "border-gray-200 hover:bg-gray-50"
-                        }`}
-                      disabled={isLoading}
-                    >
-                      <span className="text-sm font-medium text-gray-900">
-                        {member.nickname}
-                      </span>
-                      <span
-                        className={`text-xs px-2 py-1 rounded-full ${selectedMembers.has(member.id)
-                          ? "bg-primary-100 text-primary-700"
-                          : "bg-gray-100 text-gray-600"
+                  {members
+                    .filter(m => !m.is_deleted || selectedMembers.has(m.id))
+                    .map((member) => (
+                      <button
+                        key={member.id}
+                        type="button"
+                        onClick={() => toggleMember(member.id)}
+                        className={`flex items-center justify-between p-3 rounded-lg border text-left ${selectedMembers.has(member.id)
+                          ? "border-primary-500 bg-primary-50"
+                          : "border-gray-200 hover:bg-gray-50"
                           }`}
+                        disabled={isLoading}
                       >
-                        {selectedMembers.has(member.id)
-                          ? "Included"
-                          : "Excluded"}
-                      </span>
-                    </button>
-                  ))}
+                        <span className="text-sm font-medium text-gray-900">
+                          {member.nickname}
+                        </span>
+                        <span
+                          className={`text-xs px-2 py-1 rounded-full ${selectedMembers.has(member.id)
+                            ? "bg-primary-100 text-primary-700"
+                            : "bg-gray-100 text-gray-600"
+                            }`}
+                        >
+                          {selectedMembers.has(member.id)
+                            ? "Included"
+                            : "Excluded"}
+                        </span>
+                      </button>
+                    ))}
                 </div>
               </div>
 
@@ -520,6 +526,7 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
                   </label>
                   <div className="space-y-2">
                     {selectedMembersList.map((memberId) => {
+                      // Find member in full list (including deleted)
                       const member = members.find((m) => m.id === memberId);
                       if (!member) return null;
                       return (

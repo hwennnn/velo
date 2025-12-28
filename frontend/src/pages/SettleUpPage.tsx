@@ -246,8 +246,10 @@ export default function SettleUpPage() {
                 map.set(key, {
                     from_id: d.from_member_id,
                     to_id: d.to_member_id,
-                    from_name: d.from_nickname,
-                    to_name: d.to_nickname,
+                    from_name: (d.from_nickname || 'Unknown') + (d.from_member_is_deleted ? ' (Inactive)' : ''),
+                    to_name: (d.to_nickname || 'Unknown') + (d.to_member_is_deleted ? ' (Inactive)' : ''),
+                    from_is_deleted: d.from_member_is_deleted,
+                    to_is_deleted: d.to_member_is_deleted,
                     rows: [d],
                     total_base: d.amount_in_base ?? 0,
                     totals_by_currency: { [d.currency]: Number(d.amount) },

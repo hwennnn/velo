@@ -78,6 +78,7 @@ class MemberResponse(BaseModel):
     invited_at: Optional[str] = None  # When invitation was sent
     created_at: Optional[str] = None  # When member was created/added
     joined_at: Optional[str] = None  # When member joined (pending->active)
+    is_deleted: bool = False  # Soft-delete flag
 
     class Config:
         from_attributes = True

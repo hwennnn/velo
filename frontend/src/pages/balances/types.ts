@@ -27,6 +27,8 @@ export type GroupedDebt = {
   to_id: number;
   from_name: string;
   to_name: string;
+  from_is_deleted?: boolean;
+  to_is_deleted?: boolean;
   rows: Debt[];
   total_base: number;
   totals_by_currency: Record<string, number>;

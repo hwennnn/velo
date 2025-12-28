@@ -77,6 +77,12 @@ class TripMember(SQLModel, table=True):
     joined_at: Optional[datetime] = Field(
         default=None, description="When user joined the trip (for pending->active)"
     )
+    
+    # Soft delete fields
+    is_deleted: bool = Field(default=False, description="Whether this member has been soft-deleted")
+    deleted_at: Optional[datetime] = Field(
+        default=None, description="When member was soft-deleted"
+    )
 
     class Config:
         json_schema_extra = {

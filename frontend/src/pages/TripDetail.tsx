@@ -235,7 +235,7 @@ export default function TripDetail() {
         isOpen={showAddExpenseModal}
         onClose={() => setShowAddExpenseModal(false)}
         onCreate={handleCreateExpense}
-        members={trip.members || []}
+        members={trip.members?.filter(m => !m.is_deleted) || []}
         baseCurrency={trip.base_currency}
       />
 
@@ -244,7 +244,7 @@ export default function TripDetail() {
         selectedCategory={selectedCategory}
         selectedMember={selectedMemberFilter}
         selectedExpenseType={selectedExpenseType}
-        members={trip.members || []}
+        members={trip.members?.filter(m => !m.is_deleted) || []}
         onClose={() => setShowFilterModal(false)}
         onApply={(category, memberId, expenseType) => {
           setSelectedCategory(category);

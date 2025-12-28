@@ -45,6 +45,7 @@ export interface TripMember {
   invited_at?: string;     // When invitation was sent
   created_at?: string;     // When member was created/added
   joined_at?: string;      // When member joined (pending->active)
+  is_deleted?: boolean;    // Whether member has been soft-deleted
 }
 
 export interface Expense {
@@ -80,7 +81,8 @@ export interface Split {
 
 export interface Balance {
   member_id: number;
-  member_nickname: string;
+  member_nickname?: string;
+  member_is_deleted?: boolean;
   total_owed: number; // What they owe to others (in BASE CURRENCY)
   total_owed_to: number; // What others owe them (in BASE CURRENCY)
   net_balance: number; // total_owed_to - total_owed (in BASE CURRENCY)
@@ -90,8 +92,10 @@ export interface Balance {
 export interface Debt {
   from_member_id: number;
   to_member_id: number;
-  from_nickname: string;
-  to_nickname: string;
+  from_nickname?: string;
+  to_nickname?: string;
+  from_member_is_deleted?: boolean;
+  to_member_is_deleted?: boolean;
   amount: number;
   currency: string;
   amount_in_base: number;

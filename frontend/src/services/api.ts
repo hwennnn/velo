@@ -56,8 +56,13 @@ export const api = {
     update: (id: string, data: any) => apiClient.put(`/trips/${id}`, data),
     delete: (id: string) => apiClient.delete(`/trips/${id}`),
     generateInvite: (tripId: string) => apiClient.post(`/trips/${tripId}/invite`),
-    joinViaInvite: (tripId: string) => apiClient.post(`/trips/${tripId}/join`),
     leave: (id: string) => apiClient.post(`/trips/${id}/leave`),
+  },
+
+  // Invites (new secure invite system)
+  invites: {
+    decode: (code: string) => apiClient.get(`/invites/${code}`),
+    join: (code: string) => apiClient.post(`/invites/${code}/join`),
   },
 
   // Members

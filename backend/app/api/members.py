@@ -15,6 +15,7 @@ from app.core.datetime_utils import utcnow, to_utc_isoformat
 from app.models.user import User
 from app.models.trip import Trip
 from app.models.trip_member import TripMember
+from app.models.trip_invite import TripInvite
 from app.models.expense import Expense
 from app.models.split import Split
 from app.models.member_debt import MemberDebt
@@ -23,6 +24,7 @@ from app.schemas.member import (
     MemberUpdate,
     MemberResponse,
     InviteLinkResponse,
+    InviteInfoResponse,
 )
 from app.core.config import settings
 
@@ -369,46 +371,163 @@ async def generate_invite_link(
     session: AsyncSession = Depends(get_session),
 ) -> InviteLinkResponse:
     """
-    Generate an invite link for a trip.
+    Generate or retrieve an invite link for a trip.
     Only trip admins can generate invite links.
+    
+    - If an invite already exists for this trip, reuse it and extend expiration.
+    - If no invite exists, create a new one.
+    - Expiration is always set/extended to 7 days from now.
     """
+    from datetime import timedelta
+    import secrets
+
     # Check admin access
     trip, _ = await check_trip_access(
         trip_id, current_user, session, require_admin=True
     )
 
-    # Generate invite code (simple implementation - use trip_id)
-    # In production, you'd want to use a more secure token
-    import hashlib
-    import time
+    # Check for existing invite for this trip
+    existing_invite_statement = select(TripInvite).where(TripInvite.trip_id == trip_id)
+    result = await session.execute(existing_invite_statement)
+    invite = result.scalar_one_or_none()
 
-    invite_data = f"{trip_id}-{time.time()}"
-    invite_code = hashlib.sha256(invite_data.encode()).hexdigest()[:16]
+    # Calculate new expiration: 7 days from now
+    new_expiration = utcnow() + timedelta(days=7)
 
-    # In a real app, you'd store this in a database with expiration
-    # For now, we'll just return a simple response
-    # The frontend URL should be configured
+    if invite:
+        # Reuse existing invite - just extend expiration
+        invite.expires_at = new_expiration
+        session.add(invite)
+        await session.commit()
+        await session.refresh(invite)
+    else:
+        # Create new invite
+        invite_code = secrets.token_hex(8)  # 16 chars hex
+        invite = TripInvite(
+            trip_id=trip_id,
+            code=invite_code,
+            created_by=current_user.id,
+            expires_at=new_expiration,
+        )
+        session.add(invite)
+        await session.commit()
+        await session.refresh(invite)
+
+    # Return URL with just the code (no trip_id exposed)
     frontend_url = settings.frontend_url
-    invite_url = f"{frontend_url}/join?trip={trip_id}&code={invite_code}"
+    invite_url = f"{frontend_url}/join/{invite.code}"
 
     return InviteLinkResponse(
-        invite_code=invite_code,
+        invite_code=invite.code,
         invite_url=invite_url,
+        expires_at=to_utc_isoformat(invite.expires_at) if invite.expires_at else None,
     )
 
 
-@router.post("/trips/{trip_id}/join", response_model=MemberResponse)
+@router.get("/invites/{code}", response_model=InviteInfoResponse)
+async def decode_invite_link(
+    code: str,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> InviteInfoResponse:
+    """
+    Decode an invite link and return trip information.
+    Returns trip details so the user can see what they're joining.
+    """
+    # Validate code format
+    if len(code) != 16 or not all(c in '0123456789abcdef' for c in code.lower()):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid invite code format",
+        )
+
+    # Look up invite in database
+    invite_statement = select(TripInvite).where(TripInvite.code == code)
+    result = await session.execute(invite_statement)
+    invite = result.scalar_one_or_none()
+
+    if not invite:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invite code not found or has expired",
+        )
+
+    # Check if expired (if expires_at is set)
+    if invite.expires_at and invite.expires_at < utcnow():
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="This invite link has expired",
+        )
+
+    # Get trip details
+    trip = await session.get(Trip, invite.trip_id)
+    if not trip or trip.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trip not found or has been deleted",
+        )
+
+    # Get member count
+    members_statement = select(TripMember).where(TripMember.trip_id == trip.id)
+    result = await session.execute(members_statement)
+    members = result.scalars().all()
+    member_count = len(members)
+
+    # Check if current user is already a member
+    is_already_member = any(m.user_id == current_user.id for m in members)
+
+    return InviteInfoResponse(
+        code=code,
+        trip_id=trip.id,
+        trip_name=trip.name,
+        trip_description=trip.description,
+        base_currency=trip.base_currency,
+        start_date=to_utc_isoformat(trip.start_date) if trip.start_date else None,
+        end_date=to_utc_isoformat(trip.end_date) if trip.end_date else None,
+        member_count=member_count,
+        is_already_member=is_already_member,
+    )
+
+
+@router.post("/invites/{code}/join", response_model=MemberResponse)
 async def join_trip_via_invite(
-    trip_id: int,
+    code: str,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> MemberResponse:
     """
-    Join a trip via invite link.
+    Join a trip via invite code.
     
     If there's a pending invitation for this user's email, claims it.
     Otherwise, adds the user as a new member.
     """
+    # Validate code format
+    if len(code) != 16 or not all(c in '0123456789abcdef' for c in code.lower()):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid invite code format",
+        )
+
+    # Look up invite in database
+    invite_statement = select(TripInvite).where(TripInvite.code == code)
+    result = await session.execute(invite_statement)
+    invite = result.scalar_one_or_none()
+
+    if not invite:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invite code not found",
+        )
+
+    # Check if expired
+    if invite.expires_at and invite.expires_at < utcnow():
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="This invite link has expired",
+        )
+
+    trip_id = invite.trip_id
+
     # Check if trip exists
     trip = await session.get(Trip, trip_id)
     if not trip or trip.is_deleted:
@@ -466,3 +585,4 @@ async def join_trip_via_invite(
 
     # Build response
     return await build_member_response(member, session)
+

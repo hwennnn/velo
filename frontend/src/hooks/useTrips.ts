@@ -150,13 +150,32 @@ export function useDeleteTrip() {
   });
 }
 
-// Generate invite link mutation
-export function useGenerateInvite(tripId: string) {
-  return useMutation({
-    mutationFn: async () => {
+// Query keys for invites
+export const inviteKeys = {
+  all: ['invites'] as const,
+  trip: (tripId: string) => [...inviteKeys.all, tripId] as const,
+};
+
+// Invite link response type
+interface InviteLinkData {
+  invite_code: string;
+  invite_url: string;
+  expires_at: string | null;
+}
+
+// Generate/get invite link - uses query for caching
+// Call refetch() to generate a new one or extend expiration
+export function useInviteLink(tripId: string, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: inviteKeys.trip(tripId),
+    queryFn: async () => {
       const response = await api.trips.generateInvite(tripId);
-      return response.data.invite_url as string;
+      return response.data as InviteLinkData;
     },
+    enabled: options?.enabled ?? false, // Only fetch when modal opens
+    staleTime: 5 * 60 * 1000, // Consider fresh for 5 minutes
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
   });
 }
+
 

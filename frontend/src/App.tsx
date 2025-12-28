@@ -68,7 +68,7 @@ function App() {
                   {/* Public routes */}
                   <Route path="/auth/login" element={<Login />} />
                   <Route path="/auth/callback" element={<AuthCallback />} />
-                  <Route path="/join" element={<JoinTrip />} />
+                  <Route path="/join/:code" element={<JoinTrip />} />
                   <Route path="/privacy-policy" element={<PrivacyPolicy />} />
                   <Route path="/terms-of-service" element={<TermsOfService />} />
 

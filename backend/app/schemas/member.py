@@ -89,3 +89,17 @@ class InviteLinkResponse(BaseModel):
     invite_code: str
     invite_url: str
     expires_at: Optional[str] = None
+
+
+class InviteInfoResponse(BaseModel):
+    """Response for decode invite endpoint with trip preview info"""
+
+    code: str
+    trip_id: int
+    trip_name: str
+    trip_description: Optional[str] = None
+    base_currency: str
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    member_count: int
+    is_already_member: bool

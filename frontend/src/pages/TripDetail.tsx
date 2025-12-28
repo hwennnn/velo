@@ -10,33 +10,21 @@ import { Avatar } from '../components/Avatar';
 import { CreateExpenseModal } from '../components/CreateExpenseModal';
 import { ExpenseList } from '../components/ExpenseList';
 import { FilterModal } from '../components/FilterModal';
-import { InviteModal } from '../components/InviteModal';
 import { TripDetailSkeleton } from '../components/TripDetailSkeleton';
-import { useAlert } from '../contexts/AlertContext';
 import { useAuth } from '../hooks/useAuth';
 import { useBalances } from '../hooks/useBalances';
 import { useCreateExpense, useExpenses, type ExpenseFilters } from '../hooks/useExpenses';
-import { useAddMember } from '../hooks/useMembers';
-import { useGenerateInvite, useTrip } from '../hooks/useTrips';
-import type { AddMemberInput, CreateExpenseInput, TripMember } from '../types';
+import { useTrip } from '../hooks/useTrips';
+import type { CreateExpenseInput } from '../types';
 import { formatDateRange } from '../utils/dateUtils';
 
 export default function TripDetail() {
   const { tripId } = useParams<{ tripId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { showAlert } = useAlert();
 
-  // UI State - Declare before hooks that depend on them
-  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
-  // balances/settle up now lives on /trips/:tripId/balances
   const [showFilterModal, setShowFilterModal] = useState(false);
-  const [inviteLink, setInviteLink] = useState<string | null>(null);
-  const [inviteError, setInviteError] = useState<string | null>(null);
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [selectedMember, setSelectedMember] = useState<TripMember | null>(null);
-  const [showMemberDetail, setShowMemberDetail] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedMemberFilter, setSelectedMemberFilter] = useState<number | null>(null);
   const [selectedExpenseType, setSelectedExpenseType] = useState('all');
@@ -65,40 +53,10 @@ export default function TripDetail() {
   const { data: balances = [] } = useBalances(tripId);
 
   const createExpenseMutation = useCreateExpense(tripId!, trip?.members, user?.id);
-  const addMemberMutation = useAddMember(tripId!);
-  const generateInviteMutation = useGenerateInvite(tripId!);
-
-  const handleAddMember = async (memberData: AddMemberInput) => {
-    await addMemberMutation.mutateAsync(memberData);
-    setShowAddMemberModal(false);
-  };
 
   const handleCreateExpense = async (expenseData: CreateExpenseInput) => {
     await createExpenseMutation.mutateAsync(expenseData);
     setShowAddExpenseModal(false);
-  };
-
-  const handleGenerateInvite = async () => {
-    setInviteError(null);
-    setInviteLink(null);
-    setShowInviteModal(true);
-
-    try {
-      const url = await generateInviteMutation.mutateAsync();
-      setInviteLink(url);
-    } catch (error) {
-      const err = error as { response?: { data?: { detail?: string } } };
-      const message = err.response?.data?.detail || 'Failed to generate invite link';
-      setInviteError(message);
-      showAlert(message, { type: 'error' });
-    }
-  };
-
-  const handleCopyInvite = () => {
-    if (inviteLink) {
-      navigator.clipboard.writeText(inviteLink);
-      showAlert('Invite link copied to clipboard!', { type: 'success', autoClose: true });
-    }
   };
 
   const formatCurrency = (amount: number, currency: string) => {
@@ -294,19 +252,6 @@ export default function TripDetail() {
           setSelectedExpenseType(expenseType);
           setShowFilterModal(false);
         }}
-      />
-      {/* Invite Link Modal */}
-      <InviteModal
-        isOpen={showInviteModal}
-        inviteLink={inviteLink}
-        isLoading={generateInviteMutation.isPending}
-        error={inviteError}
-        onClose={() => {
-          setShowInviteModal(false);
-          setInviteError(null);
-        }}
-        onCopy={handleCopyInvite}
-        onRetry={handleGenerateInvite}
       />
     </div>
   );

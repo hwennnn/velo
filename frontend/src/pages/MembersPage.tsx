@@ -16,7 +16,7 @@ import { Shimmer } from '../components/Shimmer';
 import { useAlert } from '../contexts/AlertContext';
 import { useAuth } from '../hooks/useAuth';
 import { useAddMember, useLeaveTrip, useRemoveMember, useUpdateMember } from '../hooks/useMembers';
-import { useGenerateInvite, useTrip } from '../hooks/useTrips';
+import { useTrip } from '../hooks/useTrips';
 import type { AddMemberInput, TripMember } from '../types';
 
 export default function MembersPage() {
@@ -31,8 +31,6 @@ export default function MembersPage() {
     const [showInviteModal, setShowInviteModal] = useState(false);
     const [selectedMember, setSelectedMember] = useState<TripMember | null>(null);
     const [showMemberDetail, setShowMemberDetail] = useState(false);
-    const [inviteLink, setInviteLink] = useState<string | null>(null);
-    const [inviteError, setInviteError] = useState<string | null>(null);
 
     // Data & Mutations
     const { data: trip, isLoading } = useTrip(tripId);
@@ -40,7 +38,6 @@ export default function MembersPage() {
     const removeMemberMutation = useRemoveMember(tripId!);
     const updateMemberMutation = useUpdateMember(tripId!);
     const leaveTripMutation = useLeaveTrip(tripId!);
-    const generateInviteMutation = useGenerateInvite(tripId!);
 
     const members = trip?.members || [];
     const currentMember = members.find(m => m.user_id === user?.id);
@@ -145,28 +142,6 @@ export default function MembersPage() {
         }
     };
 
-    const handleGenerateInvite = async () => {
-        setInviteError(null);
-        setInviteLink(null);
-        setShowInviteModal(true);
-
-        try {
-            const url = await generateInviteMutation.mutateAsync();
-            setInviteLink(url);
-        } catch (error) {
-            const err = error as { response?: { data?: { detail?: string } } };
-            const message = err.response?.data?.detail || 'Failed to generate invite link';
-            setInviteError(message);
-        }
-    };
-
-    const handleCopyInvite = () => {
-        if (inviteLink) {
-            navigator.clipboard.writeText(inviteLink);
-            showAlert('Invite link copied to clipboard!', { type: 'success', autoClose: true });
-        }
-    };
-
     const getStatusBadge = (member: TripMember) => {
         if (member.status === 'placeholder') {
             return <span className="px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">Placeholder</span>;
@@ -204,7 +179,7 @@ export default function MembersPage() {
                     {isCurrentUserAdmin && (
                         <div className="flex items-center gap-2">
                             <button
-                                onClick={handleGenerateInvite}
+                                onClick={() => setShowInviteModal(true)}
                                 className="p-2 rounded-full hover:bg-gray-100 transition-colors"
                                 title="Generate invite link"
                             >
@@ -395,15 +370,8 @@ export default function MembersPage() {
 
             <InviteModal
                 isOpen={showInviteModal}
-                inviteLink={inviteLink}
-                isLoading={generateInviteMutation.isPending}
-                error={inviteError}
-                onClose={() => {
-                    setShowInviteModal(false);
-                    setInviteError(null);
-                }}
-                onCopy={handleCopyInvite}
-                onRetry={handleGenerateInvite}
+                tripId={tripId!}
+                onClose={() => setShowInviteModal(false)}
             />
         </div>
     );

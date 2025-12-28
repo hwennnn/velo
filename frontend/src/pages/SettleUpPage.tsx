@@ -5,8 +5,9 @@
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Plus, Shield } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { SettleUpInfoModal } from '../components/SettleUpInfoModal';
 import { Shimmer } from '../components/Shimmer';
 import { useAlert } from '../contexts/AlertContext';
 import { useAuth } from '../hooks/useAuth';
@@ -39,9 +40,23 @@ export default function SettleUpPage() {
     const [settlementDraft, setSettlementDraft] = useState<SettlementDraftState>(null);
     const [modalView, setModalView] = useState<'settle' | 'convert'>('settle');
     const [convertDraft, setConvertDraft] = useState<ConvertDraftState>(null);
+    const [showInfoModal, setShowInfoModal] = useState(false);
     const [draftSource, setDraftSource] = useState<'debt' | 'manual' | null>(null);
 
     const exchangeRates = useMemo(() => exchangeRatesData?.rates || { [baseCurrency]: 1 }, [exchangeRatesData?.rates, baseCurrency]);
+
+    // Show info modal on first visit (per session)
+    useEffect(() => {
+        const hasSeenInfo = sessionStorage.getItem('settleup-info-seen');
+        if (!hasSeenInfo && trip) {
+            setShowInfoModal(true);
+        }
+    }, [trip]);
+
+    const handleCloseInfoModal = () => {
+        sessionStorage.setItem('settleup-info-seen', 'true');
+        setShowInfoModal(false);
+    };
 
     const mergeDebtMutation = useMutation({
         mutationFn: (mergeData: {
@@ -334,6 +349,9 @@ export default function SettleUpPage() {
                     lockConvertAmount={draftSource === 'debt'}
                 />
             )}
+
+            {/* Info Modal */}
+            <SettleUpInfoModal isOpen={showInfoModal} onClose={handleCloseInfoModal} />
         </div>
     );
 }

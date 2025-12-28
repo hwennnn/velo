@@ -117,7 +117,7 @@ export default function TripSettings() {
 
     if (tripLoading && !trip) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <div className="h-screen bg-gray-50 flex items-center justify-center">
                 <div className="text-gray-600">Loading trip settings...</div>
             </div>
         );
@@ -125,7 +125,7 @@ export default function TripSettings() {
 
     if (!trip || !tripId) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <div className="h-screen bg-gray-50 flex items-center justify-center">
                 <div className="text-center space-y-3">
                     <p className="text-gray-800 font-semibold">Trip not found</p>
                     <button
@@ -140,31 +140,33 @@ export default function TripSettings() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 overflow-y-auto">
-            <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => navigate(`/trips/${tripId}`)}
-                        className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                        aria-label="Back to trip"
-                    >
-                        <ArrowLeft className="w-5 h-5 text-gray-600" />
-                    </button>
-                    <div className="flex items-center gap-2">
-                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                            <Settings className="w-5 h-5 text-blue-600" />
-                        </div>
+        <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="sticky top-0 z-20 bg-white border-b border-gray-200">
+                <div className="max-w-3xl mx-auto px-5 py-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => navigate(`/trips/${tripId}`)}
+                            className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                        >
+                            <ArrowLeft className="w-5 h-5 text-gray-700" />
+                        </button>
                         <div>
-                            <h1 className="text-xl font-semibold text-gray-900">Trip Settings</h1>
+                            <div className="text-lg font-semibold text-gray-900">Trip Settings</div>
+                            <div className="text-xs text-gray-500">Manage your trip details</div>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
-                    <div className="p-6 space-y-4">
-                        <div className="space-y-4">
-                            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                                <FileText className="w-5 h-5 text-gray-600" />
+            {/* Content */}
+            <div className="flex-1 min-h-0 overflow-y-auto">
+                <div className="max-w-3xl mx-auto px-5 py-4 space-y-4">
+                    {/* Basic Information */}
+                    <div className="bg-white rounded-xl border border-gray-200">
+                        <div className="p-5 space-y-4">
+                            <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-gray-600" />
                                 Basic Information
                             </h2>
 
@@ -176,7 +178,7 @@ export default function TripSettings() {
                                         value={formData.name}
                                         onChange={(e) => handleInputChange('name', e.target.value)}
                                         disabled={!isAdmin}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500 text-sm"
                                         placeholder="Enter trip name"
                                     />
                                 </div>
@@ -188,16 +190,19 @@ export default function TripSettings() {
                                         onChange={(e) => handleInputChange('description', e.target.value)}
                                         disabled={!isAdmin}
                                         rows={3}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500 text-sm"
                                         placeholder="Enter trip description (optional)"
                                     />
                                 </div>
                             </div>
                         </div>
+                    </div>
 
-                        <div className="space-y-4">
-                            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                                <Calendar className="w-5 h-5 text-gray-600" />
+                    {/* Dates */}
+                    <div className="bg-white rounded-xl border border-gray-200">
+                        <div className="p-5 space-y-4">
+                            <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                                <Calendar className="w-4 h-4 text-gray-600" />
                                 Dates
                             </h2>
 
@@ -209,7 +214,7 @@ export default function TripSettings() {
                                         value={formData.start_date}
                                         onChange={(e) => handleInputChange('start_date', e.target.value)}
                                         disabled={!isAdmin}
-                                        className="w-full min-w-0 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
+                                        className="w-full min-w-0 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500 text-sm"
                                     />
                                 </div>
 
@@ -220,15 +225,18 @@ export default function TripSettings() {
                                         value={formData.end_date}
                                         onChange={(e) => handleInputChange('end_date', e.target.value)}
                                         disabled={!isAdmin}
-                                        className="w-full min-w-0 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
+                                        className="w-full min-w-0 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500 text-sm"
                                     />
                                 </div>
                             </div>
                         </div>
+                    </div>
 
-                        <div className="space-y-4">
-                            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                                <Settings className="w-5 h-5 text-gray-600" />
+                    {/* Balance Settings */}
+                    <div className="bg-white rounded-xl border border-gray-200">
+                        <div className="p-5 space-y-4">
+                            <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                                <Settings className="w-4 h-4 text-gray-600" />
                                 Balance Settings
                             </h2>
 
@@ -239,7 +247,7 @@ export default function TripSettings() {
                                         checked={formData.simplify_debts}
                                         onChange={(e) => handleInputChange('simplify_debts', e.target.checked)}
                                         disabled={!isAdmin}
-                                        className="mt-1 w-4 h-4 text-blue-600 rounded focus:ring-blue-500 disabled:opacity-50"
+                                        className="mt-0.5 w-4 h-4 text-blue-600 rounded focus:ring-blue-500 disabled:opacity-50"
                                     />
                                     <div>
                                         <div className="text-sm font-semibold text-gray-900">Simplify debts</div>
@@ -250,61 +258,64 @@ export default function TripSettings() {
                                 </label>
                             </div>
                         </div>
-
-                        {isAdmin ? (
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => navigate(`/trips/${tripId}`)}
-                                    disabled={isMutating}
-                                    className="flex-1 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleSave}
-                                    disabled={isMutating}
-                                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                                >
-                                    {updateTripMutation.isPending ? 'Saving...' : 'Save Changes'}
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                                Only trip admins can update these settings.
-                            </div>
-                        )}
                     </div>
-                </div>
 
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
-                    <div className="p-6 space-y-4">
-                        <h2 className="text-lg font-semibold text-gray-900">Danger Zone</h2>
-                        <div className="space-y-3">
+                    {/* Action Buttons */}
+                    {isAdmin ? (
+                        <div className="flex gap-3 pb-2">
                             <button
-                                onClick={() => setShowLeaveConfirm(true)}
+                                onClick={() => navigate(`/trips/${tripId}`)}
                                 disabled={isMutating}
-                                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors disabled:opacity-50"
+                                className="flex-1 px-4 py-2.5 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 text-sm font-medium"
                             >
-                                <LogOut className="w-4 h-4" />
-                                Leave Trip
+                                Cancel
                             </button>
-
                             <button
-                                onClick={() => setShowDeleteConfirm(true)}
-                                disabled={!isAdmin || isMutating}
-                                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50"
+                                onClick={handleSave}
+                                disabled={isMutating}
+                                className="flex-1 px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 text-sm font-medium"
                             >
-                                <Trash2 className="w-4 h-4" />
-                                Delete Trip
+                                {updateTripMutation.isPending ? 'Saving...' : 'Save Changes'}
                             </button>
-                            {!isAdmin && (
-                                <p className="text-xs text-gray-500 text-center">Only admins can delete a trip.</p>
-                            )}
+                        </div>
+                    ) : (
+                        <div className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-4 py-3">
+                            Only trip admins can update these settings.
+                        </div>
+                    )}
+
+                    {/* Danger Zone */}
+                    <div className="bg-white rounded-xl border border-red-200">
+                        <div className="p-5 space-y-4">
+                            <h2 className="text-base font-semibold text-red-700">Danger Zone</h2>
+                            <div className="space-y-3">
+                                <button
+                                    onClick={() => setShowLeaveConfirm(true)}
+                                    disabled={isMutating}
+                                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors disabled:opacity-50 text-sm font-medium"
+                                >
+                                    <LogOut className="w-4 h-4" />
+                                    Leave Trip
+                                </button>
+
+                                <button
+                                    onClick={() => setShowDeleteConfirm(true)}
+                                    disabled={!isAdmin || isMutating}
+                                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50 text-sm font-medium"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                    Delete Trip
+                                </button>
+                                {!isAdmin && (
+                                    <p className="text-xs text-gray-500 text-center">Only admins can delete a trip.</p>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
+            {/* Delete Confirmation Modal */}
             {showDeleteConfirm && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                     <div className="bg-white rounded-xl max-w-sm w-full p-6">
@@ -315,7 +326,7 @@ export default function TripSettings() {
                             <h3 className="text-lg font-semibold text-gray-900">Delete Trip</h3>
                         </div>
 
-                        <p className="text-gray-600 mb-6">
+                        <p className="text-gray-600 mb-6 text-sm">
                             Are you sure you want to delete this trip? This action cannot be undone and will remove all expenses, members, and data associated with this trip.
                         </p>
 
@@ -323,14 +334,14 @@ export default function TripSettings() {
                             <button
                                 onClick={() => setShowDeleteConfirm(false)}
                                 disabled={isMutating}
-                                className="flex-1 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                                className="flex-1 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 text-sm font-medium"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleDeleteTrip}
                                 disabled={isMutating}
-                                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 text-sm font-medium"
                             >
                                 {deleteTripMutation.isPending ? 'Deleting...' : 'Delete'}
                             </button>
@@ -339,6 +350,7 @@ export default function TripSettings() {
                 </div>
             )}
 
+            {/* Leave Confirmation Modal */}
             {showLeaveConfirm && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                     <div className="bg-white rounded-xl max-w-sm w-full p-6">
@@ -349,7 +361,7 @@ export default function TripSettings() {
                             <h3 className="text-lg font-semibold text-gray-900">Leave Trip</h3>
                         </div>
 
-                        <p className="text-gray-600 mb-6">
+                        <p className="text-gray-600 mb-6 text-sm">
                             Are you sure you want to leave this trip? You will no longer have access to the trip's expenses and data.
                         </p>
 
@@ -357,14 +369,14 @@ export default function TripSettings() {
                             <button
                                 onClick={() => setShowLeaveConfirm(false)}
                                 disabled={isMutating}
-                                className="flex-1 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                                className="flex-1 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 text-sm font-medium"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleLeaveTrip}
                                 disabled={isMutating}
-                                className="flex-1 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50"
+                                className="flex-1 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50 text-sm font-medium"
                             >
                                 {leaveTripMutation.isPending ? 'Leaving...' : 'Leave'}
                             </button>

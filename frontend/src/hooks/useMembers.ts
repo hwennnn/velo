@@ -44,7 +44,12 @@ export function useUpdateMember(tripId: string) {
       await api.members.update(tripId, memberId, data);
     },
     onSuccess: () => {
+      // Invalidate trip detail (for member list)
       queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
+      // Invalidate expenses (nickname may have changed, affects paid_by_nickname and split nicknames)
+      queryClient.invalidateQueries({ queryKey: ['expenses', 'list'] });
+      // Invalidate balances (also uses member nicknames)
+      queryClient.invalidateQueries({ queryKey: ['balances'] });
     },
   });
 }

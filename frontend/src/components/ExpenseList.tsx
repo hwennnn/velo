@@ -264,13 +264,13 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
                           {/* Content */}
                           <div className="flex-1 min-w-0">
                             <h3 className="text-base font-semibold text-gray-900 truncate">
-                              {expense.expense_type === 'settlement' ? 'Settlement' : expense.description}
+                              {expense.description}
                             </h3>
                             <p className="text-sm text-gray-500">
                               {isOptimistic
                                 ? 'Processing...'
                                 : expense.expense_type === 'settlement'
-                                  ? expense.description
+                                  ? `${expense.paid_by_nickname} paid` + (expense.splits.length > 0 && expense.splits[0].member_nickname ? ` ${expense.splits[0].member_nickname}` : '')
                                   : `${expense.paid_by_nickname} paid`
                               }
                             </p>

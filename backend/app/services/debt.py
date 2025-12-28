@@ -221,10 +221,10 @@ async def record_settlement(
     # Create settlement as an expense
     # The debtor (payer) is the one who "paid" this expense
     now = utcnow()
-    
+
     settlement_expense = Expense(
         trip_id=trip_id,
-        description=f"{debtor.nickname} paid {creditor.nickname}",
+        description="Settlement",
         amount=amount,
         currency=currency,
         exchange_rate_to_base=exchange_rate_to_base,
@@ -506,19 +506,21 @@ async def convert_all_debts_to_currency(
         converted_amount = original_amount * conversion_rate
 
         # Find or create debt in target currency
-        
+
         target_debt_statement = select(MemberDebt).where(
             and_(
                 MemberDebt.trip_id == trip_id,
                 MemberDebt.debtor_member_id == debt.debtor_member_id,
                 MemberDebt.creditor_member_id == debt.creditor_member_id,
                 MemberDebt.currency == target_currency,
-                MemberDebt.source_expense_id == None, # Reuse general debt record
+                MemberDebt.source_expense_id == None,  # Reuse general debt record
             )
         )
         result = await session.execute(target_debt_statement)
-        target_debt = result.first() # Use first if multiple (shouldn't be if we stick to this logic)
-        
+        target_debt = (
+            result.first()
+        )  # Use first if multiple (shouldn't be if we stick to this logic)
+
         target_debt = target_debt[0] if target_debt else None
 
         if target_debt:
@@ -534,7 +536,7 @@ async def convert_all_debts_to_currency(
                 creditor_member_id=debt.creditor_member_id,
                 amount=converted_amount,
                 currency=target_currency,
-                source_expense_id=None, # General debt
+                source_expense_id=None,  # General debt
             )
             session.add(new_debt)
 
@@ -617,7 +619,7 @@ async def merge_debt_currency(
     )
     result = await session.execute(source_debts_statement)
     source_debts = result.scalars().all()
-    
+
     total_source_amount = sum(d.amount for d in source_debts)
 
     if not source_debts:
@@ -632,16 +634,16 @@ async def merge_debt_currency(
 
     # Calculate converted amount
     converted_amount = amount * conversion_rate
-    
+
     # Reduce source debts
     # We greedily reduce from the first debt onwards
     remaining_to_reduce = amount
-    remaining_in_original = Decimal("0") # will calculate after
-    
+    remaining_in_original = Decimal("0")  # will calculate after
+
     for debt in source_debts:
         if remaining_to_reduce <= Decimal("0"):
             break
-            
+
         if debt.amount <= remaining_to_reduce:
             # Fully consume this debt record
             consumed = debt.amount

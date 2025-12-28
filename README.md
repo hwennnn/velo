@@ -1,3 +1,5 @@
+[![Netlify Status](https://api.netlify.com/api/v1/badges/4f7131df-1502-42f5-8979-86aa709d996b/deploy-status)](https://app.netlify.com/projects/velotab/deploys)
+
 # Velo
 
 A travel expense tracking application built with React and FastAPI, featuring multi-currency support and automated debt settlement calculations.

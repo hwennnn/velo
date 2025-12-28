@@ -109,18 +109,18 @@ async def test_members(async_client: AsyncClient, test_trip: dict) -> tuple:
     """Create two test members (A and B) for a trip."""
     trip_id = test_trip["id"]
     
-    # Create Member A (fictional for testing)
+    # Create Member A (placeholder for testing - no email provided)
     resp_a = await async_client.post(
         f"/trips/{trip_id}/members",
-        json={"nickname": "Alice", "is_fictional": True}
+        json={"nickname": "Alice"}
     )
     assert resp_a.status_code == 201, f"Failed to create member A: {resp_a.text}"
     member_a = resp_a.json()
     
-    # Create Member B (fictional for testing)
+    # Create Member B (placeholder for testing - no email provided)
     resp_b = await async_client.post(
         f"/trips/{trip_id}/members",
-        json={"nickname": "Bob", "is_fictional": True}
+        json={"nickname": "Bob"}
     )
     assert resp_b.status_code == 201, f"Failed to create member B: {resp_b.text}"
     member_b = resp_b.json()
@@ -134,7 +134,7 @@ async def test_member_c(async_client: AsyncClient, test_trip: dict) -> dict:
     trip_id = test_trip["id"]
     resp = await async_client.post(
         f"/trips/{trip_id}/members",
-        json={"nickname": "Charlie", "is_fictional": True}
+        json={"nickname": "Charlie"}
     )
     assert resp.status_code == 201, f"Failed to create member C: {resp.text}"
     return resp.json()

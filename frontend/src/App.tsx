@@ -23,6 +23,7 @@ const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const TripDetail = lazy(() => import('./pages/TripDetail'));
 const TripSettings = lazy(() => import('./pages/TripSettings'));
 const SettleUpPage = lazy(() => import('./pages/SettleUpPage'));
+const MembersPage = lazy(() => import('./pages/MembersPage'));
 
 // Custom loading component with brand styling
 function PageLoader() {
@@ -109,6 +110,14 @@ function App() {
                     element={
                       <ProtectedRoute>
                         <SettleUpPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/trips/:tripId/members"
+                    element={
+                      <ProtectedRoute>
+                        <MembersPage />
                       </ProtectedRoute>
                     }
                   />

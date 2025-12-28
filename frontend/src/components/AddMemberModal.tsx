@@ -2,10 +2,10 @@
  * AddMemberModal Component
  * 
  * Modal for adding members to a trip.
- * Supports adding real users by email or creating fictional members.
+ * Email is optional - if provided, creates pending invitation. If not, creates placeholder.
  */
+import { Mail, Shield, User, UserPlus, X } from 'lucide-react';
 import React, { useState } from 'react';
-import { X, User, UserPlus, Mail, Shield } from 'lucide-react';
 import type { AddMemberInput, TripMember } from '../types';
 import { getMemberInitials } from '../utils/memberUtils';
 
@@ -23,8 +23,7 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
   existingMembers,
 }) => {
   const [nickname, setNickname] = useState('');
-  const [userEmail, setUserEmail] = useState('');
-  const [isFictional, setIsFictional] = useState(false);
+  const [email, setEmail] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +34,7 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
     const colors = [
       'bg-blue-500',
       'bg-emerald-500',
-      'bg-violet-500', 
+      'bg-violet-500',
       'bg-pink-500',
       'bg-amber-500',
       'bg-red-500',
@@ -44,9 +43,9 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
       'bg-lime-500',
       'bg-orange-500',
     ];
-    
+
     if (!nickname.trim()) return colors[0];
-    
+
     let hash = 0;
     for (let i = 0; i < nickname.length; i++) {
       hash = nickname.charCodeAt(i) + ((hash << 5) - hash);
@@ -58,24 +57,20 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
     e.preventDefault();
     setError(null);
 
-    // Validate
+    // Validate nickname
     if (!nickname.trim()) {
-      setError('Nickname is required');
+      setError('Display name is required');
       return;
     }
 
-    if (!isFictional && !userEmail.trim()) {
-      setError('Email is required for real members');
-      return;
-    }
-
-    // Check if email already exists
-    if (!isFictional && userEmail.trim()) {
+    // Check if email already exists in this trip (if email provided)
+    if (email.trim()) {
       const emailExists = existingMembers.some(
-        (m) => m.email?.toLowerCase() === userEmail.trim().toLowerCase()
+        (m) => m.email?.toLowerCase() === email.trim().toLowerCase() ||
+          m.invited_email?.toLowerCase() === email.trim().toLowerCase()
       );
       if (emailExists) {
-        setError('A member with this email already exists');
+        setError('A member with this email already exists in this trip');
         return;
       }
     }
@@ -85,15 +80,13 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
     try {
       await onAdd({
         nickname: nickname.trim(),
-        is_fictional: isFictional,
-        user_email: isFictional ? undefined : userEmail.trim(),
+        email: email.trim() || undefined,  // Backend determines status from this
         is_admin: isAdmin,
       });
 
       // Reset form
       setNickname('');
-      setUserEmail('');
-      setIsFictional(false);
+      setEmail('');
       setIsAdmin(false);
       onClose();
     } catch (err: any) {
@@ -106,8 +99,7 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
   const handleClose = () => {
     if (!isLoading) {
       setNickname('');
-      setUserEmail('');
-      setIsFictional(false);
+      setEmail('');
       setIsAdmin(false);
       setError(null);
       onClose();
@@ -154,66 +146,6 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
             </div>
           )}
 
-          {/* Member Type Toggle */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Member Type
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setIsFictional(false)}
-                className={`px-4 py-3 rounded-lg border-2 transition-colors ${
-                  !isFictional
-                    ? 'border-primary-500 bg-primary-50 text-primary-700'
-                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <User className="w-5 h-5 mx-auto mb-1" />
-                <span className="text-sm font-medium">Real User</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsFictional(true)}
-                className={`px-4 py-3 rounded-lg border-2 transition-colors ${
-                  isFictional
-                    ? 'border-primary-500 bg-primary-50 text-primary-700'
-                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <User className="w-5 h-5 mx-auto mb-1" />
-                <span className="text-sm font-medium">Fictional</span>
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              {isFictional
-                ? 'Create a placeholder member that can be claimed later'
-                : 'Add an existing user by their email address'}
-            </p>
-          </div>
-
-          {/* Email (for real users) */}
-          {!isFictional && (
-            <div className="space-y-2">
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email Address *
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="email"
-                  id="email"
-                  value={userEmail}
-                  onChange={(e) => setUserEmail(e.target.value)}
-                  placeholder="user@example.com"
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  disabled={isLoading}
-                  autoComplete="off"
-                />
-              </div>
-            </div>
-          )}
-
           {/* Nickname */}
           <div className="space-y-2">
             <label htmlFor="nickname" className="block text-sm font-medium text-gray-700">
@@ -238,6 +170,31 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
             </p>
           </div>
 
+          {/* Email (optional) */}
+          <div className="space-y-2">
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              Email Address <span className="text-gray-400">(optional)</span>
+            </label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="email"
+                id="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="user@example.com"
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                disabled={isLoading}
+                autoComplete="off"
+              />
+            </div>
+            <p className="text-xs text-gray-500">
+              {email.trim()
+                ? 'They can claim this membership when they sign up with this email'
+                : 'Leave empty to create a placeholder member'}
+            </p>
+          </div>
+
           {/* Avatar Preview */}
           {nickname.trim() && (
             <div className="space-y-2">
@@ -253,7 +210,7 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900">{nickname.trim()}</p>
                   <p className="text-xs text-gray-500">
-                    {isFictional ? 'Generated avatar for fictional member' : 'Default avatar (can be changed in profile)'}
+                    {email.trim() ? 'Pending invitation' : 'Placeholder member'}
                   </p>
                 </div>
               </div>
@@ -309,4 +266,3 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
     </div>
   );
 };
-

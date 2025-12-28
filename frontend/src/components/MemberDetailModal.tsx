@@ -70,9 +70,14 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                   Admin
                 </span>
               )}
-              {member.is_fictional && (
+              {member.status === 'placeholder' && (
                 <span className="px-3 py-1 bg-amber-100 text-amber-700 text-sm font-medium rounded-full">
-                  Fictional
+                  Placeholder
+                </span>
+              )}
+              {member.status === 'pending' && (
+                <span className="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-medium rounded-full">
+                  Pending
                 </span>
               )}
             </div>
@@ -80,8 +85,8 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
 
           {/* Details */}
           <div className="space-y-4">
-            {/* Real User Info (for claimed members) */}
-            {!member.is_fictional && member.display_name && (
+            {/* Real User Info (for active members) */}
+            {member.status === 'active' && member.display_name && (
               <div className="p-4 bg-gray-50 rounded-lg">
                 <div className="flex items-start gap-3">
                   <User className="w-5 h-5 text-gray-400 mt-0.5" />
@@ -118,11 +123,18 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                 <div className="flex-1">
                   <div className="text-sm font-medium text-gray-700 mb-1">Member Type</div>
                   <div className="text-sm text-gray-900">
-                    {member.is_fictional ? (
+                    {member.status === 'placeholder' ? (
                       <>
-                        Fictional member
+                        Placeholder member
                         <div className="text-xs text-gray-500 mt-1">
-                          Can be claimed by any user to join the trip
+                          Nickname-only, no linked account
+                        </div>
+                      </>
+                    ) : member.status === 'pending' ? (
+                      <>
+                        Pending invitation
+                        <div className="text-xs text-gray-500 mt-1">
+                          Invited: {member.invited_email}
                         </div>
                       </>
                     ) : (
@@ -171,7 +183,7 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                 <div className="flex items-start gap-3">
                   <Calendar className="w-5 h-5 text-gray-400 mt-0.5" />
                   <div className="flex-1">
-                    {member.is_fictional ? (
+                    {member.status !== 'active' ? (
                       <>
                         <div className="text-sm font-medium text-gray-700 mb-1">Created</div>
                         {member.created_at && (

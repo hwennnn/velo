@@ -7,14 +7,19 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class MemberAdd(BaseModel):
-    """Schema for adding a member to a trip"""
+    """Schema for adding a member to a trip
+    
+    Status is auto-determined by backend:
+    - Email provided + user exists -> 'active'
+    - Email provided + user doesn't exist -> 'pending'
+    - No email -> 'placeholder'
+    """
 
     nickname: str = Field(
         ..., min_length=1, max_length=100, description="Member display name"
     )
-    is_fictional: bool = Field(default=False, description="Is this a fictional member?")
-    user_email: Optional[str] = Field(
-        None, description="Email to search for real user (if not fictional)"
+    email: Optional[str] = Field(
+        None, description="Optional email - if provided, creates pending invitation or adds existing user"
     )
     is_admin: bool = Field(default=False, description="Grant admin privileges")
 
@@ -27,13 +32,9 @@ class MemberAdd(BaseModel):
             if not self.nickname:
                 raise ValueError("Nickname cannot be empty or just whitespace")
 
-        # For real members, email is required
-        if not self.is_fictional and not self.user_email:
-            raise ValueError("Email is required for real members")
-
         # Clean email
-        if self.user_email:
-            self.user_email = self.user_email.strip().lower()
+        if self.email:
+            self.email = self.email.strip().lower()
 
         return self
 
@@ -42,6 +43,7 @@ class MemberUpdate(BaseModel):
     """Schema for updating a member"""
 
     nickname: Optional[str] = Field(None, min_length=1, max_length=100)
+    email: Optional[str] = Field(None, description="Update email for pending/placeholder members")
     is_admin: Optional[bool] = None
 
     @model_validator(mode="after")
@@ -53,15 +55,11 @@ class MemberUpdate(BaseModel):
             if not self.nickname:
                 raise ValueError("Nickname cannot be empty or just whitespace")
 
+        # Clean email
+        if self.email is not None:
+            self.email = self.email.strip().lower()
+
         return self
-
-
-class MemberClaimRequest(BaseModel):
-    """Schema for claiming a fictional member"""
-
-    claim_code: Optional[str] = Field(
-        None, description="Optional claim code for verification"
-    )
 
 
 class MemberResponse(BaseModel):
@@ -70,15 +68,16 @@ class MemberResponse(BaseModel):
     id: int
     trip_id: int
     nickname: str
-    is_fictional: bool
+    status: str  # 'active', 'pending', 'placeholder'
     is_admin: bool
     user_id: Optional[str] = None
-    email: Optional[str] = None  # Only for real members
-    # User's real name (for claimed members)
-    display_name: Optional[str] = None
-    avatar_url: Optional[str] = None  # Only for real members
+    email: Optional[str] = None  # Only for active members
+    display_name: Optional[str] = None  # User's real name
+    avatar_url: Optional[str] = None  # Only for active members
+    invited_email: Optional[str] = None  # For pending members
+    invited_at: Optional[str] = None  # When invitation was sent
     created_at: Optional[str] = None  # When member was created/added
-    joined_at: Optional[str] = None  # When fictional member was claimed
+    joined_at: Optional[str] = None  # When member joined (pending->active)
 
     class Config:
         from_attributes = True

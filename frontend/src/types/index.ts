@@ -35,14 +35,16 @@ export interface TripMember {
   trip_id?: number;
   user_id?: string;
   nickname: string;
-  is_fictional: boolean;
+  status: 'active' | 'pending' | 'placeholder';
   is_admin: boolean;
   email?: string;
-  display_name?: string;  // User's real name (for claimed members)
+  display_name?: string;  // User's real name
   avatar_url?: string;
   color?: string;
-  created_at?: string;  // When member was created/added
-  joined_at?: string;   // When fictional member was claimed
+  invited_email?: string;  // For pending members
+  invited_at?: string;     // When invitation was sent
+  created_at?: string;     // When member was created/added
+  joined_at?: string;      // When member joined (pending->active)
 }
 
 export interface Expense {
@@ -130,8 +132,7 @@ export interface CreateTripInput {
 
 export interface AddMemberInput {
   nickname: string;
-  is_fictional: boolean;
-  user_email?: string;
+  email?: string;  // If provided: pending (or active if user exists). If not: placeholder
   is_admin: boolean;
 }
 

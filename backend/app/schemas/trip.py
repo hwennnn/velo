@@ -127,12 +127,14 @@ class TripMemberResponse(BaseModel):
 
     id: int
     nickname: str
-    is_fictional: bool
+    status: str  # 'active', 'pending', 'placeholder'
     is_admin: bool
     user_id: Optional[str] = None
     email: Optional[str] = None
     display_name: Optional[str] = None
     avatar_url: Optional[str] = None
+    invited_email: Optional[str] = None
+    invited_at: Optional[str] = None
     created_at: Optional[str] = None
     joined_at: Optional[str] = None
 

@@ -311,8 +311,11 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
                       <div className="text-sm font-medium text-gray-900 truncate">
                         {member.nickname}
                       </div>
-                      {member.is_fictional && (
-                        <div className="text-xs text-amber-600">Fictional</div>
+                      {member.status === 'placeholder' && (
+                        <div className="text-xs text-amber-600">Placeholder</div>
+                      )}
+                      {member.status === 'pending' && (
+                        <div className="text-xs text-blue-600">Pending</div>
                       )}
                     </div>
                     {paidBy === member.id && (
@@ -538,7 +541,8 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
                 </div>
               )}
             </div>
-          )}
+          )
+          }
 
           {/* Notes */}
           <div className="space-y-2">
@@ -575,9 +579,9 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
               {isLoading ? 'Adding...' : 'Add Expense'}
             </button>
           </div>
-        </form>
-      </div>
-    </div>
+        </form >
+      </div >
+    </div >
   );
 };
 

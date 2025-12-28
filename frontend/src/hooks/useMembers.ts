@@ -35,20 +35,6 @@ export function useRemoveMember(tripId: string) {
   });
 }
 
-// Claim member mutation
-export function useClaimMember(tripId: string) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (memberId: string) => {
-      await api.members.claim(tripId, memberId);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
-    },
-  });
-}
-
 // Update member mutation
 export function useUpdateMember(tripId: string) {
   const queryClient = useQueryClient();
@@ -69,11 +55,10 @@ export function useLeaveTrip(tripId: string) {
 
   return useMutation({
     mutationFn: async () => {
-    await api.trips.leave(tripId);
+      await api.trips.leave(tripId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: tripKeys.lists() });
     },
   });
 }
-

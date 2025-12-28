@@ -58,7 +58,7 @@ async def create_trip(
         trip_id=trip.id,
         user_id=current_user.id,
         nickname=current_user.display_name or current_user.email.split("@")[0],
-        is_fictional=False,
+        status="active",
         is_admin=True,
     )
     member.joined_at = utcnow()

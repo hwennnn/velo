@@ -6,7 +6,7 @@ services:
     container_name: velo_backend
     restart: always
     env_file:
-      - ${ENV_FILE:-.env}
+      - ./backend/${ENV_FILE:-.env}
     ports:
       - "8000:8000"
     volumes:

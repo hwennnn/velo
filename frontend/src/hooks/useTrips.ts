@@ -11,7 +11,7 @@ import { totalsKeys } from './useTotals';
 export const tripKeys = {
   all: ['trips'] as const,
   lists: () => [...tripKeys.all, 'list'] as const,
-  list: (filters?: any) => [...tripKeys.lists(), filters] as const,
+  list: (filters?: Record<string, unknown>) => [...tripKeys.lists(), filters] as const,
   details: () => [...tripKeys.all, 'detail'] as const,
   detail: (id: string) => [...tripKeys.details(), id] as const,
 };
@@ -121,7 +121,7 @@ export function useUpdateTrip(tripId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: Record<string, unknown>) => {
+    mutationFn: async (data: Partial<Record<string, unknown>>) => {
       const response = await api.trips.update(tripId, data);
       return response.data as Trip;
     },

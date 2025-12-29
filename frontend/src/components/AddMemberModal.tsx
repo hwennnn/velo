@@ -4,6 +4,7 @@
  * Modal for adding members to a trip.
  * Email is optional - if provided, creates pending invitation. If not, creates placeholder.
  */
+import axios from 'axios';
 import { Mail, Shield, User, UserPlus, X } from 'lucide-react';
 import React, { useState } from 'react';
 import type { AddMemberInput, TripMember } from '../types';
@@ -89,8 +90,12 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
       setEmail('');
       setIsAdmin(false);
       onClose();
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to add member');
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.detail || 'Failed to add member');
+      } else {
+        setError('Failed to add member');
+      }
     } finally {
       setIsLoading(false);
     }

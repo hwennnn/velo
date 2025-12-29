@@ -2,9 +2,10 @@
  * Join Trip Page
  * Decodes invite link, shows trip preview, and allows user to confirm joining
  */
+import axios from 'axios';
 import { format } from 'date-fns';
 import { AlertCircle, Calendar, CheckCircle2, DollarSign, Loader2, Users } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../services/api';
@@ -43,26 +44,7 @@ export default function JoinTrip() {
   const [inviteInfo, setInviteInfo] = useState<InviteInfo | null>(null);
   const [isJoining, setIsJoining] = useState(false);
 
-  useEffect(() => {
-    // Check for valid code first before redirecting to login
-    if (!code) {
-      setStatus('invalid_code');
-      setError('No invite code provided');
-      return;
-    }
-
-    if (!user) {
-      // Use the code from params to construct URL, not window.location.pathname
-      // which can change during navigation
-      const redirectUrl = `/join/${code}`;
-      navigate(`/auth/login?redirect=${encodeURIComponent(redirectUrl)}`);
-      return;
-    }
-
-    decodeInviteLink();
-  }, [code, user, navigate]);
-
-  const decodeInviteLink = async () => {
+  const decodeInviteLink = useCallback(async () => {
     if (!code) return;
 
     setStatus('loading');
@@ -77,8 +59,12 @@ export default function JoinTrip() {
       } else {
         setStatus('ready_to_join');
       }
-    } catch (err: any) {
-      console.error('Decode invite error:', err);
+    } catch (err: unknown) {
+      if (!axios.isAxiosError(err)) {
+        setStatus('error');
+        setError('Failed to load invite details');
+        return;
+      }
 
       if (err.response?.status === 400) {
         setStatus('invalid_code');
@@ -94,7 +80,29 @@ export default function JoinTrip() {
         setError(err.response?.data?.detail || 'Failed to load invite details');
       }
     }
-  };
+  }, [code]);
+
+  useEffect(() => {
+    // Check for valid code first before redirecting to login
+    if (!code) {
+      // Use setTimeout to avoid synchronous setState in effect
+      setTimeout(() => {
+        setStatus('invalid_code');
+        setError('No invite code provided');
+      }, 0);
+      return;
+    }
+
+    if (!user) {
+      // Use the code from params to construct URL, not window.location.pathname
+      // which can change during navigation
+      const redirectUrl = `/join/${code}`;
+      navigate(`/auth/login?redirect=${encodeURIComponent(redirectUrl)}`);
+      return;
+    }
+
+    decodeInviteLink();
+  }, [code, user, navigate, decodeInviteLink]);
 
   const handleConfirmJoin = async () => {
     if (!code || isJoining) return;
@@ -115,9 +123,14 @@ export default function JoinTrip() {
           navigate(`/trips/${inviteInfo.trip_id}`);
         }
       }, 2000);
-    } catch (err: any) {
-      console.error('Join trip error:', err);
+    } catch (err: unknown) {
       setIsJoining(false);
+
+      if (!axios.isAxiosError(err)) {
+        setStatus('error');
+        setError('Failed to join trip. Please try again.');
+        return;
+      }
 
       if (err.response?.status === 404) {
         setStatus('not_found');

@@ -50,9 +50,12 @@ export default function SettleUpPage() {
 
     // Show info modal on first visit (per session)
     useEffect(() => {
+        if (!trip) return;
+
         const hasSeenInfo = sessionStorage.getItem('settleup-info-seen');
-        if (!hasSeenInfo && trip) {
-            setShowInfoModal(true);
+        if (!hasSeenInfo) {
+            // Use setTimeout to avoid synchronous setState during render
+            setTimeout(() => setShowInfoModal(true), 0);
         }
     }, [trip]);
 

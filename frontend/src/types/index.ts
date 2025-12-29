@@ -128,12 +128,14 @@ export interface CreateTripInput {
   base_currency: string;
   start_date?: string;
   end_date?: string;
+  [key: string]: unknown; // Allow additional properties for API compatibility
 }
 
 export interface AddMemberInput {
   nickname: string;
   email?: string;  // If provided: pending (or active if user exists). If not: placeholder
   is_admin: boolean;
+  [key: string]: unknown; // Allow additional properties for API compatibility
 }
 
 export interface CreateExpenseInput {
@@ -147,6 +149,7 @@ export interface CreateExpenseInput {
   split_type: 'equal' | 'percentage' | 'custom';
   splits?: SplitInput[];
   expense_type?: 'expense' | 'settlement';
+  [key: string]: unknown; // Allow additional properties for API compatibility
 }
 
 export interface SplitInput {
@@ -165,6 +168,7 @@ export interface UpdateExpenseInput {
   receipt_url?: string;
   split_type?: 'equal' | 'percentage' | 'custom';
   splits?: SplitInput[];
+  [key: string]: unknown; // Allow additional properties for API compatibility
 }
 
 export interface BalancesResponse {

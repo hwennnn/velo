@@ -4,6 +4,7 @@
  * Modal for creating new expenses with split management.
  * Supports equal, percentage, and custom splits.
  */
+import axios from 'axios';
 import { Check, ChevronDown, DollarSign, FileText, Receipt, Users, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { SUPPORTED_CURRENCIES } from '../config/currencies';
@@ -169,8 +170,12 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
       });
 
       onClose();
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to create expense');
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.detail || 'Failed to create expense');
+      } else {
+        setError('Failed to create expense');
+      }
     } finally {
       setIsLoading(false);
     }

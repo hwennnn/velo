@@ -33,7 +33,6 @@ export default function TotalsPage() {
 
     const baseCurrency = trip?.base_currency || totalsData?.base_currency || 'USD';
     const totalSpent = totalsData?.total_spent || 0;
-    const memberTotals = totalsData?.member_totals || [];
 
     // Create a map of members for avatar data
     const membersById = useMemo(() =>
@@ -43,6 +42,7 @@ export default function TotalsPage() {
 
     // Sort by share descending and calculate percentages
     const sortedMemberTotals = useMemo(() => {
+        const memberTotals = totalsData?.member_totals || [];
         return [...memberTotals]
             .sort((a, b) => b.total_share - a.total_share)
             .map((m, idx) => ({
@@ -50,7 +50,7 @@ export default function TotalsPage() {
                 percentage: totalSpent > 0 ? (m.total_share / totalSpent) * 100 : 0,
                 color: CHART_COLORS[idx % CHART_COLORS.length],
             }));
-    }, [memberTotals, totalSpent]);
+    }, [totalsData?.member_totals, totalSpent]);
 
     const formatCurrency = (amount: number) => {
         const formatted = Math.abs(amount).toLocaleString('en-US', {

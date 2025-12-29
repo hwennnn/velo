@@ -40,7 +40,7 @@ export function useUpdateMember(tripId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ memberId, data }: { memberId: string; data: any }) => {
+    mutationFn: async ({ memberId, data }: { memberId: string; data: Partial<Record<string, unknown>> }) => {
       await api.members.update(tripId, memberId, data);
     },
     onSuccess: () => {

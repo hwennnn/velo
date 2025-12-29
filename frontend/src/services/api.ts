@@ -52,8 +52,8 @@ export const api = {
   trips: {
     getAll: () => apiClient.get('/trips'),
     getById: (id: string) => apiClient.get(`/trips/${id}`),
-    create: (data: any) => apiClient.post('/trips', data),
-    update: (id: string, data: any) => apiClient.put(`/trips/${id}`, data),
+    create: (data: Partial<Record<string, unknown>>) => apiClient.post('/trips', data),
+    update: (id: string, data: Partial<Record<string, unknown>>) => apiClient.put(`/trips/${id}`, data),
     delete: (id: string) => apiClient.delete(`/trips/${id}`),
     generateInvite: (tripId: string) => apiClient.post(`/trips/${tripId}/invite`),
     leave: (id: string) => apiClient.post(`/trips/${id}/leave`),
@@ -68,9 +68,9 @@ export const api = {
   // Members
   members: {
     getAll: (tripId: string) => apiClient.get(`/trips/${tripId}/members`),
-    add: (tripId: string, data: any) => apiClient.post(`/trips/${tripId}/members`, data),
-    update: (tripId: string, memberId: string, data: any) => apiClient.put(`/trips/${tripId}/members/${memberId}`, data),
-    claim: (tripId: string, memberId: string, data?: any) => 
+    add: (tripId: string, data: Partial<Record<string, unknown>>) => apiClient.post(`/trips/${tripId}/members`, data),
+    update: (tripId: string, memberId: string, data: Partial<Record<string, unknown>>) => apiClient.put(`/trips/${tripId}/members/${memberId}`, data),
+    claim: (tripId: string, memberId: string, data?: Partial<Record<string, unknown>>) => 
       apiClient.post(`/trips/${tripId}/members/${memberId}/claim`, data || {}),
     remove: (tripId: string, memberId: string) => 
       apiClient.delete(`/trips/${tripId}/members/${memberId}`)
@@ -78,10 +78,10 @@ export const api = {
 
   // Expenses
   expenses: {
-    getAll: (tripId: string, params?: any) => apiClient.get(`/trips/${tripId}/expenses`, { params }),
+    getAll: (tripId: string, params?: Partial<Record<string, unknown>>) => apiClient.get(`/trips/${tripId}/expenses`, { params }),
     getById: (tripId: string, expenseId: number) => apiClient.get(`/trips/${tripId}/expenses/${expenseId}`),
-    create: (tripId: string, data: any) => apiClient.post(`/trips/${tripId}/expenses`, data),
-    update: (tripId: string, expenseId: number, data: any) => apiClient.put(`/trips/${tripId}/expenses/${expenseId}`, data),
+    create: (tripId: string, data: Partial<Record<string, unknown>>) => apiClient.post(`/trips/${tripId}/expenses`, data),
+    update: (tripId: string, expenseId: number, data: Partial<Record<string, unknown>>) => apiClient.put(`/trips/${tripId}/expenses/${expenseId}`, data),
     delete: (tripId: string, expenseId: number) => apiClient.delete(`/trips/${tripId}/expenses/${expenseId}`),
   },
 
@@ -97,13 +97,13 @@ export const api = {
         : apiClient.get(`/trips/${tripId}/settlements`, { params: { simplify } }),
     getMemberBalance: (tripId: string, memberId: number) => 
       apiClient.get(`/trips/${tripId}/members/${memberId}/balance`),
-    createSettlement: (tripId: string, data: any) => 
+    createSettlement: (tripId: string, data: Partial<Record<string, unknown>>) => 
       apiClient.post(`/trips/${tripId}/settlements`, data),
-    recordSettlement: (tripId: string, data: any) => 
+    recordSettlement: (tripId: string, data: Partial<Record<string, unknown>>) => 
       apiClient.post(`/trips/${tripId}/settlements`, data),
-    mergeDebtCurrency: (tripId: string, data: any) => 
+    mergeDebtCurrency: (tripId: string, data: Partial<Record<string, unknown>>) => 
       apiClient.post(`/trips/${tripId}/debts/merge`, data),
-    convertAllDebts: (tripId: string, data: any) => 
+    convertAllDebts: (tripId: string, data: Partial<Record<string, unknown>>) => 
       apiClient.post(`/trips/${tripId}/debts/convert-all`, data),
     getTotals: (tripId: string) => apiClient.get(`/trips/${tripId}/totals`),
   },
@@ -117,7 +117,7 @@ export const api = {
   user: {
     register: (data: { user_id: string; email: string; display_name?: string; avatar_url?: string }) => apiClient.post('/users/register', data),
     getProfile: () => apiClient.get('/users/me'),
-    updateProfile: (data: any) => apiClient.put('/users/me', data),
+    updateProfile: (data: Partial<Record<string, unknown>>) => apiClient.put('/users/me', data),
     uploadAvatar: (formData: FormData) => apiClient.post('/upload/avatar', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',

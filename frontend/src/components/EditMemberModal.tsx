@@ -8,6 +8,7 @@
  * - pending + remove email → placeholder
  * - active → email cannot be changed
  */
+import axios from 'axios';
 import { Mail, User, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import type { TripMember } from '../types';
@@ -95,8 +96,12 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({
             }
 
             onClose();
-        } catch (err: any) {
-            setError(err.response?.data?.detail || 'Failed to update member');
+        } catch (err: unknown) {
+            if (axios.isAxiosError(err)) {
+                setError(err.response?.data?.detail || 'Failed to update member');
+            } else {
+                setError('Failed to update member');
+            }
         } finally {
             setIsLoading(false);
         }
@@ -158,8 +163,8 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({
                         <div className="flex items-center justify-between text-sm">
                             <span className="text-gray-600">Current Status</span>
                             <span className={`font-medium ${member.status === 'active' ? 'text-green-600' :
-                                    member.status === 'pending' ? 'text-blue-600' :
-                                        'text-amber-600'
+                                member.status === 'pending' ? 'text-blue-600' :
+                                    'text-amber-600'
                                 }`}>
                                 {member.status === 'active' ? 'Active' :
                                     member.status === 'pending' ? 'Pending' :
@@ -214,8 +219,8 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({
                                 onChange={(e) => setEmail(e.target.value)}
                                 placeholder={canEditEmail ? "user@example.com (optional)" : ""}
                                 className={`w-full pl-10 pr-4 py-2.5 border rounded-lg ${canEditEmail
-                                        ? 'border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-transparent'
-                                        : 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed'
+                                    ? 'border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-transparent'
+                                    : 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed'
                                     }`}
                                 disabled={isLoading || !canEditEmail}
                                 autoComplete="off"

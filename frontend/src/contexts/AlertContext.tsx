@@ -2,10 +2,10 @@
  * AlertContext
  * Global context for managing alerts throughout the application
  */
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useCallback, useContext, useState } from 'react';
+import type { AlertType } from '../components/AlertModal';
 import { AlertModal } from '../components/AlertModal';
 import { ConfirmModal } from '../components/ConfirmModal';
-import type { AlertType } from '../components/AlertModal';
 
 interface AlertOptions {
   type?: AlertType;
@@ -93,6 +93,7 @@ export const AlertProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAlert = () => {
   const context = useContext(AlertContext);
   if (context === undefined) {

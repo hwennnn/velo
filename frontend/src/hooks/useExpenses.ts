@@ -301,7 +301,8 @@ export function useUpdateExpense(tripId: string) {
       );
       
       // Optimistically update expense (only update display fields, not splits)
-      const { splits: _splits, split_type: _splitType, ...displayFields } = data;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { splits, split_type, ...displayFields } = data;
       
       // Update in list queries
       queryClient.setQueriesData<InfiniteData<ExpensePage>>(

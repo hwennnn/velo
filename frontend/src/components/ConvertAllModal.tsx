@@ -5,7 +5,7 @@
  * Shows a full-page overlay to block other actions during conversion.
  */
 import { RefreshCw, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Debt } from '../types';
 
 interface ConvertAllModalProps {
@@ -28,13 +28,15 @@ export function ConvertAllModal({
     isConverting,
 }: ConvertAllModalProps) {
     // Get unique currencies (excluding base currency)
-    const currenciesToConvert = [...new Set(debts.map(d => d.currency).filter(c => c !== baseCurrency))];
+    const currenciesToConvert = useMemo(() => [...new Set(debts.map(d => d.currency).filter(c => c !== baseCurrency))], [debts, baseCurrency]);
 
     // Initialize rates from exchange rates
     const [customRates, setCustomRates] = useState<Record<string, string>>({});
+    const prevIsOpenRef = useRef(isOpen);
 
     useEffect(() => {
-        if (isOpen) {
+        // Only update rates when modal transitions from closed to open
+        if (isOpen && !prevIsOpenRef.current) {
             const initialRates: Record<string, string> = {};
             currenciesToConvert.forEach(currency => {
                 // Calculate rate from base to this currency, then invert for conversion
@@ -42,9 +44,11 @@ export function ConvertAllModal({
                 const rateToBase = rateFromBase > 0 ? (1 / rateFromBase) : 1;
                 initialRates[currency] = rateToBase.toString();
             });
-            setCustomRates(initialRates);
+            // Use setTimeout to avoid synchronous setState in effect
+            setTimeout(() => setCustomRates(initialRates), 0);
         }
-    }, [isOpen, currenciesToConvert.join(','), exchangeRates]);
+        prevIsOpenRef.current = isOpen;
+    }, [isOpen, currenciesToConvert, exchangeRates]);
 
     const handleRateChange = (currency: string, value: string) => {
         setCustomRates(prev => ({ ...prev, [currency]: value }));

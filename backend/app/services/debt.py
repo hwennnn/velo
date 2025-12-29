@@ -466,10 +466,14 @@ async def convert_all_debts_to_currency(
 
     Process:
     1. Get all debts in the trip
-    2. For each unique (debtor, creditor, currency) debt:
-       - If already in target currency, keep as is
-       - Otherwise, convert to target currency and merge
+    2. For each debt not in target currency:
+       - Update the debt IN-PLACE (preserving source_expense_id)
+       - Convert currency and amount
     3. Result: All debts are in target currency
+
+    IMPORTANT: We update in-place to preserve source_expense_id, so that
+    if the original expense is later updated, the converted debt will
+    also be properly cleaned up.
 
     Args:
         trip_id: Trip ID
@@ -503,54 +507,26 @@ async def convert_all_debts_to_currency(
 
         # Convert amount
         original_amount = debt.amount
+        original_currency = debt.currency
         converted_amount = original_amount * conversion_rate
 
-        # Find or create debt in target currency
-
-        target_debt_statement = select(MemberDebt).where(
-            and_(
-                MemberDebt.trip_id == trip_id,
-                MemberDebt.debtor_member_id == debt.debtor_member_id,
-                MemberDebt.creditor_member_id == debt.creditor_member_id,
-                MemberDebt.currency == target_currency,
-                MemberDebt.source_expense_id == None,  # Reuse general debt record
-            )
-        )
-        result = await session.execute(target_debt_statement)
-        target_debt = (
-            result.first()
-        )  # Use first if multiple (shouldn't be if we stick to this logic)
-
-        target_debt = target_debt[0] if target_debt else None
-
-        if target_debt:
-            # Add to existing debt
-            target_debt.amount += converted_amount
-            target_debt.updated_at = utcnow()
-            session.add(target_debt)
-        else:
-            # Create new debt in target currency
-            new_debt = MemberDebt(
-                trip_id=trip_id,
-                debtor_member_id=debt.debtor_member_id,
-                creditor_member_id=debt.creditor_member_id,
-                amount=converted_amount,
-                currency=target_currency,
-                source_expense_id=None,  # General debt
-            )
-            session.add(new_debt)
-
-        # Delete old debt
-        await session.delete(debt)
+        # Update the debt IN-PLACE to preserve source_expense_id
+        # This is crucial: if the original expense is updated later,
+        # the delete_debts_for_expense will find and remove this debt
+        debt.amount = converted_amount
+        debt.currency = target_currency
+        debt.updated_at = utcnow()
+        session.add(debt)
 
         conversions.append(
             {
                 "debtor_id": debt.debtor_member_id,
                 "creditor_id": debt.creditor_member_id,
                 "original_amount": float(original_amount),
-                "original_currency": debt.currency,
+                "original_currency": original_currency,
                 "converted_amount": float(converted_amount),
                 "conversion_rate": float(conversion_rate),
+                "source_expense_id": debt.source_expense_id,
             }
         )
 

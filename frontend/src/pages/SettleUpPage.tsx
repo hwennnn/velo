@@ -4,14 +4,15 @@
  * Displays debts list and allows settling up / converting currencies
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Plus, Shield } from 'lucide-react';
+import { ArrowLeft, Plus, RefreshCw, Shield } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { ConvertAllModal } from '../components/ConvertAllModal';
 import { SettleUpInfoModal } from '../components/SettleUpInfoModal';
 import { Shimmer } from '../components/Shimmer';
 import { useAlert } from '../contexts/AlertContext';
 import { useAuth } from '../hooks/useAuth';
-import { balanceKeys, useBalances, useCreateSettlement } from '../hooks/useBalances';
+import { balanceKeys, useBalances, useConvertAllDebts, useCreateSettlement } from '../hooks/useBalances';
 import { calculateCrossRate, useExchangeRates } from '../hooks/useExchangeRates';
 import { tripKeys, useTrip } from '../hooks/useTrips';
 import { api } from '../services/api';
@@ -34,6 +35,7 @@ export default function SettleUpPage() {
     const baseCurrency = trip?.base_currency || balancesData?.base_currency || 'USD';
 
     const { data: exchangeRatesData, isLoading: ratesLoading } = useExchangeRates(baseCurrency);
+    const convertAllDebts = useConvertAllDebts(tripId || '');
 
     const membersById = useMemo(() => new Map((trip?.members || []).map((m) => [m.id, m])), [trip?.members]);
 
@@ -42,6 +44,7 @@ export default function SettleUpPage() {
     const [convertDraft, setConvertDraft] = useState<ConvertDraftState>(null);
     const [showInfoModal, setShowInfoModal] = useState(false);
     const [draftSource, setDraftSource] = useState<'debt' | 'manual' | null>(null);
+    const [showConvertAllModal, setShowConvertAllModal] = useState(false);
 
     const exchangeRates = useMemo(() => exchangeRatesData?.rates || { [baseCurrency]: 1 }, [exchangeRatesData?.rates, baseCurrency]);
 
@@ -257,6 +260,29 @@ export default function SettleUpPage() {
         return Array.from(map.values());
     }, [balancesData?.debts]);
 
+    // Determine if we should show the "Convert All" button
+    const shouldShowConvertAll = useMemo(() => {
+        const debts = balancesData?.debts || [];
+        if (debts.length === 0) return false;
+        const currencies = new Set(debts.map(d => d.currency));
+        // Show if there are multiple currencies OR if any currency is not the base currency
+        return currencies.size > 1 || (currencies.size === 1 && !currencies.has(baseCurrency));
+    }, [balancesData?.debts, baseCurrency]);
+
+    const handleConvertAll = async (customRates: Record<string, number>) => {
+        try {
+            await convertAllDebts.mutateAsync({
+                target_currency: baseCurrency,
+                use_custom_rates: Object.keys(customRates).length > 0,
+                custom_rates: customRates,
+            });
+            showAlert(`All debts converted to ${baseCurrency}`, { type: 'success' });
+            setShowConvertAllModal(false);
+        } catch {
+            showAlert('Failed to convert debts', { type: 'error' });
+        }
+    };
+
     if (!tripId) return null;
 
     return (
@@ -280,6 +306,17 @@ export default function SettleUpPage() {
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        {shouldShowConvertAll && (
+                            <button
+                                onClick={() => setShowConvertAllModal(true)}
+                                disabled={convertAllDebts.isPending}
+                                className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 disabled:opacity-50"
+                            >
+                                <RefreshCw className={`w-4 h-4 ${convertAllDebts.isPending ? 'animate-spin' : ''}`} />
+                                <span className="hidden sm:inline">Convert all to {baseCurrency}</span>
+                                <span className="sm:hidden">{baseCurrency}</span>
+                            </button>
+                        )}
                         <button
                             onClick={openManualSettlementDraft}
                             className="flex items-center gap-2 px-3 py-2 bg-primary-600 text-white rounded-lg text-sm font-semibold hover:bg-primary-700"
@@ -352,6 +389,17 @@ export default function SettleUpPage() {
 
             {/* Info Modal */}
             <SettleUpInfoModal isOpen={showInfoModal} onClose={handleCloseInfoModal} />
+
+            {/* Convert All Modal */}
+            <ConvertAllModal
+                isOpen={showConvertAllModal}
+                onClose={() => setShowConvertAllModal(false)}
+                onConvert={handleConvertAll}
+                debts={balancesData?.debts || []}
+                baseCurrency={baseCurrency}
+                exchangeRates={exchangeRates}
+                isConverting={convertAllDebts.isPending}
+            />
         </div>
     );
 }

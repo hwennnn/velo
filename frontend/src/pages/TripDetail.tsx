@@ -3,7 +3,7 @@
  * Optimized with React Query, broken into smaller components
  */
 import { format } from 'date-fns';
-import { ArrowLeft, HandCoins, Plus, Settings, TrendingUp, Wallet } from 'lucide-react';
+import { ArrowLeft, ChevronRight, HandCoins, Plus, Settings, TrendingUp, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Avatar } from '../components/Avatar';
@@ -128,14 +128,23 @@ export default function TripDetail() {
 
       {/* Content */}
       <main className="flex-1 overflow-y-auto pb-24">
-        {/* Total Spent Card */}
+        {/* Total Spent Card - Clickable to view totals */}
         <div className="px-5 pt-4 pb-3">
-          <div className="bg-white rounded-2xl p-5 shadow-sm">
+          <button
+            onClick={() => navigate(`/trips/${tripId}/totals`)}
+            className="w-full bg-white rounded-2xl p-5 shadow-sm hover:shadow-md transition-all text-left group cursor-pointer border border-transparent hover:border-blue-100"
+          >
             {/* Header with member avatars */}
             <div className="flex items-center justify-between mb-4">
-              <p className="text-sm text-gray-500 uppercase tracking-wide font-medium">TOTAL SPENT</p>
-              <button
-                onClick={() => navigate(`/trips/${tripId}/members`)}
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-gray-500 uppercase tracking-wide font-medium">TOTAL SPENT</p>
+                <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all" />
+              </div>
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/trips/${tripId}/members`);
+                }}
                 className="flex -space-x-2 hover:opacity-80 transition-opacity"
               >
                 {trip.members?.slice(0, 4).map((member) => (
@@ -151,12 +160,12 @@ export default function TripDetail() {
                     +{(trip.member_count || 0) - 4}
                   </div>
                 )}
-              </button>
+              </div>
             </div>
 
             {/* Total Amount */}
             <div className="mb-4">
-              <h2 className="text-4xl font-bold text-gray-900">
+              <h2 className="text-4xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
                 {formatCurrency(totalSpent, trip.base_currency)}
               </h2>
             </div>
@@ -178,7 +187,7 @@ export default function TripDetail() {
                 </span>
               </div>
             )}
-          </div>
+          </button>
         </div>
 
         {/* Action Buttons */}

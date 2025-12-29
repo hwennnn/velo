@@ -6,6 +6,7 @@ import { queryClient } from '../lib/queryClient';
 import { api } from '../services/api';
 import type { BalancesResponse, BulkConversionRequest, Expense, TripMember } from '../types';
 import { expenseKeys, type ExpensePage } from './useExpenses';
+import { totalsKeys } from './useTotals';
 import { tripKeys } from './useTrips';
 
 // Query Keys
@@ -120,6 +121,7 @@ export function useCreateSettlement(tripId: string, members?: TripMember[], curr
         predicate: (q) => q.queryKey.includes(tripId)
       });
       queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
+      queryClient.invalidateQueries({ queryKey: totalsKeys.trip(tripId) });
     },
     onError: (_error, _variables, context) => {
       // Rollback on error
@@ -142,6 +144,7 @@ export function useConvertAllDebts(tripId: string) {
     onSuccess: () => {
       // Invalidate balances
       queryClient.invalidateQueries({ queryKey: balanceKeys.trip(tripId) });
+      queryClient.invalidateQueries({ queryKey: totalsKeys.trip(tripId) });
     },
   });
 }

@@ -24,6 +24,7 @@ const TripDetail = lazy(() => import('./pages/TripDetail'));
 const TripSettings = lazy(() => import('./pages/TripSettings'));
 const SettleUpPage = lazy(() => import('./pages/SettleUpPage'));
 const MembersPage = lazy(() => import('./pages/MembersPage'));
+const TotalsPage = lazy(() => import('./pages/TotalsPage'));
 
 // Custom loading component with brand styling
 function PageLoader() {
@@ -118,6 +119,14 @@ function App() {
                     element={
                       <ProtectedRoute>
                         <MembersPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/trips/:tripId/totals"
+                    element={
+                      <ProtectedRoute>
+                        <TotalsPage />
                       </ProtectedRoute>
                     }
                   />

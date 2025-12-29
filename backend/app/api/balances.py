@@ -155,6 +155,89 @@ async def get_trip_balances(
     }
 
 
+@router.get("/trips/{trip_id}/totals")
+async def get_trip_totals(
+    trip_id: int,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Get spending totals for all members in a trip.
+    Shows how much each person paid vs their fair share.
+
+    Returns:
+        - total_spent: Trip total in base currency
+        - member_totals: List with per-member data:
+          - member_id, member_nickname
+          - total_paid: Sum of expenses where this member is the payer
+          - total_share: Sum of their splits across all expenses
+          - difference: total_paid - total_share (positive = overpaid, negative = underpaid)
+    """
+    from app.models.expense import Expense
+    from app.models.split import Split
+    from sqlalchemy import func
+
+    # Check access
+    trip, _ = await check_trip_access(trip_id, current_user, session)
+
+    # Get all members
+    members_statement = select(TripMember).where(TripMember.trip_id == trip_id)
+    result = await session.execute(members_statement)
+    members = result.scalars().all()
+
+    # Calculate total paid per member (sum of expenses they paid, in base currency)
+    # Formula: amount * exchange_rate_to_base
+    paid_statement = (
+        select(
+            Expense.paid_by_member_id,
+            func.sum(Expense.amount * Expense.exchange_rate_to_base).label("total_paid"),
+        )
+        .where(Expense.trip_id == trip_id)
+        .group_by(Expense.paid_by_member_id)
+    )
+    paid_result = await session.execute(paid_statement)
+    paid_by_member = {row.paid_by_member_id: float(row.total_paid or 0) for row in paid_result}
+
+    # Calculate total share per member (sum of their splits, converted to base currency)
+    # Need to join with Expense to get exchange rate
+    share_statement = (
+        select(
+            Split.member_id,
+            func.sum(Split.amount * Expense.exchange_rate_to_base).label("total_share"),
+        )
+        .join(Expense, Split.expense_id == Expense.id)
+        .where(Expense.trip_id == trip_id)
+        .group_by(Split.member_id)
+    )
+    share_result = await session.execute(share_statement)
+    share_by_member = {row.member_id: float(row.total_share or 0) for row in share_result}
+
+    # Build response with all members
+    member_totals = []
+    for member in members:
+        total_paid = paid_by_member.get(member.id, 0.0)
+        total_share = share_by_member.get(member.id, 0.0)
+        difference = total_paid - total_share
+
+        member_totals.append({
+            "member_id": member.id,
+            "member_nickname": member.nickname,
+            "total_paid": round(total_paid, 2),
+            "total_share": round(total_share, 2),
+            "difference": round(difference, 2),
+        })
+
+    # Sort by total_paid descending (highest spenders first)
+    member_totals.sort(key=lambda x: x["total_paid"], reverse=True)
+
+    return {
+        "trip_id": trip_id,
+        "base_currency": trip.base_currency,
+        "total_spent": float(trip.total_spent or 0),
+        "member_totals": member_totals,
+    }
+
+
 @router.post("/trips/{trip_id}/settlements", status_code=status.HTTP_201_CREATED)
 async def record_settlement_payment(
     trip_id: int,

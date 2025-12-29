@@ -186,3 +186,19 @@ export interface InviteLink {
   invite_url: string;
   expires_at?: string;
 }
+
+export interface MemberTotal {
+  member_id: number;
+  member_nickname: string;
+  total_paid: number;    // What they paid (in base currency)
+  total_share: number;   // Their share of expenses (in base currency)
+  difference: number;    // total_paid - total_share (positive = overpaid)
+}
+
+export interface TotalsResponse {
+  trip_id: number;
+  base_currency: string;
+  total_spent: number;
+  member_totals: MemberTotal[];
+}
+

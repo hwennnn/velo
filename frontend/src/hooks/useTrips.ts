@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api';
 import type { CreateTripInput, Trip } from '../types';
 import { balanceKeys } from './useBalances';
+import { totalsKeys } from './useTotals';
 
 // Query Keys
 export const tripKeys = {
@@ -129,6 +130,7 @@ export function useUpdateTrip(tripId: string) {
       queryClient.invalidateQueries({ queryKey: tripKeys.lists() });
       // Also invalidate balances since simplify_debts affects balance calculation
       queryClient.invalidateQueries({ queryKey: balanceKeys.trip(tripId) });
+      queryClient.invalidateQueries({ queryKey: totalsKeys.trip(tripId) });
     },
   });
 }

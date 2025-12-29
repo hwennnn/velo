@@ -5,6 +5,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteD
 import { api } from '../services/api';
 import type { CreateExpenseInput, Expense, TripMember, UpdateExpenseInput } from '../types';
 import { balanceKeys } from './useBalances';
+import { totalsKeys } from './useTotals';
 import { tripKeys } from './useTrips';
 
 // Query Keys
@@ -197,6 +198,7 @@ export function useCreateExpense(tripId: string, members?: TripMember[], current
       });
       queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
       queryClient.invalidateQueries({ queryKey: balanceKeys.trip(tripId) });
+      queryClient.invalidateQueries({ queryKey: totalsKeys.trip(tripId) });
     },
     onError: (_error, _variables, context) => {
       // Rollback to previous data on error
@@ -265,6 +267,7 @@ export function useDeleteExpense(tripId: string) {
       });
       queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
       queryClient.invalidateQueries({ queryKey: balanceKeys.trip(tripId) });
+      queryClient.invalidateQueries({ queryKey: totalsKeys.trip(tripId) });
     },
   });
 }
@@ -359,6 +362,7 @@ export function useUpdateExpense(tripId: string) {
       queryClient.invalidateQueries({ queryKey: expenseKeys.detail(tripId, expenseId) });
       queryClient.invalidateQueries({ queryKey: tripKeys.detail(tripId) });
       queryClient.invalidateQueries({ queryKey: balanceKeys.trip(tripId) });
+      queryClient.invalidateQueries({ queryKey: totalsKeys.trip(tripId) });
     },
     onError: (_error, { expenseId }, context) => {
       // Rollback list data on error

@@ -105,6 +105,7 @@ export const api = {
       apiClient.post(`/trips/${tripId}/debts/merge`, data),
     convertAllDebts: (tripId: string, data: any) => 
       apiClient.post(`/trips/${tripId}/debts/convert-all`, data),
+    getTotals: (tripId: string) => apiClient.get(`/trips/${tripId}/totals`),
   },
 
   // Exchange Rates

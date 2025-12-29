@@ -2,7 +2,7 @@
 FastAPI application entry point for Velo Travel Expense Tracker.
 """
 
-from app.api import trips, users, members, expenses, balances
+from app.api import trips, users, members, expenses, balances, upload
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -72,6 +72,9 @@ async def health_check():
 # API routes
 
 app.include_router(users.router, prefix=f"{settings.api_prefix}/users", tags=["users"])
+app.include_router(
+    upload.router, prefix=f"{settings.api_prefix}/upload", tags=["upload"]
+)
 app.include_router(trips.router, prefix=f"{settings.api_prefix}/trips", tags=["trips"])
 app.include_router(members.router, prefix=f"{settings.api_prefix}", tags=["members"])
 app.include_router(expenses.router, prefix=f"{settings.api_prefix}", tags=["expenses"])

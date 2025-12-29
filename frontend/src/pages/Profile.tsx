@@ -38,14 +38,22 @@ export default function Profile() {
     avatar_url: '',
   });
 
+  // File upload state
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string>('');
+  const [isUploading, setIsUploading] = useState(false);
+
   // Initialize form when starting to edit
   const startEditing = () => {
     setEditForm({
       display_name: userProfile?.display_name || '',
       avatar_url: userProfile?.avatar_url || '',
     });
+    setSelectedFile(null);
+    setPreviewUrl('');
     setIsEditing(true);
   };
+
 
   // Update profile mutation
   const updateProfileMutation = useMutation({
@@ -64,11 +72,11 @@ export default function Profile() {
 
   const handleSaveProfile = () => {
     const updates: { display_name?: string; avatar_url?: string } = {};
-    
+
     if (editForm.display_name !== (userProfile?.display_name || '')) {
       updates.display_name = editForm.display_name;
     }
-    
+
     if (editForm.avatar_url !== (userProfile?.avatar_url || '')) {
       updates.avatar_url = editForm.avatar_url;
     }
@@ -89,12 +97,73 @@ export default function Profile() {
     }
   };
 
+  // Handle file selection
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      showAlert('Please select a valid image file (JPEG, PNG, GIF, or WebP)', { type: 'error' });
+      return;
+    }
+
+    // Validate file size (5MB)
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      showAlert('Image size must be less than 5MB', { type: 'error' });
+      return;
+    }
+
+    setSelectedFile(file);
+
+    // Create preview URL
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPreviewUrl(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Upload avatar mutation
+  const uploadAvatarMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      return api.user.uploadAvatar(formData);
+    },
+    onSuccess: (response) => {
+      // Update the form with the new avatar URL
+      setEditForm(prev => ({ ...prev, avatar_url: response.data.url }));
+      setSelectedFile(null);
+      setPreviewUrl('');
+      showAlert('Image uploaded successfully', { type: 'success' });
+    },
+    onError: (error: unknown) => {
+      const errorMessage = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Failed to upload image';
+      showAlert(errorMessage, { type: 'error' });
+    },
+  });
+
+  // Handle upload button click
+  const handleUploadImage = async () => {
+    if (!selectedFile) return;
+    setIsUploading(true);
+    try {
+      await uploadAvatarMutation.mutateAsync(selectedFile);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const getAvatarUrl = () => {
     if (isEditing) {
-      return editForm.avatar_url || userProfile?.avatar_url;
+      return previewUrl || editForm.avatar_url || userProfile?.avatar_url;
     }
     return userProfile?.avatar_url;
   };
+
 
   return (
     <div className="h-full bg-gray-50 flex flex-col relative">
@@ -105,7 +174,7 @@ export default function Profile() {
             <h1 className="text-2xl font-bold text-gray-900 mb-0.5">Profile</h1>
             <p className="text-gray-500 text-sm">Manage your account</p>
           </div>
-          
+
           {isProfileLoading ? (
             <div className="flex items-center">
               <Shimmer className="h-9 rounded-lg w-24" />
@@ -181,11 +250,51 @@ export default function Profile() {
                   )}
 
                   {isEditing && (
-                    <div className="absolute -bottom-2 -right-2 bg-primary-600 rounded-full p-2 shadow-lg">
-                      <Camera className="w-4 h-4 text-white" />
-                    </div>
+                    <>
+                      <input
+                        type="file"
+                        id="avatar-upload"
+                        accept="image/jpeg,image/png,image/gif,image/webp"
+                        onChange={handleFileSelect}
+                        className="hidden"
+                      />
+                      <label
+                        htmlFor="avatar-upload"
+                        className="absolute -bottom-2 -right-2 bg-primary-600 rounded-full p-2 shadow-lg cursor-pointer hover:bg-primary-700 transition-colors"
+                      >
+                        <Camera className="w-4 h-4 text-white" />
+                      </label>
+                    </>
                   )}
                 </div>
+
+                {/* Upload button for selected file */}
+                {isEditing && selectedFile && (
+                  <div className="mb-4 w-full max-w-xs">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2">
+                      <p className="text-sm text-blue-900 font-medium mb-1">
+                        Selected: {selectedFile.name}
+                      </p>
+                      <p className="text-xs text-blue-700">
+                        {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleUploadImage}
+                      disabled={isUploading}
+                      className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isUploading ? (
+                        <>
+                          <LoadingSpinner size="sm" />
+                          <span>Uploading...</span>
+                        </>
+                      ) : (
+                        'Upload Image'
+                      )}
+                    </button>
+                  </div>
+                )}
 
                 <h2 className="text-xl font-bold text-gray-900 mb-1">
                   {userProfile?.display_name || 'User'}
@@ -212,38 +321,6 @@ export default function Profile() {
                   ) : (
                     <p className="text-gray-900 py-2">
                       {userProfile?.display_name || 'Not set'}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Profile Picture URL
-                  </label>
-                  {isEditing ? (
-                    <input
-                      type="url"
-                      value={editForm.avatar_url}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, avatar_url: e.target.value })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                      placeholder="https://example.com/avatar.jpg"
-                    />
-                  ) : (
-                    <p className="text-gray-900 py-2 break-words overflow-wrap-anywhere">
-                      {userProfile?.avatar_url ? (
-                        <a
-                          href={userProfile.avatar_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary-600 hover:text-primary-700 underline break-all"
-                        >
-                          {userProfile.avatar_url}
-                        </a>
-                      ) : (
-                        'Not set'
-                      )}
                     </p>
                   )}
                 </div>

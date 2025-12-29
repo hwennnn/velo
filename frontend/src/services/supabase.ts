@@ -71,3 +71,44 @@ export const auth = {
     return { data, error };
   },
 };
+
+// Storage helpers
+export const storage = {
+  /**
+   * Upload avatar to Supabase Storage
+   */
+  uploadAvatar: async (file: File, userId: string) => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${userId}/${crypto.randomUUID()}.${fileExt}`;
+    
+    const { data, error } = await supabase.storage
+      .from('avatars')
+      .upload(fileName, file, {
+        contentType: file.type,
+        upsert: false,
+      });
+    
+    if (error) {
+      return { data: null, error };
+    }
+    
+    // Get public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(fileName);
+    
+    return { data: { path: data.path, url: publicUrl }, error: null };
+  },
+
+  /**
+   * Delete avatar from Supabase Storage
+   */
+  deleteAvatar: async (path: string) => {
+    const { data, error } = await supabase.storage
+      .from('avatars')
+      .remove([path]);
+    
+    return { data, error };
+  },
+};
+

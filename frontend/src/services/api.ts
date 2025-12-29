@@ -117,8 +117,12 @@ export const api = {
     register: (data: { user_id: string; email: string; display_name?: string; avatar_url?: string }) => apiClient.post('/users/register', data),
     getProfile: () => apiClient.get('/users/me'),
     updateProfile: (data: any) => apiClient.put('/users/me', data),
+    uploadAvatar: (formData: FormData) => apiClient.post('/upload/avatar', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }),
   },
-
 };
 
 export default apiClient;

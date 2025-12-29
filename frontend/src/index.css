@@ -8,9 +8,35 @@
   }
   body {
     @apply bg-gray-100 text-gray-900 antialiased;
-    font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Fix date inputs on iOS Safari */
+  input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+    min-height: 2.5rem;
+    position: relative;
+  }
+
+  input[type="date"]::-webkit-date-and-time-value {
+    text-align: left;
+    padding-right: 0;
+  }
+
+  input[type="date"]::-webkit-inner-spin-button,
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    cursor: pointer;
   }
 }
 
@@ -27,16 +53,16 @@
   .safe-right {
     padding-right: env(safe-area-inset-right);
   }
-  
+
   /* Animations */
   .animate-slide-up {
     animation: slide-up 0.3s ease-out;
   }
-  
+
   .animate-fade-in {
     animation: fade-in 0.3s ease-out;
   }
-  
+
   @keyframes slide-up {
     from {
       transform: translateY(100%);
@@ -47,7 +73,7 @@
       opacity: 1;
     }
   }
-  
+
   @keyframes fade-in {
     from {
       opacity: 0;

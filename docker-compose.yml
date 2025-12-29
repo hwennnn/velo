@@ -1,0 +1,50 @@
+services:
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: velo_backend
+    restart: always
+    env_file:
+      - ${ENV_FILE:-.env}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - velo_network
+
+  nginx:
+    image: nginx:alpine
+    container_name: velo_nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/ssl:/etc/nginx/ssl
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    depends_on:
+      - backend
+    networks:
+      - velo_network
+
+  # Certbot service for SSL certificates
+  certbot:
+    image: certbot/certbot
+    container_name: velo_certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    command: certonly --webroot -w /var/www/certbot --force-renewal --email hwendev@gmail.com -d api.velo.hwendev.com --agree-tos
+
+networks:
+  velo_network:
+    driver: bridge

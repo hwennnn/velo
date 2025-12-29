@@ -1,6 +1,108 @@
 # 🚀 Deployment Guide - Velo v2.0
 
-## Quick Start
+## Quick Start (VPS)
+
+This guide assumes you are deploying to a Linux VPS (Ubuntu/Debian) using Docker.
+
+### Prerequisites
+
+- A VPS (or any Linux server)
+- A domain name (e.g., `velo.hwendev.com`)
+- GitHub Repository with your code
+
+### 1. Server Setup
+
+SSH into your server and run the automated setup script. This installs Docker, Docker Compose, and sets up directories.
+
+```bash
+# Clone the repo (or just copy the script)
+git clone https://github.com/hwennnn/velo.git ~/velo
+cd ~/velo
+
+# Run setup
+chmod +x scripts/setup_vps.sh
+./scripts/setup_vps.sh
+```
+
+### 2. Environment Configuration
+
+Create your production environment file.
+
+```bash
+nano ~/velo/.env.production
+```
+
+**Required Variables**:
+
+```env
+# Database
+DATABASE_URL=postgresql://user:pass@host:5432/db
+
+# Supabase
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-anon-key
+SUPABASE_JWT_SECRET=your-jwt-secret
+
+# App
+ENVIRONMENT=production
+DEBUG=false
+CORS_ORIGINS=https://velo.hwendev.com
+```
+
+### 3. Automated Deployment (CI/CD)
+
+We use GitHub Actions for continuous deployment.
+
+1.  Go to your **GitHub Repo -> Settings -> Secrets -> Actions**.
+2.  Add the following secrets:
+    - `VPS_HOST`: Your Server IP
+    - `VPS_USER`: `root`
+    - `VPS_SSH_KEY`: Your private SSH key
+3.  Push to `main`. The action will SSH into your server, pull changes, and restart containers.
+
+### 4. Manual Deployment
+
+If you need to deploy manually from the server:
+
+```bash
+cd ~/velo
+./scripts/deploy.sh --production
+```
+
+## HTTPS / SSL Setup
+
+Once your domain is pointing to the server:
+
+```bash
+cd ~/velo
+docker compose run --rm certbot
+```
+
+Then edit `nginx/conf.d/default.conf` to uncomment the SSL configuration and restart Nginx:
+
+```bash
+docker compose restart nginx
+```
+
+## Hosting Multiple Services
+
+To host other services on the same server (different ports or subdomains), edit `nginx/conf.d/default.conf`.
+
+Example:
+
+```nginx
+# Velo API
+server {
+    server_name api.velo.hwendev.com;
+    location / { proxy_pass http://backend:8000; ... }
+}
+
+# Another Service
+server {
+    server_name other.app.com;
+    location / { proxy_pass http://other-container:9000; ... }
+}
+```
 
 ### Prerequisites
 

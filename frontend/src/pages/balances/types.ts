@@ -40,6 +40,7 @@ export type SummaryTabProps = {
   membersById: Map<number, TripMember>;
   expandedMembers: Set<number>;
   onToggleMember: (memberId: number) => void;
+  debts: Debt[];
 };
 
 export type DebtsTabProps = {

@@ -8,12 +8,13 @@ import { getMemberInitials } from '../utils/memberUtils';
 
 interface AvatarProps {
   member: Pick<TripMember, 'id' | 'display_name' | 'avatar_url' | 'nickname'>;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
   onClick?: () => void;
 }
 
 const sizeClasses = {
+  xs: 'w-6 h-6 text-[10px]',
   sm: 'w-8 h-8 text-xs',
   md: 'w-10 h-10 text-sm',
   lg: 'w-16 h-16 text-lg',

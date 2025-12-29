@@ -23,6 +23,7 @@ export default function BalancesPage() {
 
   const baseCurrency = trip?.base_currency || balancesData?.base_currency || 'USD';
   const balances = balancesData?.member_balances || [];
+  const debts = balancesData?.debts || [];
 
   const membersById = useMemo(() => new Map((trip?.members || []).map((m) => [m.id, m])), [trip?.members]);
 
@@ -95,6 +96,7 @@ export default function BalancesPage() {
               membersById={membersById}
               expandedMembers={expandedMembers}
               onToggleMember={toggleMemberExpansion}
+              debts={debts}
             />
           )}
         </div>

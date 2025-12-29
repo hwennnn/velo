@@ -10,6 +10,7 @@ jobs:
   deploy:
     name: Deploy to VPS
     runs-on: ubuntu-latest
+    environment: Configure CD
 
     steps:
       - name: Checkout code

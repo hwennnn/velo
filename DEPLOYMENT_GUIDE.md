@@ -12,17 +12,14 @@ This guide assumes you are deploying to a Linux VPS (Ubuntu/Debian) using Docker
 
 ### 1. Server Setup
 
-SSH into your server and run the automated setup script. This installs Docker, Docker Compose, and sets up directories.
+SSH into your server and run the gateway setup script.
 
-```bash
-# Clone the repo (or just copy the script)
+````bash
+# Clone the repo
 git clone https://github.com/hwennnn/velo.git ~/velo
 cd ~/velo
 
-# Run setup
-chmod +x scripts/setup_vps.sh
-./scripts/setup_vps.sh
-```
+Setup the gateway accordingly (nginx config).
 
 ### 2. Environment Configuration
 
@@ -494,6 +491,7 @@ For issues or questions:
 
 ---
 
-**Version**: 2.0.0  
-**Last Updated**: December 2024  
+**Version**: 2.0.0
+**Last Updated**: December 2024
 **Status**: Production Ready ✅
+````

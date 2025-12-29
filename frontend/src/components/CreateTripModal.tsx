@@ -258,14 +258,14 @@ export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTri
               <label htmlFor="start-date" className="block text-sm font-medium text-gray-700 mb-1.5">
                 Start Date
               </label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <div className="relative overflow-hidden">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 z-10" />
                 <input
                   id="start-date"
                   type="date"
                   value={formData.start_date}
                   onChange={(e) => handleDateChange('start_date', e.target.value)}
-                  className="w-full min-w-0 pl-11 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                  className="w-full min-w-0 max-w-full box-border pl-11 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                 />
               </div>
             </div>
@@ -274,14 +274,14 @@ export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTri
               <label htmlFor="end-date" className="block text-sm font-medium text-gray-700 mb-1.5">
                 End Date
               </label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <div className="relative overflow-hidden">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 z-10" />
                 <input
                   id="end-date"
                   type="date"
                   value={formData.end_date}
                   onChange={(e) => handleDateChange('end_date', e.target.value)}
-                  className={`w-full min-w-0 pl-11 pr-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow ${errors.end_date ? 'border-red-500' : 'border-gray-300'
+                  className={`w-full min-w-0 max-w-full box-border pl-11 pr-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow ${errors.end_date ? 'border-red-500' : 'border-gray-300'
                     }`}
                 />
               </div>

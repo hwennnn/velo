@@ -10,7 +10,7 @@ export interface Currency {
 }
 
 // All supported currencies from API
-export const SUPPORTED_CURRENCIES: Currency[] = [
+const ALL_CURRENCIES: Currency[] = [
   { code: 'AED', symbol: 'dh', name: 'UAE Dirham' },
   { code: 'AFN', symbol: '؋', name: 'Afghan Afghani' },
   { code: 'ALL', symbol: 'L', name: 'Albanian Lek' },
@@ -182,7 +182,12 @@ export const SUPPORTED_CURRENCIES: Currency[] = [
 export const DEFAULT_CURRENCY = 'USD';
 
 // Popular currencies for initial default selection if store is empty
-export const POPULAR_CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'CNY', 'HKD', 'NZD', 'SGD'];
+export const POPULAR_CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'CNY', 'HKD', 'NZD', 'SGD', 'MYR'];
+
+export const SUPPORTED_CURRENCIES = [
+  ...ALL_CURRENCIES.filter(c => POPULAR_CURRENCIES.includes(c.code)),
+  ...ALL_CURRENCIES.filter(c => !POPULAR_CURRENCIES.includes(c.code))
+];
 
 // Create lookup maps for easy access
 export const CURRENCY_MAP = new Map(

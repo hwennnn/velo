@@ -3,6 +3,7 @@ name: CD Pipeline
 on:
   push:
     branches: ["master"]
+    paths: ["backend/**", "scripts/**", "docker-compose.yml"]
   workflow_dispatch:
 
 jobs:

@@ -45,6 +45,7 @@ export default function SettleUpPage() {
     const [showInfoModal, setShowInfoModal] = useState(false);
     const [draftSource, setDraftSource] = useState<'debt' | 'manual' | null>(null);
     const [showConvertAllModal, setShowConvertAllModal] = useState(false);
+    const [filterMyAction, setFilterMyAction] = useState(true);
 
     const exchangeRates = useMemo(() => exchangeRatesData?.rates || { [baseCurrency]: 1 }, [exchangeRatesData?.rates, baseCurrency]);
 
@@ -236,9 +237,19 @@ export default function SettleUpPage() {
         }
     };
 
+    const currentMember = useMemo(() =>
+        trip?.members?.find(m => m.user_id === user?.id),
+        [trip?.members, user?.id]
+    );
+
     // Group debts by (from -> to) to show one card per pair, with per-currency rows
     const groupedDebts = useMemo(() => {
-        const debts = balancesData?.debts || [];
+        let debts = balancesData?.debts || [];
+
+        // Filter by user involvement if enabled
+        if (filterMyAction && currentMember) {
+            debts = debts.filter(d => d.from_member_id === currentMember.id || d.to_member_id === currentMember.id);
+        }
 
         const map = new Map<string, GroupedDebt>();
         debts.forEach((d) => {
@@ -261,7 +272,7 @@ export default function SettleUpPage() {
             }
         });
         return Array.from(map.values());
-    }, [balancesData?.debts]);
+    }, [balancesData?.debts, filterMyAction, currentMember]);
 
     // Determine if we should show the "Convert All" button
     const shouldShowConvertAll = useMemo(() => {
@@ -292,34 +303,35 @@ export default function SettleUpPage() {
         <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
             {/* Header */}
             <div className="sticky top-0 z-20 bg-white border-b border-gray-200">
-                <div className="max-w-3xl mx-auto px-5 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={() => navigate(`/trips/${tripId}`)}
-                            className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                        >
-                            <ArrowLeft className="w-5 h-5 text-gray-700" />
-                        </button>
-                        <div>
-                            <div className="text-lg font-semibold text-gray-900">Settle Up</div>
-                            <div className="text-xs text-gray-500 flex items-center gap-2">
-                                <Shield className="w-3 h-3 text-gray-400" />
-                                <span>Base: {baseCurrency}</span>
+                <div className="max-w-3xl mx-auto px-5 py-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center justify-between w-full sm:w-auto">
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => navigate(`/trips/${tripId}`)}
+                                className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                            >
+                                <ArrowLeft className="w-5 h-5 text-gray-700" />
+                            </button>
+                            <div>
+                                <div className="text-lg font-semibold text-gray-900">Settle Up</div>
+                                <div className="text-xs text-gray-500 flex items-center gap-2">
+                                    <Shield className="w-3 h-3 text-gray-400" />
+                                    <span>Base: {baseCurrency}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        {shouldShowConvertAll && (
-                            <button
-                                onClick={() => setShowConvertAllModal(true)}
-                                disabled={convertAllDebts.isPending}
-                                className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 disabled:opacity-50"
-                            >
-                                <RefreshCw className={`w-4 h-4 ${convertAllDebts.isPending ? 'animate-spin' : ''}`} />
-                                <span className="hidden sm:inline">Convert all to {baseCurrency}</span>
-                                <span className="sm:hidden">{baseCurrency}</span>
-                            </button>
-                        )}
+
+                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                        <button
+                            onClick={() => setFilterMyAction(!filterMyAction)}
+                            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${filterMyAction
+                                ? 'bg-primary-50 text-primary-700 border border-primary-200'
+                                : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                                }`}
+                        >
+                            {filterMyAction ? 'Involving Me' : 'All Debts'}
+                        </button>
                         <button
                             onClick={openManualSettlementDraft}
                             className="flex items-center gap-2 px-3 py-2 bg-primary-600 text-white rounded-lg text-sm font-semibold hover:bg-primary-700"
@@ -361,6 +373,19 @@ export default function SettleUpPage() {
                             membersById={membersById}
                             onSettle={openSettlementDraftFromDebt}
                         />
+                    )}
+
+                    {shouldShowConvertAll && (
+                        <div className="mt-8 flex justify-center pb-8">
+                            <button
+                                onClick={() => setShowConvertAllModal(true)}
+                                disabled={convertAllDebts.isPending}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-white text-gray-700 border border-gray-200 rounded-full text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-all shadow-sm"
+                            >
+                                <RefreshCw className={`w-4 h-4 ${convertAllDebts.isPending ? 'animate-spin' : ''}`} />
+                                <span>Convert all debts to {baseCurrency}</span>
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>

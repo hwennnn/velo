@@ -19,6 +19,18 @@
     appearance: none;
     min-height: 2.5rem;
     position: relative;
+    color: #1f2937; /* gray-800 - ensures text is visible */
+  }
+  
+  /* Style empty date inputs to show placeholder-like text */
+  input[type="date"]:not(:valid),
+  input[type="date"][value=""] {
+    color: #9ca3af; /* gray-400 - placeholder color */
+  }
+  
+  /* Ensure selected date is visible */
+  input[type="date"]:valid:not([value=""]) {
+    color: #1f2937; /* gray-800 */
   }
 
   input[type="date"]::-webkit-date-and-time-value {

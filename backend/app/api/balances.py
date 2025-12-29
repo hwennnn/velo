@@ -118,9 +118,9 @@ async def check_trip_access(
 @router.get("/trips/{trip_id}/balances")
 async def get_trip_balances(
     trip_id: int,
-    simplify: Optional[bool] = Query(
-        default=None,
-        description="Override trip setting simplify_debts. If omitted, uses trip.simplify_debts.",
+    minimize: bool = Query(
+        default=False,
+        description="Convert all debts to base currency and minimize transactions. Default false.",
     ),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -132,24 +132,30 @@ async def get_trip_balances(
 
     Args:
         trip_id: Trip ID
-        simplify: If True, minimize the number of transactions (returns debts in base currency)
+        simplify: If True, net out reverse debts per pair/currency.
+                  If omitted, uses trip.simplify_debts setting.
+        minimize: If True, convert all debts to base currency and minimize transactions.
+                  Default false.
 
     Returns:
         - member_balances: List of member balances with currency breakdown
-        - debts: List of who owes who how much (simplified if requested)
+        - debts: List of who owes who how much
     """
     # Check access
     trip, _ = await check_trip_access(trip_id, current_user, session)
 
-    effective_simplify = simplify if simplify is not None else bool(trip.simplify_debts)
+    effective_simplify = bool(trip.simplify_debts)
 
     # Get balances and debts from debt records
-    result = await get_member_balances(trip_id, session, simplify=effective_simplify)
+    result = await get_member_balances(
+        trip_id, session, simplify=effective_simplify, minimize=minimize
+    )
 
     return {
         "trip_id": trip_id,
         "base_currency": trip.base_currency,
         "simplified": effective_simplify,
+        "minimized": minimize,
         "member_balances": result["member_balances"],
         "debts": result["debts"],
     }
@@ -190,13 +196,17 @@ async def get_trip_totals(
     paid_statement = (
         select(
             Expense.paid_by_member_id,
-            func.sum(Expense.amount * Expense.exchange_rate_to_base).label("total_paid"),
+            func.sum(Expense.amount * Expense.exchange_rate_to_base).label(
+                "total_paid"
+            ),
         )
         .where(Expense.trip_id == trip_id)
         .group_by(Expense.paid_by_member_id)
     )
     paid_result = await session.execute(paid_statement)
-    paid_by_member = {row.paid_by_member_id: float(row.total_paid or 0) for row in paid_result}
+    paid_by_member = {
+        row.paid_by_member_id: float(row.total_paid or 0) for row in paid_result
+    }
 
     # Calculate total share per member (sum of their splits, converted to base currency)
     # Need to join with Expense to get exchange rate
@@ -210,7 +220,9 @@ async def get_trip_totals(
         .group_by(Split.member_id)
     )
     share_result = await session.execute(share_statement)
-    share_by_member = {row.member_id: float(row.total_share or 0) for row in share_result}
+    share_by_member = {
+        row.member_id: float(row.total_share or 0) for row in share_result
+    }
 
     # Build response with all members
     member_totals = []
@@ -219,13 +231,15 @@ async def get_trip_totals(
         total_share = share_by_member.get(member.id, 0.0)
         difference = total_paid - total_share
 
-        member_totals.append({
-            "member_id": member.id,
-            "member_nickname": member.nickname,
-            "total_paid": round(total_paid, 2),
-            "total_share": round(total_share, 2),
-            "difference": round(difference, 2),
-        })
+        member_totals.append(
+            {
+                "member_id": member.id,
+                "member_nickname": member.nickname,
+                "total_paid": round(total_paid, 2),
+                "total_share": round(total_share, 2),
+                "difference": round(difference, 2),
+            }
+        )
 
     # Sort by total_paid descending (highest spenders first)
     member_totals.sort(key=lambda x: x["total_paid"], reverse=True)
@@ -311,13 +325,13 @@ async def record_settlement_payment(
 
     expense_id = result["expense_id"]
     expense = await session.get(Expense, expense_id)
-    
+
     if not expense:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve created settlement expense",
         )
-    
+
     return await get_expense_response(expense, session)
 
 

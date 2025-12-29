@@ -15,12 +15,24 @@ export const balanceKeys = {
   trip: (tripId: string) => [...balanceKeys.all, tripId] as const,
 };
 
-// Fetch balances for a trip (simplification is controlled by trip settings)
-export function useBalances(tripId: string | undefined) : UseQueryResult<BalancesResponse> {
+// Fetch balances for a trip
+// - simplify: net out reverse debts per pair/currency (default from trip setting)
+// - minimize: convert to base currency and minimize transactions (default false)
+export function useBalances(
+  tripId: string | undefined,
+  options?: { minimize?: boolean }
+): UseQueryResult<BalancesResponse> {
+  const { minimize } = options || {};
+  
+  // Build query key based on options
+  const queryKey = minimize !== undefined
+    ? [...balanceKeys.trip(tripId!), { minimize }]
+    : balanceKeys.trip(tripId!);
+
   return useQuery({
-    queryKey: balanceKeys.trip(tripId!),
+    queryKey,
     queryFn: async () => {
-      const response = await api.balances.get(tripId!);
+      const response = await api.balances.get(tripId!, minimize);
       return response.data;
     },
     enabled: !!tripId,

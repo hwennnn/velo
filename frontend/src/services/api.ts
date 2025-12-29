@@ -85,12 +85,14 @@ export const api = {
     delete: (tripId: string, expenseId: number) => apiClient.delete(`/trips/${tripId}/expenses/${expenseId}`),
   },
 
-  // Balances & Settlements
   balances: {
-    get: (tripId: string, simplify?: boolean) =>
-      simplify === undefined
-        ? apiClient.get(`/trips/${tripId}/balances`)
-        : apiClient.get(`/trips/${tripId}/balances`, { params: { simplify } }),
+    get: (tripId: string, minimize?: boolean) => {
+      const params: Record<string, boolean> = {};
+      if (minimize !== undefined) params.minimize = minimize;
+      return Object.keys(params).length > 0
+        ? apiClient.get(`/trips/${tripId}/balances`, { params })
+        : apiClient.get(`/trips/${tripId}/balances`);
+    },
     getSettlements: (tripId: string, simplify?: boolean) =>
       simplify === undefined
         ? apiClient.get(`/trips/${tripId}/settlements`)

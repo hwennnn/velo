@@ -19,10 +19,14 @@ from app.models.trip import Trip
 from app.services.exchange_rate import get_exchange_rate
 
 
-def simplify_debts(debts: List[Dict], base_currency: str) -> List[Dict]:
+def minimize_transactions(debts: List[Dict], base_currency: str) -> List[Dict]:
     """
-    Simplify debts to minimize the number of transactions.
-    Uses a greedy algorithm to reduce complexity.
+    Minimize the number of transactions by converting all debts to base currency
+    and using a greedy algorithm to reduce payment count.
+
+    This is different from "simplify" (netting out reverse debts per pair/currency).
+    This function converts everything to base currency and finds the minimum
+    number of payments needed to settle all debts.
 
     Algorithm:
     1. Convert all debts to base currency
@@ -31,10 +35,10 @@ def simplify_debts(debts: List[Dict], base_currency: str) -> List[Dict]:
 
     Args:
         debts: List of debt dictionaries with amount_in_base
-        base_currency: Base currency for simplified debts
+        base_currency: Base currency for minimized debts
 
     Returns:
-        Simplified list of debts in base currency
+        Minimized list of debts in base currency
     """
     if not debts:
         return []
@@ -263,7 +267,7 @@ async def record_settlement(
 
 
 async def get_member_balances(
-    trip_id: int, session: AsyncSession, simplify: bool = False
+    trip_id: int, session: AsyncSession, simplify: bool = False, minimize: bool = False
 ) -> Dict:
     """
     Get balances for all members in a trip.
@@ -271,12 +275,17 @@ async def get_member_balances(
 
     Returns:
     - member_balances: List of member balances with currency breakdown
-    - debts: List of who owes who how much (can be simplified)
+    - debts: List of who owes who how much
 
     Args:
         trip_id: Trip ID
         session: Database session
-        simplify: If True, minimize the number of transactions using greedy algorithm
+        simplify: If True, net out reverse debts per pair/currency
+                  (A owes B 50, B owes A 30 -> A owes B 20)
+                  If False, show raw debts separately
+        minimize: If True, convert all debts to base currency and minimize
+                  the number of transactions using greedy algorithm.
+                  This is separate from simplify.
     """
     # Get trip to know base currency
     trip = await session.get(Trip, trip_id)
@@ -309,61 +318,101 @@ async def get_member_balances(
     result = await session.execute(debts_statement)
     all_debts = result.scalars().all()
 
-    # First net out reverse debts per pair/currency to avoid showing A owes B and B owes A.
-    net_map: Dict[tuple[int, int, str], Decimal] = {}
-    for debt in all_debts:
-        if debt.amount < Decimal("0.01"):
-            continue  # Skip negligible amounts
-        if debt.debtor_member_id == debt.creditor_member_id:
-            continue
-
-        a = debt.debtor_member_id
-        b = debt.creditor_member_id
-        lo, hi = (a, b) if a < b else (b, a)
-        sign = Decimal("1") if a == lo else Decimal("-1")
-        key = (lo, hi, debt.currency)
-        net_map[key] = net_map.get(key, Decimal("0.0")) + sign * debt.amount
-
-    # Build normalized debt list and update balances
+    # Build debt list based on simplify flag
     debt_list = []
-    for (lo, hi, curr), net_amount in net_map.items():
-        if abs(net_amount) < Decimal("0.01"):
-            continue  # cancels out fully
 
-        if net_amount > 0:
-            from_id, to_id, amount = lo, hi, net_amount
-        else:
-            from_id, to_id, amount = hi, lo, -net_amount
-
-        # Get exchange rate to base currency
-        exchange_rate = await get_exchange_rate(curr, base_currency)
-        amount_in_base = amount * exchange_rate
-
-        debt_list.append(
-            {
-                "from_member_id": from_id,
-                "to_member_id": to_id,
-                "from_nickname": member_map.get(from_id, "Unknown"),
-                "to_nickname": member_map.get(to_id, "Unknown"),
-                "amount": float(amount),
-                "currency": curr,
-                "amount_in_base": float(amount_in_base),
-            }
-        )
-
-        # Debtor owes money (negative balance in this currency)
-        if from_id in balances:
-            balances[from_id]["currency_balances"][curr] -= amount
-            balances[from_id]["total_owed_base"] += amount_in_base
-
-        # Creditor is owed money (positive balance in this currency)
-        if to_id in balances:
-            balances[to_id]["currency_balances"][curr] += amount
-            balances[to_id]["total_owed_to_base"] += amount_in_base
-
-    # Simplify debts if requested (minimize transactions)
     if simplify:
-        debt_list = simplify_debts(debt_list, base_currency)
+        # Net out reverse debts per pair/currency to avoid showing A owes B and B owes A
+        net_map: Dict[tuple[int, int, str], Decimal] = {}
+        for debt in all_debts:
+            if debt.amount < Decimal("0.01"):
+                continue  # Skip negligible amounts
+            if debt.debtor_member_id == debt.creditor_member_id:
+                continue
+
+            a = debt.debtor_member_id
+            b = debt.creditor_member_id
+            lo, hi = (a, b) if a < b else (b, a)
+            sign = Decimal("1") if a == lo else Decimal("-1")
+            key = (lo, hi, debt.currency)
+            net_map[key] = net_map.get(key, Decimal("0.0")) + sign * debt.amount
+
+        # Build normalized debt list from netted amounts
+        for (lo, hi, curr), net_amount in net_map.items():
+            if abs(net_amount) < Decimal("0.01"):
+                continue  # cancels out fully
+
+            if net_amount > 0:
+                from_id, to_id, amount = lo, hi, net_amount
+            else:
+                from_id, to_id, amount = hi, lo, -net_amount
+
+            # Get exchange rate to base currency
+            exchange_rate = await get_exchange_rate(curr, base_currency)
+            amount_in_base = amount * exchange_rate
+
+            debt_list.append(
+                {
+                    "from_member_id": from_id,
+                    "to_member_id": to_id,
+                    "from_nickname": member_map.get(from_id, "Unknown"),
+                    "to_nickname": member_map.get(to_id, "Unknown"),
+                    "amount": float(amount),
+                    "currency": curr,
+                    "amount_in_base": float(amount_in_base),
+                }
+            )
+
+            # Debtor owes money (negative balance in this currency)
+            if from_id in balances:
+                balances[from_id]["currency_balances"][curr] -= amount
+                balances[from_id]["total_owed_base"] += amount_in_base
+
+            # Creditor is owed money (positive balance in this currency)
+            if to_id in balances:
+                balances[to_id]["currency_balances"][curr] += amount
+                balances[to_id]["total_owed_to_base"] += amount_in_base
+    else:
+        # Show raw debts without netting (A owes B and B owes A shown separately)
+        for debt in all_debts:
+            if debt.amount < Decimal("0.01"):
+                continue
+            if debt.debtor_member_id == debt.creditor_member_id:
+                continue
+
+            curr = debt.currency
+            amount = debt.amount
+            from_id = debt.debtor_member_id
+            to_id = debt.creditor_member_id
+
+            exchange_rate = await get_exchange_rate(curr, base_currency)
+            amount_in_base = amount * exchange_rate
+
+            debt_list.append(
+                {
+                    "from_member_id": from_id,
+                    "to_member_id": to_id,
+                    "from_nickname": member_map.get(from_id, "Unknown"),
+                    "to_nickname": member_map.get(to_id, "Unknown"),
+                    "amount": float(amount),
+                    "currency": curr,
+                    "amount_in_base": float(amount_in_base),
+                }
+            )
+
+            # Debtor owes money (negative balance in this currency)
+            if from_id in balances:
+                balances[from_id]["currency_balances"][curr] -= amount
+                balances[from_id]["total_owed_base"] += amount_in_base
+
+            # Creditor is owed money (positive balance in this currency)
+            if to_id in balances:
+                balances[to_id]["currency_balances"][curr] += amount
+                balances[to_id]["total_owed_to_base"] += amount_in_base
+
+    # Minimize transactions if requested (convert to base currency)
+    if minimize:
+        debt_list = minimize_transactions(debt_list, base_currency)
 
     # Convert balances to list and clean up
     result_list = []

@@ -19,7 +19,7 @@ export default function BalancesPage() {
   const [expandedMembers, setExpandedMembers] = useState<Set<number>>(new Set());
 
   const { data: trip } = useTrip(tripId);
-  const { data: balancesData, isLoading } = useBalances(tripId);
+  const { data: balancesData, isLoading } = useBalances(tripId, { minimize: true });
 
   const baseCurrency = trip?.base_currency || balancesData?.base_currency || 'USD';
   const balances = balancesData?.member_balances || [];

@@ -175,6 +175,7 @@ export interface BalancesResponse {
   trip_id: number;
   base_currency: string;
   simplified: boolean;
+  minimized: boolean;
   member_balances: Balance[];
   debts: Debt[];
 }
@@ -183,6 +184,7 @@ export interface BulkConversionRequest {
   target_currency: string;
   use_custom_rates: boolean;
   custom_rates?: Record<string, number>;
+  [key: string]: unknown; // Allow additional properties for API compatibility
 }
 
 export interface InviteLink {

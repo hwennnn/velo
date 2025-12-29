@@ -2,146 +2,55 @@
  * Join Trip Page
  * Decodes invite link, shows trip preview, and allows user to confirm joining
  */
-import axios from 'axios';
 import { format } from 'date-fns';
 import { AlertCircle, Calendar, CheckCircle2, DollarSign, Loader2, Users } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { api } from '../services/api';
+import { useDecodeInvite, useJoinTrip } from '../hooks/useInvites';
 import { formatDateRange } from '../utils/dateUtils';
-
-// Invite info returned from decode API
-interface InviteInfo {
-  code: string;
-  trip_id: number;
-  trip_name: string;
-  trip_description: string | null;
-  base_currency: string;
-  start_date: string | null;
-  end_date: string | null;
-  member_count: number;
-  is_already_member: boolean;
-}
-
-type JoinStatus =
-  | 'loading'
-  | 'ready_to_join'
-  | 'joining'
-  | 'success'
-  | 'already_member'
-  | 'invalid_code'
-  | 'not_found'
-  | 'expired'
-  | 'error';
 
 export default function JoinTrip() {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [status, setStatus] = useState<JoinStatus>('loading');
-  const [error, setError] = useState<string>('');
-  const [inviteInfo, setInviteInfo] = useState<InviteInfo | null>(null);
-  const [isJoining, setIsJoining] = useState(false);
+  const [joinSuccess, setJoinSuccess] = useState(false);
 
-  const decodeInviteLink = useCallback(async () => {
+  // Redirect to login if not authenticated
+  useEffect(() => {
     if (!code) return;
 
-    setStatus('loading');
-
-    try {
-      const response = await api.invites.decode(code);
-      const info: InviteInfo = response.data;
-      setInviteInfo(info);
-
-      if (info.is_already_member) {
-        setStatus('already_member');
-      } else {
-        setStatus('ready_to_join');
-      }
-    } catch (err: unknown) {
-      if (!axios.isAxiosError(err)) {
-        setStatus('error');
-        setError('Failed to load invite details');
-        return;
-      }
-
-      if (err.response?.status === 400) {
-        setStatus('invalid_code');
-        setError('Invalid invite code format');
-      } else if (err.response?.status === 404) {
-        setStatus('not_found');
-        setError('This invite link is invalid or no longer exists');
-      } else if (err.response?.status === 410) {
-        setStatus('expired');
-        setError('This invite link has expired');
-      } else {
-        setStatus('error');
-        setError(err.response?.data?.detail || 'Failed to load invite details');
-      }
-    }
-  }, [code]);
-
-  useEffect(() => {
-    // Check for valid code first before redirecting to login
-    if (!code) {
-      // Use setTimeout to avoid synchronous setState in effect
-      setTimeout(() => {
-        setStatus('invalid_code');
-        setError('No invite code provided');
-      }, 0);
-      return;
-    }
-
     if (!user) {
-      // Use the code from params to construct URL, not window.location.pathname
-      // which can change during navigation
       const redirectUrl = `/join/${code}`;
       navigate(`/auth/login?redirect=${encodeURIComponent(redirectUrl)}`);
-      return;
     }
+  }, [code, user, navigate]);
 
-    decodeInviteLink();
-  }, [code, user, navigate, decodeInviteLink]);
+  // Fetch invite info using React Query
+  const {
+    data: inviteInfo,
+    isLoading,
+    error: decodeError,
+  } = useDecodeInvite(user ? code : undefined);
+
+  // Join trip mutation
+  const joinTripMutation = useJoinTrip();
 
   const handleConfirmJoin = async () => {
-    if (!code || isJoining) return;
-
-    setIsJoining(true);
-    setStatus('joining');
+    if (!code) return;
 
     try {
-      await api.invites.join(code);
+      await joinTripMutation.mutateAsync(code);
+      setJoinSuccess(true);
 
-      const response = await api.invites.decode(code);
-      setInviteInfo(response.data);
-
-      setStatus('success');
-
+      // Redirect after success
       setTimeout(() => {
         if (inviteInfo) {
           navigate(`/trips/${inviteInfo.trip_id}`);
         }
       }, 2000);
-    } catch (err: unknown) {
-      setIsJoining(false);
-
-      if (!axios.isAxiosError(err)) {
-        setStatus('error');
-        setError('Failed to join trip. Please try again.');
-        return;
-      }
-
-      if (err.response?.status === 404) {
-        setStatus('not_found');
-        setError('This invite link is invalid or no longer exists');
-      } else if (err.response?.status === 410) {
-        setStatus('expired');
-        setError('This invite link has expired');
-      } else {
-        setStatus('error');
-        setError(err.response?.data?.detail || 'Failed to join trip. Please try again.');
-      }
+    } catch {
+      // Error is handled by mutation state
     }
   };
 
@@ -155,8 +64,57 @@ export default function JoinTrip() {
     }
   };
 
+  const handleRetry = () => {
+    // Trigger refetch by navigating to the same route
+    window.location.reload();
+  };
+
+  // Determine error type from decodeError
+  const getErrorType = () => {
+    if (!decodeError) return null;
+
+    const axiosError = decodeError as { response?: { status?: number; data?: { detail?: string } } };
+    const status = axiosError.response?.status;
+
+    if (!code) return 'invalid_code';
+    if (status === 400) return 'invalid_code';
+    if (status === 404) return 'not_found';
+    if (status === 410) return 'expired';
+    return 'error';
+  };
+
+  const getErrorMessage = () => {
+    if (!decodeError) return '';
+
+    const axiosError = decodeError as { response?: { status?: number; data?: { detail?: string } } };
+    const errorType = getErrorType();
+
+    if (!code) return 'No invite code provided';
+    if (errorType === 'invalid_code') return 'Invalid invite code format';
+    if (errorType === 'not_found') return 'This invite link is invalid or no longer exists';
+    if (errorType === 'expired') return 'This invite link has expired';
+    return axiosError.response?.data?.detail || 'Failed to load invite details';
+  };
+
+  const joinError = joinTripMutation.error as { response?: { status?: number; data?: { detail?: string } } };
+  const getJoinErrorType = () => {
+    if (!joinError) return null;
+    const status = joinError.response?.status;
+    if (status === 404) return 'not_found';
+    if (status === 410) return 'expired';
+    return 'error';
+  };
+
+  const getJoinErrorMessage = () => {
+    if (!joinError) return '';
+    const errorType = getJoinErrorType();
+    if (errorType === 'not_found') return 'This invite link is invalid or no longer exists';
+    if (errorType === 'expired') return 'This invite link has expired';
+    return joinError.response?.data?.detail || 'Failed to join trip. Please try again.';
+  };
+
   // Loading state
-  if (!user || status === 'loading' || status === 'joining') {
+  if (!user || isLoading || joinTripMutation.isPending) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
         <div className="w-full max-w-md bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
@@ -165,12 +123,12 @@ export default function JoinTrip() {
               <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
             </div>
             <h2 className="text-xl font-bold text-gray-900 mb-2">
-              {status === 'loading' && 'Loading Invite...'}
-              {status === 'joining' && 'Joining Trip...'}
+              {isLoading && 'Loading Invite...'}
+              {joinTripMutation.isPending && 'Joining Trip...'}
             </h2>
             <p className="text-gray-600">
-              {status === 'loading' && 'Getting trip details...'}
-              {status === 'joining' && 'Adding you to the trip...'}
+              {isLoading && 'Getting trip details...'}
+              {joinTripMutation.isPending && 'Adding you to the trip...'}
             </p>
           </div>
         </div>
@@ -178,13 +136,154 @@ export default function JoinTrip() {
     );
   }
 
+  const errorType = getErrorType();
+  const errorMessage = getErrorMessage();
+  const joinErrorType = getJoinErrorType();
+  const joinErrorMessage = getJoinErrorMessage();
+
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
       <div className="w-full max-w-md">
         {/* Status Card */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+          {/* Success State */}
+          {joinSuccess && inviteInfo && (
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
+                <CheckCircle2 className="w-8 h-8 text-green-600" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Welcome to {inviteInfo.trip_name}! 🎉</h2>
+              <p className="text-gray-600 mb-6">
+                You've been successfully added to the trip. Redirecting you now...
+              </p>
+              <button
+                onClick={handleGoToTrip}
+                className="w-full px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors"
+              >
+                Go to Trip Now
+              </button>
+            </div>
+          )}
+
+          {/* Join Error State */}
+          {!joinSuccess && joinTripMutation.isError && (
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
+                <AlertCircle className="w-8 h-8 text-red-600" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">
+                {joinErrorType === 'not_found' && 'Invite Not Found'}
+                {joinErrorType === 'expired' && 'Invite Expired'}
+                {joinErrorType === 'error' && 'Unable to Join Trip'}
+              </h2>
+              <p className="text-gray-600 mb-6">{joinErrorMessage}</p>
+              <div className="space-y-2">
+                <button
+                  onClick={handleRetry}
+                  className="w-full px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors"
+                >
+                  Try Again
+                </button>
+                <button
+                  onClick={handleGoHome}
+                  className="w-full px-6 py-3 text-gray-600 rounded-xl font-medium hover:bg-gray-50 transition-colors"
+                >
+                  Go to My Trips
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Decode Error States */}
+          {!joinSuccess && !joinTripMutation.isError && decodeError && (
+            <>
+              {/* Invalid Code State */}
+              {errorType === 'invalid_code' && (
+                <div className="text-center">
+                  <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
+                    <AlertCircle className="w-8 h-8 text-red-600" />
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-900 mb-2">Invalid Invite Link</h2>
+                  <p className="text-gray-600 mb-2">{errorMessage}</p>
+                  <p className="text-sm text-gray-500 mb-6">
+                    Please check the link and try again, or request a new invite from the trip admin.
+                  </p>
+                  <button
+                    onClick={handleGoHome}
+                    className="w-full px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors"
+                  >
+                    Go to My Trips
+                  </button>
+                </div>
+              )}
+
+              {/* Not Found State */}
+              {errorType === 'not_found' && (
+                <div className="text-center">
+                  <div className="w-16 h-16 mx-auto mb-4 bg-amber-100 rounded-full flex items-center justify-center">
+                    <AlertCircle className="w-8 h-8 text-amber-600" />
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-900 mb-2">Invite Not Found</h2>
+                  <p className="text-gray-600 mb-6">
+                    {errorMessage || 'This invite link is invalid or no longer exists.'}
+                  </p>
+                  <button
+                    onClick={handleGoHome}
+                    className="w-full px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors"
+                  >
+                    Go to My Trips
+                  </button>
+                </div>
+              )}
+
+              {/* Expired State */}
+              {errorType === 'expired' && (
+                <div className="text-center">
+                  <div className="w-16 h-16 mx-auto mb-4 bg-amber-100 rounded-full flex items-center justify-center">
+                    <AlertCircle className="w-8 h-8 text-amber-600" />
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-900 mb-2">Invite Expired</h2>
+                  <p className="text-gray-600 mb-6">
+                    This invite link has expired. Please request a new invite from the trip admin.
+                  </p>
+                  <button
+                    onClick={handleGoHome}
+                    className="w-full px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors"
+                  >
+                    Go to My Trips
+                  </button>
+                </div>
+              )}
+
+              {/* Generic Error State */}
+              {errorType === 'error' && (
+                <div className="text-center">
+                  <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
+                    <AlertCircle className="w-8 h-8 text-red-600" />
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-900 mb-2">Unable to Load Invite</h2>
+                  <p className="text-gray-600 mb-6">{errorMessage}</p>
+                  <div className="space-y-2">
+                    <button
+                      onClick={handleRetry}
+                      className="w-full px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors"
+                    >
+                      Try Again
+                    </button>
+                    <button
+                      onClick={handleGoHome}
+                      className="w-full px-6 py-3 text-gray-600 rounded-xl font-medium hover:bg-gray-50 transition-colors"
+                    >
+                      Go to My Trips
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
           {/* Ready to Join - Confirmation Screen */}
-          {status === 'ready_to_join' && inviteInfo && (
+          {!joinSuccess && !decodeError && !joinTripMutation.isError && inviteInfo && !inviteInfo.is_already_member && (
             <div className="text-center">
               <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
                 <Users className="w-8 h-8 text-blue-600" />
@@ -220,10 +319,10 @@ export default function JoinTrip() {
 
               <button
                 onClick={handleConfirmJoin}
-                disabled={isJoining}
+                disabled={joinTripMutation.isPending}
                 className="w-full px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-3"
               >
-                {isJoining ? 'Joining...' : 'Yes, Join This Trip'}
+                {joinTripMutation.isPending ? 'Joining...' : 'Yes, Join This Trip'}
               </button>
 
               <button
@@ -236,7 +335,7 @@ export default function JoinTrip() {
           )}
 
           {/* Already Member */}
-          {status === 'already_member' && inviteInfo && (
+          {!joinSuccess && !decodeError && !joinTripMutation.isError && inviteInfo && inviteInfo.is_already_member && (
             <div className="text-center">
               <div className="w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
                 <CheckCircle2 className="w-8 h-8 text-green-600" />
@@ -283,112 +382,6 @@ export default function JoinTrip() {
               >
                 Go to My Trips
               </button>
-            </div>
-          )}
-
-          {/* Success State */}
-          {status === 'success' && inviteInfo && (
-            <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
-                <CheckCircle2 className="w-8 h-8 text-green-600" />
-              </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Welcome to {inviteInfo.trip_name}! 🎉</h2>
-              <p className="text-gray-600 mb-6">
-                You've been successfully added to the trip. Redirecting you now...
-              </p>
-              <button
-                onClick={handleGoToTrip}
-                className="w-full px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors"
-              >
-                Go to Trip Now
-              </button>
-            </div>
-          )}
-
-          {/* Invalid Code State */}
-          {status === 'invalid_code' && (
-            <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
-                <AlertCircle className="w-8 h-8 text-red-600" />
-              </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Invalid Invite Link</h2>
-              <p className="text-gray-600 mb-2">{error}</p>
-              <p className="text-sm text-gray-500 mb-6">
-                Please check the link and try again, or request a new invite from the trip admin.
-              </p>
-              <button
-                onClick={handleGoHome}
-                className="w-full px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors"
-              >
-                Go to My Trips
-              </button>
-            </div>
-          )}
-
-          {/* Not Found State */}
-          {status === 'not_found' && (
-            <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-4 bg-amber-100 rounded-full flex items-center justify-center">
-                <AlertCircle className="w-8 h-8 text-amber-600" />
-              </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Invite Not Found</h2>
-              <p className="text-gray-600 mb-6">
-                {error || 'This invite link is invalid or no longer exists.'}
-              </p>
-              <button
-                onClick={handleGoHome}
-                className="w-full px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors"
-              >
-                Go to My Trips
-              </button>
-            </div>
-          )}
-
-          {/* Expired State */}
-          {status === 'expired' && (
-            <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-4 bg-amber-100 rounded-full flex items-center justify-center">
-                <AlertCircle className="w-8 h-8 text-amber-600" />
-              </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Invite Expired</h2>
-              <p className="text-gray-600 mb-6">
-                This invite link has expired. Please request a new invite from the trip admin.
-              </p>
-              <button
-                onClick={handleGoHome}
-                className="w-full px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors"
-              >
-                Go to My Trips
-              </button>
-            </div>
-          )}
-
-          {/* Generic Error State */}
-          {status === 'error' && (
-            <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
-                <AlertCircle className="w-8 h-8 text-red-600" />
-              </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Unable to Join Trip</h2>
-              <p className="text-gray-600 mb-6">{error}</p>
-              <div className="space-y-2">
-                <button
-                  onClick={() => {
-                    setStatus('loading');
-                    setError('');
-                    decodeInviteLink();
-                  }}
-                  className="w-full px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors"
-                >
-                  Try Again
-                </button>
-                <button
-                  onClick={handleGoHome}
-                  className="w-full px-6 py-3 text-gray-600 rounded-xl font-medium hover:bg-gray-50 transition-colors"
-                >
-                  Go to My Trips
-                </button>
-              </div>
             </div>
           )}
         </div>

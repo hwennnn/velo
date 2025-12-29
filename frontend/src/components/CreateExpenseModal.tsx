@@ -7,7 +7,7 @@
 import axios from 'axios';
 import { Check, ChevronDown, DollarSign, FileText, Receipt, Users, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
-import { SUPPORTED_CURRENCIES } from '../config/currencies';
+import { useCurrencySettings } from '../hooks/useCurrencySettings';
 import type { CreateExpenseInput, SplitInput, TripMember } from '../types';
 import { Avatar } from './Avatar';
 
@@ -36,6 +36,7 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
   members,
   baseCurrency,
 }) => {
+  const { getPreferredCurrencies } = useCurrencySettings();
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState(baseCurrency);
@@ -280,7 +281,8 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
                   className="w-full px-4 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none bg-white"
                   disabled={isLoading}
                 >
-                  {SUPPORTED_CURRENCIES.map((curr) => (
+
+                  {getPreferredCurrencies().map((curr) => (
                     <option key={curr.code} value={curr.code}>
                       {curr.code} ({curr.symbol})
                     </option>

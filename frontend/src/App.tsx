@@ -25,6 +25,7 @@ const TripSettings = lazy(() => import('./pages/TripSettings'));
 const SettleUpPage = lazy(() => import('./pages/SettleUpPage'));
 const MembersPage = lazy(() => import('./pages/MembersPage'));
 const TotalsPage = lazy(() => import('./pages/TotalsPage'));
+const CurrencySettingsPage = lazy(() => import('./pages/CurrencySettingsPage'));
 
 // Custom loading component with brand styling
 function PageLoader() {
@@ -135,6 +136,14 @@ function App() {
                     element={
                       <ProtectedRoute>
                         <Profile />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/settings/currencies"
+                    element={
+                      <ProtectedRoute>
+                        <CurrencySettingsPage />
                       </ProtectedRoute>
                     }
                   />

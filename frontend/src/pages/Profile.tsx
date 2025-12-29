@@ -340,7 +340,7 @@ export default function Profile() {
             </div>
 
             {/* Account Actions */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Account</h3>
 
               <button
@@ -350,6 +350,22 @@ export default function Profile() {
                 <LogOut className="w-5 h-5" />
                 <span className="font-medium">Sign Out</span>
               </button>
+            </div>
+
+            {/* App Settings */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">App Settings</h3>
+              <Link
+                to="/settings/currencies"
+                className="flex items-center justify-between w-full px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors border border-gray-200"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center">
+                    <span className="text-blue-600 font-bold text-xs">$</span>
+                  </div>
+                  <span className="font-medium">Manage Currencies</span>
+                </div>
+              </Link>
             </div>
 
             {/* Legal Links */}

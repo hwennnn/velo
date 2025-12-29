@@ -4,7 +4,8 @@
  */
 import { Calendar, ChevronDown, DollarSign, FileText, MapPin, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { DEFAULT_CURRENCY, SUPPORTED_CURRENCIES } from '../config/currencies';
+import { DEFAULT_CURRENCY } from '../config/currencies';
+import { useCurrencySettings } from '../hooks/useCurrencySettings';
 import type { CreateTripInput } from '../types';
 
 interface CreateTripModalProps {
@@ -15,6 +16,7 @@ interface CreateTripModalProps {
 
 
 export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTripModalProps) {
+  const { getPreferredCurrencies } = useCurrencySettings();
   const [formData, setFormData] = useState<CreateTripInput>({
     name: '',
     description: '',
@@ -238,7 +240,7 @@ export default function CreateTripModal({ isOpen, onClose, onCreate }: CreateTri
                   onChange={(e) => setFormData({ ...formData, base_currency: e.target.value })}
                   className="w-full pl-11 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow appearance-none bg-white"
                 >
-                  {SUPPORTED_CURRENCIES.map((currency) => (
+                  {getPreferredCurrencies().map((currency) => (
                     <option key={currency.code} value={currency.code}>
                       {currency.symbol} {currency.code} - {currency.name}
                     </option>

@@ -1,6 +1,7 @@
 import { ChevronDown, X } from 'lucide-react';
-import React from 'react';
-import { SUPPORTED_CURRENCIES } from '../../config/currencies';
+import { useMemo } from 'react';
+import { getCurrencyInfo } from '../../config/currencies';
+import { useCurrencySettings } from '../../hooks/useCurrencySettings';
 import type { TripMember } from '../../types';
 import type { ConvertDraftState, SettlementDraftState } from './types';
 
@@ -47,6 +48,26 @@ export const SettleConvertModal: React.FC<SettleConvertModalProps> = ({
   lockParticipants,
   lockConvertAmount,
 }) => {
+  const { getPreferredCurrencies } = useCurrencySettings();
+
+  const settleDisplayedCurrencies = useMemo(() => {
+    const preferred = getPreferredCurrencies();
+    const currentCode = settlementDraft?.currency;
+    if (!currentCode) return preferred;
+
+    const hasCurrent = preferred.some((c) => c.code === currentCode);
+    return hasCurrent ? preferred : [...preferred, getCurrencyInfo(currentCode)];
+  }, [getPreferredCurrencies, settlementDraft?.currency]);
+
+  const convertDisplayedCurrencies = useMemo(() => {
+    const preferred = getPreferredCurrencies();
+    const currentCode = convertDraft?.to_currency;
+    if (!currentCode) return preferred;
+
+    const hasCurrent = preferred.some((c) => c.code === currentCode);
+    return hasCurrent ? preferred : [...preferred, getCurrencyInfo(currentCode)];
+  }, [getPreferredCurrencies, convertDraft?.to_currency]);
+
   if (!settlementDraft) return null;
 
   const showTabs = allowConvertTab;
@@ -180,7 +201,7 @@ export const SettleConvertModal: React.FC<SettleConvertModalProps> = ({
                       onChange={(e) => setSettlementDraft(prev => prev ? { ...prev, currency: e.target.value } : prev)}
                       className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-lg appearance-none bg-white"
                     >
-                      {SUPPORTED_CURRENCIES.map((curr) => (
+                      {settleDisplayedCurrencies.map((curr) => (
                         <option key={curr.code} value={curr.code}>
                           {curr.code} ({curr.symbol})
                         </option>
@@ -239,7 +260,7 @@ export const SettleConvertModal: React.FC<SettleConvertModalProps> = ({
                         onChange={(e) => onConvertCurrencyChange(e.target.value)}
                         className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-lg appearance-none bg-white"
                       >
-                        {SUPPORTED_CURRENCIES.map((curr) => (
+                        {convertDisplayedCurrencies.map((curr) => (
                           <option key={curr.code} value={curr.code}>
                             {curr.code} ({curr.symbol})
                           </option>

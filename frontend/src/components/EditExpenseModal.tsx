@@ -6,7 +6,8 @@
  */
 import { Check, ChevronDown, DollarSign, FileText, Users, X } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
-import { SUPPORTED_CURRENCIES } from "../config/currencies";
+import { getCurrencyInfo } from "../config/currencies";
+import { useCurrencySettings } from "../hooks/useCurrencySettings";
 import type {
   Expense,
   SplitInput,
@@ -67,6 +68,7 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
   members,
   baseCurrency,
 }) => {
+  const { getPreferredCurrencies } = useCurrencySettings();
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState(baseCurrency);
@@ -157,6 +159,21 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
     () => Array.from(selectedMembers),
     [selectedMembers]
   );
+
+  const displayedCurrencies = useMemo(() => {
+    const preferred = getPreferredCurrencies();
+    const currentCode = expense?.currency || baseCurrency;
+
+    // Check if current currency is already in preferred list
+    const hasCurrent = preferred.some((c) => c.code === currentCode);
+
+    if (hasCurrent) {
+      return preferred;
+    }
+
+    // Add current currency if missing
+    return [...preferred, getCurrencyInfo(currentCode)];
+  }, [getPreferredCurrencies, expense, baseCurrency]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -344,7 +361,7 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
                   className="w-full pl-4 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none bg-white"
                   disabled={isLoading}
                 >
-                  {SUPPORTED_CURRENCIES.map((curr) => (
+                  {displayedCurrencies.map((curr) => (
                     <option key={curr.code} value={curr.code}>
                       {curr.code} ({curr.symbol})
                     </option>

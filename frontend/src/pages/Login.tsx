@@ -24,7 +24,7 @@ export default function Login() {
 
   const handleGoogleSignIn = async () => {
     try {
-      await signInWithGoogle();
+      await signInWithGoogle(redirectTo || undefined);
     } catch (error) {
       console.error('Error signing in with Google:', error);
       showAlert('Failed to sign in with Google. Please try again.', { type: 'error' });
@@ -33,7 +33,7 @@ export default function Login() {
 
   const handleGithubSignIn = async () => {
     try {
-      await signInWithGithub();
+      await signInWithGithub(redirectTo || undefined);
     } catch (error) {
       console.error('Error signing in with GitHub:', error);
       showAlert('Failed to sign in with GitHub. Please try again.', { type: 'error' });
@@ -95,19 +95,19 @@ export default function Login() {
       <p className="mt-12 text-sm text-gray-500 text-center">
         By continuing, you agree to our{' '}
         <Link
-            to="/terms-of-service"
-            className="text-primary-600 hover:text-primary-700 underline"
-          >
-            Terms of Service
-          </Link>
+          to="/terms-of-service"
+          className="text-primary-600 hover:text-primary-700 underline"
+        >
+          Terms of Service
+        </Link>
 
         {' '}and{' '}
-          <Link
-            to="/privacy-policy"
-            className="text-primary-600 hover:text-primary-700 underline"
-          >
-            Privacy Policy
-          </Link>
+        <Link
+          to="/privacy-policy"
+          className="text-primary-600 hover:text-primary-700 underline"
+        >
+          Privacy Policy
+        </Link>
 
       </p>
     </div>

@@ -2,17 +2,17 @@
  * Authentication Hook
  * Manages user authentication state
  */
-import { createContext, useContext, useEffect, useState } from 'react';
+import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import type { ReactNode } from 'react';
-import type { User as SupabaseUser, Session } from '@supabase/supabase-js';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../services/supabase';
 
 interface AuthContextType {
   user: SupabaseUser | null;
   session: Session | null;
   loading: boolean;
-  signInWithGoogle: () => Promise<void>;
-  signInWithGithub: () => Promise<void>;
+  signInWithGoogle: (redirectTo?: string) => Promise<void>;
+  signInWithGithub: (redirectTo?: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -43,21 +43,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (redirectTo?: string) => {
+    const callbackUrl = new URL(`${window.location.origin}/auth/callback`);
+    if (redirectTo) {
+      callbackUrl.searchParams.set('redirect', redirectTo);
+    }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: callbackUrl.toString(),
       },
     });
     if (error) throw error;
   };
 
-  const signInWithGithub = async () => {
+  const signInWithGithub = async (redirectTo?: string) => {
+    const callbackUrl = new URL(`${window.location.origin}/auth/callback`);
+    if (redirectTo) {
+      callbackUrl.searchParams.set('redirect', redirectTo);
+    }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'github',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: callbackUrl.toString(),
       },
     });
     if (error) throw error;

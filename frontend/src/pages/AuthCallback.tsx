@@ -3,12 +3,13 @@
  * Handles OAuth callback and redirects to app
  */
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../services/api';
 import { supabase } from '../services/supabase';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
     // Handle the OAuth callback
@@ -35,8 +36,14 @@ export default function AuthCallback() {
             console.error('User registration skipped or failed:', error);
           }
 
-          // Successfully authenticated, redirect to trips
-          navigate('/trips');
+          // Check for redirect URL in query params (set by Login page before OAuth flow)
+          const redirectTo = searchParams.get('redirect');
+          if (redirectTo) {
+            navigate(redirectTo);
+          } else {
+            // Default to trips page
+            navigate('/trips');
+          }
         } else {
           // No session, redirect to login
           navigate('/auth/login');
@@ -48,7 +55,7 @@ export default function AuthCallback() {
     };
 
     handleCallback();
-  }, [navigate]);
+  }, [navigate, searchParams]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100">
@@ -59,4 +66,3 @@ export default function AuthCallback() {
     </div>
   );
 }
-

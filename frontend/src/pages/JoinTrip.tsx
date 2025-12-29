@@ -44,15 +44,18 @@ export default function JoinTrip() {
   const [isJoining, setIsJoining] = useState(false);
 
   useEffect(() => {
-    if (!user) {
-      const currentUrl = window.location.pathname;
-      navigate(`/auth/login?redirect=${encodeURIComponent(currentUrl)}`);
-      return;
-    }
-
+    // Check for valid code first before redirecting to login
     if (!code) {
       setStatus('invalid_code');
       setError('No invite code provided');
+      return;
+    }
+
+    if (!user) {
+      // Use the code from params to construct URL, not window.location.pathname
+      // which can change during navigation
+      const redirectUrl = `/join/${code}`;
+      navigate(`/auth/login?redirect=${encodeURIComponent(redirectUrl)}`);
       return;
     }
 

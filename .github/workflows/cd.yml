@@ -40,7 +40,7 @@ jobs:
             fi
 
             cd ~/velo
-            git pull origin master
+            git reset --hard HEAD; git pull origin master
 
             # Make scripts executable
             chmod +x scripts/*.sh

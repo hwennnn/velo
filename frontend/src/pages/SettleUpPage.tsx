@@ -93,7 +93,7 @@ export default function SettleUpPage() {
             to_member_id: debt.to_member_id,
             amount: Number(debt.amount).toFixed(2),
             currency: debt.currency,
-            notes: `Settlement: ${debt.from_nickname} → ${debt.to_nickname}`,
+            notes: "",
             from_nickname: debt.from_nickname,
             to_nickname: debt.to_nickname,
         });

@@ -289,6 +289,12 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
                                 if (isOptimistic) return 'Processing...';
 
                                 const payerName = expense.paid_by_member_id === currentUserMemberId ? 'You' : expense.paid_by_nickname;
+                                if (expense.expense_type === 'settlement') {
+                                  const receiverSplit = expense.splits[0];
+                                  const receiverName = receiverSplit?.member_id === currentUserMemberId ? 'you' : (receiverSplit?.member_nickname || 'someone');
+                                  return `${payerName} paid ${receiverName}`;
+                                }
+
                                 return `${payerName} paid ${expense.currency} ${Number(expense.amount).toFixed(2)}`;
                               })()}
                             </p>

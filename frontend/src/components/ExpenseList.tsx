@@ -10,6 +10,7 @@ import { useAlert } from '../contexts/AlertContext';
 import { useDeleteExpense, useUpdateExpense } from '../hooks/useExpenses';
 import type { Expense, TripMember, UpdateExpenseInput } from '../types';
 import { parseUTCDate } from '../utils/dateUtils';
+import { Avatar } from './Avatar';
 import { ExpenseDetailModal } from './ExpenseDetailModal';
 import { ExpenseListSkeleton } from './ExpenseListSkeleton';
 
@@ -243,47 +244,112 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
                           }`}
                       >
                         <div className="flex items-center gap-3">
-                          {/* Icon */}
-                          {expense.expense_type === 'settlement' ? (
-                            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                              <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                            </div>
-                          ) : (
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl flex-shrink-0 ${isOptimistic ? 'bg-blue-100' : 'bg-gray-100'
-                              }`}>
-                              {isOptimistic ? (
-                                <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
-                              ) : (
-                                getCategoryEmoji(expense.category)
-                              )}
-                            </div>
-                          )}
+                          {/* Icon & Avatar Group */}
+                          <div className="relative flex-shrink-0">
+                            {expense.expense_type === 'settlement' ? (
+                              <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
+                                <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              </div>
+                            ) : (
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl border-2 border-white shadow-sm ${isOptimistic ? 'bg-blue-100' : 'bg-gray-100'
+                                }`}>
+                                {isOptimistic ? (
+                                  <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                                ) : (
+                                  getCategoryEmoji(expense.category)
+                                )}
+                              </div>
+                            )}
+
+                            {/* Payer Avatar - overlaying bottom right */}
+                            {!isOptimistic && (
+                              <div className="absolute -bottom-1 -right-1 ring-2 ring-white rounded-full">
+                                {(() => {
+                                  // For settlement: show sender (paid_by)
+                                  // For expense: show payer
+                                  const payer = members.find(m => m.id === expense.paid_by_member_id);
+                                  if (payer) {
+                                    return <Avatar member={payer} size="xs" />;
+                                  }
+                                  return null;
+                                })()}
+                              </div>
+                            )}
+                          </div>
 
                           {/* Content */}
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-base font-semibold text-gray-900 truncate">
+                          <div className="flex-1 min-w-0 ml-1">
+                            <h3 className="text-sm font-semibold text-gray-900 truncate">
                               {expense.description}
                             </h3>
-                            <p className="text-sm text-gray-500">
-                              {isOptimistic
-                                ? 'Processing...'
-                                : expense.expense_type === 'settlement'
-                                  ? `${expense.paid_by_nickname} paid` + (expense.splits.length > 0 && expense.splits[0].member_nickname ? ` ${expense.splits[0].member_nickname}` : '')
-                                  : `${expense.paid_by_nickname} paid`
-                              }
+                            <p className="text-xs text-gray-500 truncate">
+                              {(() => {
+                                if (isOptimistic) return 'Processing...';
+
+                                const payerName = expense.paid_by_member_id === currentUserMemberId ? 'You' : expense.paid_by_nickname;
+                                return `${payerName} paid ${expense.currency} ${Number(expense.amount).toFixed(2)}`;
+                              })()}
                             </p>
                           </div>
 
                           {/* Amount */}
                           <div className="text-right flex-shrink-0">
-                            <div className="text-base font-semibold text-gray-900">
-                              {expense.currency} {Number(expense.amount).toFixed(2)}
-                            </div>
-                            <p className="text-xs text-gray-400">
-                              {isOptimistic || !expense.created_at ? 'Saving...' : format(parseUTCDate(expense.created_at), 'MMM d')}
-                            </p>
+                            {(() => {
+                              const isPayer = expense.paid_by_member_id === currentUserMemberId;
+                              const userSplit = expense.splits.find(s => s.member_id === currentUserMemberId);
+                              const isSettlement = expense.expense_type === 'settlement';
+
+                              let amountDisplay = null;
+                              let subText = null;
+                              let colorClass = "text-gray-900";
+
+                              if (isSettlement) {
+                                amountDisplay = `${expense.currency} ${Number(expense.amount).toFixed(2)}`;
+                                if (isPayer) {
+                                  subText = "you paid";
+                                  colorClass = "text-gray-900"; // Neutral for settlements usually, or could be specific
+                                } else if (userSplit) {
+                                  subText = "you received";
+                                  colorClass = "text-emerald-600";
+                                }
+                              } else if (isPayer) {
+                                // User paid
+                                const lentAmount = Number(expense.amount) - Number(userSplit?.amount || 0);
+                                if (lentAmount > 0.01) {
+                                  amountDisplay = `+${expense.currency} ${lentAmount.toFixed(2)}`;
+                                  subText = "you lent";
+                                  colorClass = "text-emerald-600 font-bold";
+                                } else {
+                                  // Paid only for self or 0
+                                  amountDisplay = `${expense.currency} ${Number(expense.amount).toFixed(2)}`;
+                                  subText = "total";
+                                  colorClass = "text-gray-500";
+                                }
+                              } else if (userSplit && Number(userSplit.amount) > 0) {
+                                // User owes
+                                amountDisplay = `-${expense.currency} ${Number(userSplit.amount).toFixed(2)}`;
+                                subText = "you borrowed";
+                                colorClass = "text-orange-600 font-bold";
+                              } else {
+                                // Not involved
+                                amountDisplay = `${expense.currency} ${Number(expense.amount).toFixed(2)}`;
+                                subText = "not involved";
+                                colorClass = "text-gray-400";
+                              }
+
+                              return (
+                                <>
+                                  <div className={`text-sm ${colorClass}`}>
+                                    {amountDisplay}
+                                  </div>
+                                  <p className="text-xs text-gray-400">
+                                    {subText}
+                                  </p>
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
                       </button>
@@ -296,43 +362,47 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
         )}
 
         {/* Infinite scroll trigger */}
-        {hasNextPage && (
-          <div ref={loadMoreRef} className="flex justify-center py-4">
-            {isFetchingNextPage ? (
-              <div className="flex items-center gap-2 text-gray-500">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span className="text-sm">Loading more expenses...</span>
-              </div>
-            ) : (
-              <button
-                onClick={onLoadMore}
-                className="px-4 py-2 text-sm text-primary-600 hover:text-primary-700 font-medium"
-              >
-                Load more expenses
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+        {
+          hasNextPage && (
+            <div ref={loadMoreRef} className="flex justify-center py-4">
+              {isFetchingNextPage ? (
+                <div className="flex items-center gap-2 text-gray-500">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-sm">Loading more expenses...</span>
+                </div>
+              ) : (
+                <button
+                  onClick={onLoadMore}
+                  className="px-4 py-2 text-sm text-primary-600 hover:text-primary-700 font-medium"
+                >
+                  Load more expenses
+                </button>
+              )}
+            </div>
+          )
+        }
+      </div >
 
       {/* Expense Detail Modal */}
-      {showDetailModal && (
-        <ExpenseDetailModal
-          tripId={tripId}
-          expenseId={selectedExpense?.id ?? null}
-          initialExpense={selectedExpense}
-          baseCurrency={baseCurrency}
-          members={members}
-          currentUserId={currentUserId}
-          currentUserMemberId={currentUserMemberId}
-          isCurrentUserAdmin={isCurrentUserAdmin}
-          onClose={handleCloseModal}
-          onDelete={handleDelete}
-          onUpdate={handleUpdate}
-          deletingId={deletingId}
-        />
-      )}
-    </div>
+      {
+        showDetailModal && (
+          <ExpenseDetailModal
+            tripId={tripId}
+            expenseId={selectedExpense?.id ?? null}
+            initialExpense={selectedExpense}
+            baseCurrency={baseCurrency}
+            members={members}
+            currentUserId={currentUserId}
+            currentUserMemberId={currentUserMemberId}
+            isCurrentUserAdmin={isCurrentUserAdmin}
+            onClose={handleCloseModal}
+            onDelete={handleDelete}
+            onUpdate={handleUpdate}
+            deletingId={deletingId}
+          />
+        )
+      }
+    </div >
   );
 };
 

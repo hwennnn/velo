@@ -9,6 +9,7 @@ import React, { useState } from "react";
 import { useExpense } from "../hooks/useExpenses";
 import type { Expense, TripMember, UpdateExpenseInput } from "../types";
 import { parseUTCDate } from "../utils/dateUtils";
+import { Avatar } from "./Avatar";
 import { EditExpenseModal } from "./EditExpenseModal";
 
 interface ExpenseDetailModalProps {
@@ -213,8 +214,8 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                     setSelectedReceiptIndex(index);
                   }}
                   className={`relative w-12 h-12 rounded-lg overflow-hidden border-2 transition-colors flex-shrink-0 ${selectedReceiptIndex === index
-                      ? "border-primary-500"
-                      : "border-transparent opacity-60 hover:opacity-100"
+                    ? "border-primary-500"
+                    : "border-transparent opacity-60 hover:opacity-100"
                     }`}
                 >
                   <img
@@ -300,9 +301,6 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
               </div>
               <div className="text-3xl font-bold text-primary-900">
                 {expense.currency} {Number(expense.amount).toFixed(2)}
-              </div>
-              <div className="text-sm text-primary-700 mt-1">
-                {isSettlement ? "" : `Paid by ${expense.paid_by_nickname}`}
               </div>
             </div>
 
@@ -404,33 +402,116 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
               </div>
             )}
 
-            {/* Split Details - Show shimmer when optimistic */}
-            {expense.splits.length > 1 && !isOptimistic && (
-              <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="text-sm font-semibold text-gray-900 mb-3">
-                  Split Between
-                </h3>
-                <div className="space-y-2">
-                  {expense.splits.map((split) => (
-                    <div
-                      key={split.id}
-                      className="flex justify-between items-center py-2 border-b border-gray-200 last:border-0"
-                    >
-                      <span className="text-sm font-medium text-gray-900">
-                        {split.member_nickname}
-                      </span>
-                      <div className="text-right">
-                        <span className="text-sm font-semibold text-gray-900">
-                          {expense.currency} {Number(split.amount).toFixed(2)}
-                        </span>
-                        {split.percentage && (
-                          <span className="text-xs text-gray-500 ml-2">
-                            ({Number(split.percentage).toFixed(1)}%)
-                          </span>
-                        )}
+            {/* Expense Breakdown: Who Paid & Shared With */}
+            {!isSettlement && !isOptimistic && (
+              <div className="space-y-4">
+                {/* Who Paid */}
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex justify-between items-center">
+                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Who Paid</span>
+                    <span className="text-xs font-semibold text-gray-900 bg-white px-2 py-0.5 rounded border border-gray-200">
+                      Total: {expense.currency} {Number(expense.amount).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="p-4">
+                    {(() => {
+                      const payer = members.find(m => m.id === expense.paid_by_member_id);
+                      if (!payer) return null;
+
+                      const payerSplit = expense.splits.find(s => s.member_id === expense.paid_by_member_id);
+                      const amountGetBack = payerSplit ? expense.amount - payerSplit.amount : expense.amount;
+
+                      return (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <Avatar member={payer} />
+                            <div>
+                              <p className="font-semibold text-gray-900">
+                                {expense.paid_by_member_id === currentUserMemberId ? 'You' : expense.paid_by_nickname}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {payerSplit
+                                  ? `Paid for self: ${expense.currency} ${Number(payerSplit.amount).toFixed(2)}`
+                                  : 'Paid fully for others'
+                                }
+                              </p>
+                            </div>
+                          </div>
+                          {amountGetBack > 0.01 && (
+                            <div className="text-right bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100">
+                              <span className="text-xs font-medium text-emerald-600 block uppercase tracking-wide">Gets back</span>
+                              <p className="font-bold text-emerald-700">{expense.currency} {amountGetBack.toFixed(2)}</p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Shared With */}
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Shared With</span>
+                  </div>
+                  <div className="divide-y divide-gray-100">
+                    {expense.splits
+                      .filter(s => s.member_id !== expense.paid_by_member_id)
+                      .map((split) => {
+                        const member = members.find(m => m.id === split.member_id);
+                        if (!member) return null;
+
+                        return (
+                          <div key={split.id} className="p-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                            <div className="flex items-center gap-3">
+                              <Avatar member={member} size="sm" />
+                              <span className="text-sm font-medium text-gray-900">
+                                {split.member_id === currentUserMemberId ? 'You' : split.member_nickname}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <span className="text-xs text-gray-400">Owes</span>
+                                <span className="text-sm font-bold text-gray-900">
+                                  {expense.currency} {Number(split.amount).toFixed(2)}
+                                </span>
+                              </div>
+                              {split.percentage && (
+                                <span className="text-xs text-gray-400 block">
+                                  ({Number(split.percentage).toFixed(1)}%)
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    {expense.splits.filter(s => s.member_id !== expense.paid_by_member_id).length === 0 && (
+                      <div className="p-4 text-center text-gray-500 text-sm italic">
+                        No other members involved
                       </div>
-                    </div>
-                  ))}
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Settlement Details */}
+            {isSettlement && !isOptimistic && (
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {(() => {
+                      const payer = members.find(m => m.id === expense.paid_by_member_id);
+                      return payer ? <Avatar member={payer} /> : null;
+                    })()}
+                    <span className="text-sm font-medium">paid</span>
+                    {(() => {
+                      // Receiver is usually the first split
+                      const receiverSplit = expense.splits[0];
+                      const receiver = members.find(m => m.id === receiverSplit?.member_id);
+                      return receiver ? <Avatar member={receiver} /> : null;
+                    })()}
+                  </div>
                 </div>
               </div>
             )}

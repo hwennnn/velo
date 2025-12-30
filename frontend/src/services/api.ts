@@ -50,7 +50,7 @@ apiClient.interceptors.response.use(
 export const api = {
   // Trips
   trips: {
-    getAll: () => apiClient.get('/trips'),
+    getAll: () => apiClient.get('/trips/'),
     getById: (id: string) => apiClient.get(`/trips/${id}`),
     create: (data: Partial<Record<string, unknown>>) => apiClient.post('/trips', data),
     update: (id: string, data: Partial<Record<string, unknown>>) => apiClient.put(`/trips/${id}`, data),

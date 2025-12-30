@@ -10,6 +10,7 @@ import { Avatar } from '../components/Avatar';
 import BottomNavbar from '../components/BottomNavbar';
 import CreateTripModal from '../components/CreateTripModal';
 import { TripListSkeleton } from '../components/TripListSkeleton';
+import { getCurrencyInfo } from '../config/currencies';
 import { useAuth } from '../hooks/useAuth';
 import { useCreateTrip, useTrips } from '../hooks/useTrips';
 import type { CreateTripInput } from '../types';
@@ -118,8 +119,25 @@ export default function Home() {
                         </p>
                       )}
                     </div>
-                    <div className="ml-3 px-2.5 py-1 bg-primary-50 text-primary-600 text-xs font-semibold rounded-lg">
-                      {trip.base_currency}
+                    <div className="ml-3 px-2.5 py-1 bg-primary-50 text-primary-600 text-xs font-semibold rounded-lg flex items-center gap-1.5 border border-primary-100/50">
+                      {(() => {
+                        const flag = getCurrencyInfo(trip.base_currency).flag;
+                        return (
+                          <>
+                            {flag && (
+                              <img
+                                src={`https://flagcdn.com/w20/${flag}.png`}
+                                srcSet={`https://flagcdn.com/w40/${flag}.png 2x`}
+                                width="16"
+                                height="12"
+                                alt={trip.base_currency}
+                                className="w-4 h-3 object-cover rounded-[2px]"
+                              />
+                            )}
+                            {trip.base_currency}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
 

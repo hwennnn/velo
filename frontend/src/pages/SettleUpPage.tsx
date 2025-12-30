@@ -10,6 +10,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ConvertAllModal } from '../components/ConvertAllModal';
 import { SettleUpInfoModal } from '../components/SettleUpInfoModal';
 import { Shimmer } from '../components/Shimmer';
+import { getCurrencyInfo } from '../config/currencies';
 import { useAlert } from '../contexts/AlertContext';
 import { useAuth } from '../hooks/useAuth';
 import { balanceKeys, useBalances, useConvertAllDebts, useCreateSettlement } from '../hooks/useBalances';
@@ -380,10 +381,30 @@ export default function SettleUpPage() {
                             <button
                                 onClick={() => setShowConvertAllModal(true)}
                                 disabled={convertAllDebts.isPending}
-                                className="flex items-center gap-2 px-5 py-2.5 bg-white text-gray-700 border border-gray-200 rounded-full text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-all shadow-sm"
+                                className="flex items-center gap-2 px-5 py-2.5 bg-gray-100 text-gray-700 border border-gray-200 rounded-full text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-all shadow-sm"
                             >
                                 <RefreshCw className={`w-4 h-4 ${convertAllDebts.isPending ? 'animate-spin' : ''}`} />
-                                <span>Convert all debts to {baseCurrency}</span>
+                                <div className="flex items-center gap-1.5">
+                                    <span>Convert all debts to</span>
+                                    {(() => {
+                                        const flag = getCurrencyInfo(baseCurrency).flag;
+                                        return (
+                                            <span className="flex items-center gap-1 font-semibold">
+                                                {flag && (
+                                                    <img
+                                                        src={`https://flagcdn.com/w20/${flag}.png`}
+                                                        srcSet={`https://flagcdn.com/w40/${flag}.png 2x`}
+                                                        width="16"
+                                                        height="12"
+                                                        alt={baseCurrency}
+                                                        className="w-4 h-3 object-cover rounded-[2px]"
+                                                    />
+                                                )}
+                                                {baseCurrency}
+                                            </span>
+                                        );
+                                    })()}
+                                </div>
                             </button>
                         </div>
                     )}

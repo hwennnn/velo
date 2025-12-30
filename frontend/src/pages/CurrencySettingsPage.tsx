@@ -74,9 +74,20 @@ export default function CurrencySettingsPage() {
                                     className="w-full flex items-center justify-between p-4 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors text-left"
                                 >
                                     <div className="flex items-center gap-3">
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm
+                                        <div className={`flex items-center justify-center font-bold text-xs overflow-hidden border border-gray-100 flex-shrink-0
                                     ${isSelected ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-500'}`}>
-                                            {currency.code}
+                                            {currency.flag ? (
+                                                <img
+                                                    src={`https://flagcdn.com/w40/${currency.flag}.png`}
+                                                    srcSet={`https://flagcdn.com/w80/${currency.flag}.png 2x`}
+                                                    width="20"
+                                                    height="20"
+                                                    alt={currency.code}
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : (
+                                                currency.code
+                                            )}
                                         </div>
                                         <div>
                                             <div className="font-medium text-gray-900">{currency.name}</div>

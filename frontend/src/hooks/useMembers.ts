@@ -67,3 +67,13 @@ export function useLeaveTrip(tripId: string) {
     },
   });
 }
+
+// Generate personalized invite link for a member
+export function useGenerateMemberInvite(tripId: string) {
+  return useMutation({
+    mutationFn: async (memberId: string) => {
+      const response = await api.members.generateInvite(tripId, memberId);
+      return response.data as { invite_code: string; invite_url: string; expires_at: string | null };
+    },
+  });
+}

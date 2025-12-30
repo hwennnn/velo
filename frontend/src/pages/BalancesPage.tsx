@@ -8,6 +8,7 @@ import { ArrowLeft, DollarSign, Shield } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Shimmer } from '../components/Shimmer';
+import { useAuth } from '../hooks/useAuth';
 import { useBalances } from '../hooks/useBalances';
 import { useTrip } from '../hooks/useTrips';
 import { SummaryTab } from './balances/SummaryTab';
@@ -15,6 +16,7 @@ import { SummaryTab } from './balances/SummaryTab';
 export default function BalancesPage() {
   const { tripId } = useParams<{ tripId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [expandedMembers, setExpandedMembers] = useState<Set<number>>(new Set());
 
@@ -26,6 +28,17 @@ export default function BalancesPage() {
   const debts = balancesData?.debts || [];
 
   const membersById = useMemo(() => new Map((trip?.members || []).map((m) => [m.id, m])), [trip?.members]);
+
+  // Find current user's member ID and sort balances to show current user first
+  const currentMember = trip?.members?.find(m => m.user_id === user?.id);
+  const sortedBalances = useMemo(() => {
+    if (!currentMember) return balances;
+    return [...balances].sort((a, b) => {
+      if (a.member_id === currentMember.id) return -1;
+      if (b.member_id === currentMember.id) return 1;
+      return 0;
+    });
+  }, [balances, currentMember]);
 
   const toggleMemberExpansion = (memberId: number) => {
     setExpandedMembers(prev => {
@@ -91,7 +104,7 @@ export default function BalancesPage() {
             </div>
           ) : (
             <SummaryTab
-              balances={balances}
+              balances={sortedBalances}
               baseCurrency={baseCurrency}
               membersById={membersById}
               expandedMembers={expandedMembers}

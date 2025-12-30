@@ -7,8 +7,16 @@ import { api } from '../services/api';
 // Query Keys
 export const inviteKeys = {
   all: ['invites'] as const,
-  decode: (code: string) => [...inviteKeys.all, 'decode', code] as const,
+  decode: (code: string, claim?: number) => [...inviteKeys.all, 'decode', code, claim] as const,
 };
+
+// Claimable member (placeholder/pending that can be claimed)
+export interface ClaimableMember {
+  id: number;
+  nickname: string;
+  status: 'pending' | 'placeholder';
+  invited_email?: string;
+}
 
 // Invite info returned from decode API
 export interface InviteInfo {
@@ -21,14 +29,17 @@ export interface InviteInfo {
   end_date: string | null;
   member_count: number;
   is_already_member: boolean;
+  allow_claim: boolean; // Whether this invite allows claiming existing members
+  claimable_members: ClaimableMember[]; // Empty if allow_claim is false
+  claim_member_id?: number; // Pre-selected member from personalized link
 }
 
 // Decode invite link
-export function useDecodeInvite(code: string | undefined) {
+export function useDecodeInvite(code: string | undefined, claim?: number) {
   return useQuery({
-    queryKey: inviteKeys.decode(code!),
+    queryKey: inviteKeys.decode(code!, claim),
     queryFn: async () => {
-      const response = await api.invites.decode(code!);
+      const response = await api.invites.decode(code!, claim);
       return response.data as InviteInfo;
     },
     enabled: !!code,
@@ -42,8 +53,8 @@ export function useJoinTrip() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (code: string) => {
-      await api.invites.join(code);
+    mutationFn: async ({ code, claimMemberId }: { code: string; claimMemberId?: number }) => {
+      await api.invites.join(code, claimMemberId);
       // Fetch updated invite info after joining
       const response = await api.invites.decode(code);
       return response.data as InviteInfo;
@@ -56,3 +67,4 @@ export function useJoinTrip() {
     },
   });
 }
+

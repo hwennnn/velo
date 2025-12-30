@@ -4,7 +4,7 @@ Member API endpoints for trip member management
 
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import or_
 from sqlmodel import select
@@ -25,6 +25,9 @@ from app.schemas.member import (
     MemberResponse,
     InviteLinkResponse,
     InviteInfoResponse,
+    ClaimableMember,
+    JoinTripRequest,
+    GenerateInviteRequest,
 )
 from app.core.config import settings
 
@@ -367,6 +370,7 @@ async def remove_member(
 @router.post("/trips/{trip_id}/invite", response_model=InviteLinkResponse)
 async def generate_invite_link(
     trip_id: int,
+    request: Optional[GenerateInviteRequest] = None,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> InviteLinkResponse:
@@ -377,17 +381,24 @@ async def generate_invite_link(
     - If an invite already exists for this trip, reuse it and extend expiration.
     - If no invite exists, create a new one.
     - Expiration is always set/extended to 7 days from now.
+    - allow_claim controls whether joiners can claim existing members.
     """
     from datetime import timedelta
     import secrets
+
+    # Get allow_claim from request, default to True
+    allow_claim = request.allow_claim if request else True
 
     # Check admin access
     trip, _ = await check_trip_access(
         trip_id, current_user, session, require_admin=True
     )
 
-    # Check for existing invite for this trip
-    existing_invite_statement = select(TripInvite).where(TripInvite.trip_id == trip_id)
+    # Check for existing invite for this trip with matching allow_claim
+    existing_invite_statement = select(TripInvite).where(
+        TripInvite.trip_id == trip_id,
+        TripInvite.allow_claim == allow_claim,
+    )
     result = await session.execute(existing_invite_statement)
     invite = result.scalar_one_or_none()
 
@@ -395,19 +406,20 @@ async def generate_invite_link(
     new_expiration = utcnow() + timedelta(days=7)
 
     if invite:
-        # Reuse existing invite - just extend expiration
+        # Reuse existing invite with matching allow_claim - just extend expiration
         invite.expires_at = new_expiration
         session.add(invite)
         await session.commit()
         await session.refresh(invite)
     else:
-        # Create new invite
+        # Create new invite (no existing invite OR allow_claim differs)
         invite_code = secrets.token_hex(8)  # 16 chars hex
         invite = TripInvite(
             trip_id=trip_id,
             code=invite_code,
             created_by=current_user.id,
             expires_at=new_expiration,
+            allow_claim=allow_claim,
         )
         session.add(invite)
         await session.commit()
@@ -421,18 +433,25 @@ async def generate_invite_link(
         invite_code=invite.code,
         invite_url=invite_url,
         expires_at=to_utc_isoformat(invite.expires_at) if invite.expires_at else None,
+        allow_claim=invite.allow_claim,
     )
 
 
 @router.get("/invites/{code}", response_model=InviteInfoResponse)
 async def decode_invite_link(
     code: str,
+    claim: Optional[int] = Query(
+        None, description="Member ID to pre-select for claiming"
+    ),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> InviteInfoResponse:
     """
     Decode an invite link and return trip information.
     Returns trip details so the user can see what they're joining.
+
+    If ?claim=<member_id> is provided, validates and returns that member
+    as the pre-selected claim target (for personalized invite links).
     """
     # Validate code format
     if len(code) != 16 or not all(c in "0123456789abcdef" for c in code.lower()):
@@ -467,7 +486,7 @@ async def decode_invite_link(
             detail="Trip not found or has been deleted",
         )
 
-    # Get member count
+    # Get all members
     members_statement = select(TripMember).where(TripMember.trip_id == trip.id)
     result = await session.execute(members_statement)
     members = result.scalars().all()
@@ -475,6 +494,28 @@ async def decode_invite_link(
 
     # Check if current user is already a member
     is_already_member = any(m.user_id == current_user.id for m in members)
+
+    # Build list of claimable members (only if allow_claim is True for this invite)
+    claimable_members = []
+    if invite.allow_claim:
+        claimable_members = [
+            ClaimableMember(
+                id=m.id,
+                nickname=m.nickname,
+                status=m.status,
+                invited_email=m.invited_email,
+            )
+            for m in members
+            if m.status in ["pending", "placeholder"] and m.user_id is None
+        ]
+
+    # Validate claim parameter if provided (only valid if allow_claim is True)
+    validated_claim_id = None
+    if claim is not None and invite.allow_claim:
+        # Check if the claim ID is valid (exists in claimable members)
+        if any(cm.id == claim for cm in claimable_members):
+            validated_claim_id = claim
+        # If invalid claim ID, just ignore it (don't error)
 
     return InviteInfoResponse(
         code=code,
@@ -486,19 +527,24 @@ async def decode_invite_link(
         end_date=to_utc_isoformat(trip.end_date) if trip.end_date else None,
         member_count=member_count,
         is_already_member=is_already_member,
+        allow_claim=invite.allow_claim,
+        claimable_members=claimable_members,
+        claim_member_id=validated_claim_id,
     )
 
 
 @router.post("/invites/{code}/join", response_model=MemberResponse)
 async def join_trip_via_invite(
     code: str,
+    request: Optional[JoinTripRequest] = None,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> MemberResponse:
     """
     Join a trip via invite code.
 
-    If there's a pending invitation for this user's email, claims it.
+    If claim_member_id is provided, claims that specific placeholder/pending member.
+    Else if there's a pending invitation for this user's email, claims it.
     Otherwise, adds the user as a new member.
     """
     # Validate code format
@@ -549,6 +595,36 @@ async def join_trip_via_invite(
         # User is already a member - return their membership
         return await build_member_response(existing_member, session)
 
+    # If claim_member_id is provided, try to claim that specific member
+    # (Only allowed if invite.allow_claim is True)
+    claim_member_id = request.claim_member_id if request else None
+    if claim_member_id:
+        if not invite.allow_claim:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This invite link does not allow claiming existing members. Please join as a new member.",
+            )
+        claim_member = await session.get(TripMember, claim_member_id)
+        if (
+            claim_member
+            and claim_member.trip_id == trip_id
+            and claim_member.status in ["pending", "placeholder"]
+            and claim_member.user_id is None
+        ):
+            # Claim this specific member
+            claim_member.user_id = current_user.id
+            claim_member.status = "active"
+            claim_member.joined_at = utcnow()
+            session.add(claim_member)
+            await session.commit()
+            await session.refresh(claim_member)
+            return await build_member_response(claim_member, session)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot claim this member. They may already be claimed or don't exist.",
+            )
+
     # Check for pending or placeholder invitation with user's email
     # This allows both pending invites AND placeholders with email to be claimed
     invitation_statement = select(TripMember).where(
@@ -585,3 +661,82 @@ async def join_trip_via_invite(
 
     # Build response
     return await build_member_response(member, session)
+
+
+@router.post(
+    "/trips/{trip_id}/members/{member_id}/invite", response_model=InviteLinkResponse
+)
+async def generate_member_invite_link(
+    trip_id: int,
+    member_id: int,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> InviteLinkResponse:
+    """
+    Generate a personalized invite link for a specific placeholder/pending member.
+    When clicked, the link will auto-claim that member slot.
+    Only trip admins can generate personalized invite links.
+    """
+    from datetime import timedelta
+    import secrets
+
+    # Check admin access
+    trip, _ = await check_trip_access(
+        trip_id, current_user, session, require_admin=True
+    )
+
+    # Verify the member exists and is claimable
+    member = await session.get(TripMember, member_id)
+    if not member or member.trip_id != trip_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Member not found",
+        )
+
+    if member.status not in ["pending", "placeholder"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Can only generate invite links for pending or placeholder members",
+        )
+
+    if member.user_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This member slot has already been claimed",
+        )
+
+    # Get or create trip invite
+    existing_invite_statement = select(TripInvite).where(
+        TripInvite.trip_id == trip_id, TripInvite.allow_claim == True
+    )
+    result = await session.execute(existing_invite_statement)
+    invite = result.scalar_one_or_none()
+
+    new_expiration = utcnow() + timedelta(days=7)
+
+    if invite:
+        invite.expires_at = new_expiration
+        session.add(invite)
+        await session.commit()
+        await session.refresh(invite)
+    else:
+        invite_code = secrets.token_hex(8)
+        invite = TripInvite(
+            trip_id=trip_id,
+            code=invite_code,
+            created_by=current_user.id,
+            expires_at=new_expiration,
+        )
+        session.add(invite)
+        await session.commit()
+        await session.refresh(invite)
+
+    # Build personalized URL with claim parameter
+    frontend_url = settings.frontend_url
+    invite_url = f"{frontend_url}/join/{invite.code}?claim={member_id}"
+
+    return InviteLinkResponse(
+        invite_code=invite.code,
+        invite_url=invite_url,
+        expires_at=to_utc_isoformat(invite.expires_at) if invite.expires_at else None,
+    )

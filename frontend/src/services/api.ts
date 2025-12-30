@@ -55,14 +55,19 @@ export const api = {
     create: (data: Partial<Record<string, unknown>>) => apiClient.post('/trips', data),
     update: (id: string, data: Partial<Record<string, unknown>>) => apiClient.put(`/trips/${id}`, data),
     delete: (id: string) => apiClient.delete(`/trips/${id}`),
-    generateInvite: (tripId: string) => apiClient.post(`/trips/${tripId}/invite`),
+    generateInvite: (tripId: string, allowClaim?: boolean) => 
+      apiClient.post(`/trips/${tripId}/invite`, allowClaim !== undefined ? { allow_claim: allowClaim } : {}),
     leave: (id: string) => apiClient.post(`/trips/${id}/leave`),
   },
 
   // Invites (new secure invite system)
   invites: {
-    decode: (code: string) => apiClient.get(`/invites/${code}`),
-    join: (code: string) => apiClient.post(`/invites/${code}/join`),
+    decode: (code: string, claim?: number) => {
+      const params = claim !== undefined ? { claim } : undefined;
+      return apiClient.get(`/invites/${code}`, { params });
+    },
+    join: (code: string, claimMemberId?: number) => 
+      apiClient.post(`/invites/${code}/join`, claimMemberId ? { claim_member_id: claimMemberId } : {}),
   },
 
   // Members
@@ -73,7 +78,9 @@ export const api = {
     claim: (tripId: string, memberId: string, data?: Partial<Record<string, unknown>>) => 
       apiClient.post(`/trips/${tripId}/members/${memberId}/claim`, data || {}),
     remove: (tripId: string, memberId: string) => 
-      apiClient.delete(`/trips/${tripId}/members/${memberId}`)
+      apiClient.delete(`/trips/${tripId}/members/${memberId}`),
+    generateInvite: (tripId: string, memberId: string) =>
+      apiClient.post(`/trips/${tripId}/members/${memberId}/invite`),
   },
 
   // Expenses

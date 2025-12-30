@@ -11,7 +11,7 @@ from ..core.datetime_utils import utcnow
 class TripInvite(SQLModel, table=True):
     """
     TripInvite stores invite codes for trips.
-    
+
     Each invite code is a unique 16-character hex string that maps
     to a specific trip, allowing users to join without exposing the trip ID.
     """
@@ -20,25 +20,25 @@ class TripInvite(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     trip_id: int = Field(
-        foreign_key="trips.id", 
-        description="Trip this invite is for",
-        index=True
+        foreign_key="trips.id", description="Trip this invite is for", index=True
     )
     code: str = Field(
         unique=True,
         index=True,
         min_length=16,
         max_length=16,
-        description="Unique 16-char hex invite code"
+        description="Unique 16-char hex invite code",
     )
     created_by: str = Field(
-        foreign_key="users.id",
-        description="User who created this invite"
+        foreign_key="users.id", description="User who created this invite"
     )
     created_at: datetime = Field(default_factory=utcnow)
     expires_at: Optional[datetime] = Field(
-        default=None,
-        description="Optional expiration timestamp"
+        default=None, description="Optional expiration timestamp"
+    )
+    allow_claim: bool = Field(
+        default=True,
+        description="If True, joiners can claim existing placeholder/pending members. If False, must join as new member.",
     )
 
     class Config:

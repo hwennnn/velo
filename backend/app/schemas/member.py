@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, model_validator
 
 class MemberAdd(BaseModel):
     """Schema for adding a member to a trip
-    
+
     Status is auto-determined by backend:
     - Email provided + user exists -> 'active'
     - Email provided + user doesn't exist -> 'pending'
@@ -19,7 +19,8 @@ class MemberAdd(BaseModel):
         ..., min_length=1, max_length=100, description="Member display name"
     )
     email: Optional[str] = Field(
-        None, description="Optional email - if provided, creates pending invitation or adds existing user"
+        None,
+        description="Optional email - if provided, creates pending invitation or adds existing user",
     )
     is_admin: bool = Field(default=False, description="Grant admin privileges")
 
@@ -43,7 +44,9 @@ class MemberUpdate(BaseModel):
     """Schema for updating a member"""
 
     nickname: Optional[str] = Field(None, min_length=1, max_length=100)
-    email: Optional[str] = Field(None, description="Update email for pending/placeholder members")
+    email: Optional[str] = Field(
+        None, description="Update email for pending/placeholder members"
+    )
     is_admin: Optional[bool] = None
 
     @model_validator(mode="after")
@@ -89,6 +92,33 @@ class InviteLinkResponse(BaseModel):
     invite_code: str
     invite_url: str
     expires_at: Optional[str] = None
+    allow_claim: bool = True  # Whether joiners can claim existing members
+
+
+class GenerateInviteRequest(BaseModel):
+    """Request body for generating an invite link."""
+
+    allow_claim: bool = Field(
+        default=True,
+        description="If True, joiners can claim existing placeholder/pending members. If False, must join as new member.",
+    )
+
+
+class ClaimableMember(BaseModel):
+    """A member that can be claimed by a joining user."""
+
+    id: int
+    nickname: str
+    status: str  # 'pending' or 'placeholder'
+    invited_email: Optional[str] = None
+
+
+class JoinTripRequest(BaseModel):
+    """Request body for joining a trip via invite."""
+
+    claim_member_id: Optional[int] = Field(
+        None, description="ID of placeholder/pending member to claim"
+    )
 
 
 class InviteInfoResponse(BaseModel):
@@ -103,3 +133,8 @@ class InviteInfoResponse(BaseModel):
     end_date: Optional[str] = None
     member_count: int
     is_already_member: bool
+    allow_claim: bool = True  # Whether this invite allows claiming members
+    claimable_members: list[ClaimableMember] = (
+        []
+    )  # Unclaimed members user can claim (empty if allow_claim=False)
+    claim_member_id: Optional[int] = None  # Pre-selected member from personalized link

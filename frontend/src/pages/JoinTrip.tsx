@@ -1,37 +1,51 @@
 /**
  * Join Trip Page
  * Decodes invite link, shows trip preview, and allows user to confirm joining
+ * Supports claiming placeholder/pending members via selection or personalized link
  */
 import { format } from 'date-fns';
-import { AlertCircle, Calendar, CheckCircle2, DollarSign, Loader2, Users } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { AlertCircle, Calendar, CheckCircle2, DollarSign, Loader2, User, UserPlus, Users } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { useDecodeInvite, useJoinTrip } from '../hooks/useInvites';
+import { useDecodeInvite, useJoinTrip, type ClaimableMember } from '../hooks/useInvites';
 import { formatDateRange } from '../utils/dateUtils';
 
 export default function JoinTrip() {
   const { code } = useParams<{ code: string }>();
+  const [searchParams] = useSearchParams();
+  const claimParam = searchParams.get('claim');
+  const claimMemberFromUrl = claimParam ? parseInt(claimParam, 10) : undefined;
+
   const navigate = useNavigate();
   const { user } = useAuth();
   const [joinSuccess, setJoinSuccess] = useState(false);
+  const [selectedClaimMember, setSelectedClaimMember] = useState<number | null>(null);
+  const hasInitializedClaimRef = useRef(false);
 
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!code) return;
 
     if (!user) {
-      const redirectUrl = `/join/${code}`;
+      // Preserve the claim parameter in redirect
+      const redirectUrl = claimParam ? `/join/${code}?claim=${claimParam}` : `/join/${code}`;
       navigate(`/auth/login?redirect=${encodeURIComponent(redirectUrl)}`);
     }
-  }, [code, user, navigate]);
+  }, [code, user, navigate, claimParam]);
 
-  // Fetch invite info using React Query
+  // Fetch invite info using React Query (pass claim param for validation)
   const {
     data: inviteInfo,
     isLoading,
     error: decodeError,
-  } = useDecodeInvite(user ? code : undefined);
+  } = useDecodeInvite(user ? code : undefined, claimMemberFromUrl);
+
+  // Set selected member from pre-selected claim_member_id (only once)
+  if (inviteInfo?.claim_member_id && !hasInitializedClaimRef.current && selectedClaimMember === null) {
+    hasInitializedClaimRef.current = true;
+    setSelectedClaimMember(inviteInfo.claim_member_id);
+  }
 
   // Join trip mutation
   const joinTripMutation = useJoinTrip();
@@ -40,7 +54,10 @@ export default function JoinTrip() {
     if (!code) return;
 
     try {
-      await joinTripMutation.mutateAsync(code);
+      await joinTripMutation.mutateAsync({
+        code,
+        claimMemberId: selectedClaimMember ?? undefined
+      });
       setJoinSuccess(true);
 
       // Redirect after success
@@ -67,6 +84,12 @@ export default function JoinTrip() {
   const handleRetry = () => {
     // Trigger refetch by navigating to the same route
     window.location.reload();
+  };
+
+  // Get the member being claimed (if any)
+  const getClaimingMember = (): ClaimableMember | undefined => {
+    if (!selectedClaimMember || !inviteInfo?.claimable_members) return undefined;
+    return inviteInfo.claimable_members.find(m => m.id === selectedClaimMember);
   };
 
   // Determine error type from decodeError
@@ -140,6 +163,9 @@ export default function JoinTrip() {
   const errorMessage = getErrorMessage();
   const joinErrorType = getJoinErrorType();
   const joinErrorMessage = getJoinErrorMessage();
+  const claimingMember = getClaimingMember();
+  const hasClaimableMembers = inviteInfo?.claimable_members && inviteInfo.claimable_members.length > 0;
+  const isPersonalizedInvite = !!inviteInfo?.claim_member_id;
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
@@ -154,7 +180,10 @@ export default function JoinTrip() {
               </div>
               <h2 className="text-xl font-bold text-gray-900 mb-2">Welcome to {inviteInfo.trip_name}! 🎉</h2>
               <p className="text-gray-600 mb-6">
-                You've been successfully added to the trip. Redirecting you now...
+                {claimingMember
+                  ? `You've joined as "${claimingMember.nickname}". Redirecting you now...`
+                  : "You've been successfully added to the trip. Redirecting you now..."
+                }
               </p>
               <button
                 onClick={handleGoToTrip}
@@ -294,7 +323,7 @@ export default function JoinTrip() {
               </p>
 
               {/* Trip Preview */}
-              <div className="p-4 bg-gray-50 rounded-lg mb-6 text-left">
+              <div className="p-4 bg-gray-50 rounded-lg mb-4 text-left">
                 <h3 className="font-semibold text-gray-900 mb-3">{inviteInfo.trip_name}</h3>
                 {inviteInfo.trip_description && (
                   <p className="text-sm text-gray-600 mb-3">{inviteInfo.trip_description}</p>
@@ -317,12 +346,89 @@ export default function JoinTrip() {
                 </div>
               </div>
 
+              {/* Claim Member Selection - Only show for generic invites with claimable members */}
+              {hasClaimableMembers && !isPersonalizedInvite && (
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600 mb-3 text-left">
+                    Join as an existing member or create a new one:
+                  </p>
+                  <div className="space-y-2 text-left">
+                    {/* Join as new member option */}
+                    <label
+                      className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${selectedClaimMember === null
+                        ? 'border-primary-500 bg-primary-50'
+                        : 'border-gray-200 hover:bg-gray-50'
+                        }`}
+                    >
+                      <input
+                        type="radio"
+                        name="claimMember"
+                        checked={selectedClaimMember === null}
+                        onChange={() => setSelectedClaimMember(null)}
+                        className="w-4 h-4 text-primary-600"
+                      />
+                      <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">
+                        <UserPlus className="w-4 h-4 text-primary-600" />
+                      </div>
+                      <span className="font-medium text-gray-900">Join as new member</span>
+                    </label>
+
+                    {/* Claimable members */}
+                    {inviteInfo.claimable_members.map((member) => (
+                      <label
+                        key={member.id}
+                        className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${selectedClaimMember === member.id
+                          ? 'border-primary-500 bg-primary-50'
+                          : 'border-gray-200 hover:bg-gray-50'
+                          }`}
+                      >
+                        <input
+                          type="radio"
+                          name="claimMember"
+                          checked={selectedClaimMember === member.id}
+                          onChange={() => setSelectedClaimMember(member.id)}
+                          className="w-4 h-4 text-primary-600"
+                        />
+                        <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                          <User className="w-4 h-4 text-gray-500" />
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-900">{member.nickname}</span>
+                          {member.invited_email && (
+                            <span className="block text-xs text-gray-500">{member.invited_email}</span>
+                          )}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Personalized invite - Auto claiming message */}
+              {isPersonalizedInvite && claimingMember && (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-left">
+                  <p className="text-sm text-blue-700">
+                    <span className="font-medium">You'll be joining as "{claimingMember.nickname}"</span>
+                    {claimingMember.invited_email && (
+                      <span className="block text-xs text-blue-600 mt-1">
+                        Invited email: {claimingMember.invited_email}
+                      </span>
+                    )}
+                  </p>
+                </div>
+              )}
+
               <button
                 onClick={handleConfirmJoin}
                 disabled={joinTripMutation.isPending}
                 className="w-full px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-3"
               >
-                {joinTripMutation.isPending ? 'Joining...' : 'Yes, Join This Trip'}
+                {joinTripMutation.isPending
+                  ? 'Joining...'
+                  : selectedClaimMember
+                    ? `Join as "${getClaimingMember()?.nickname}"`
+                    : 'Join This Trip'
+                }
               </button>
 
               <button

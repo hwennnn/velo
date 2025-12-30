@@ -15,7 +15,7 @@ import { MemberDetailModal } from '../components/MemberDetailModal';
 import { Shimmer } from '../components/Shimmer';
 import { useAlert } from '../contexts/AlertContext';
 import { useAuth } from '../hooks/useAuth';
-import { useAddMember, useLeaveTrip, useRemoveMember, useUpdateMember } from '../hooks/useMembers';
+import { useAddMember, useGenerateMemberInvite, useLeaveTrip, useRemoveMember, useUpdateMember } from '../hooks/useMembers';
 import { useTrip } from '../hooks/useTrips';
 import type { AddMemberInput, TripMember } from '../types';
 
@@ -29,6 +29,10 @@ export default function MembersPage() {
     const [showAddMemberModal, setShowAddMemberModal] = useState(false);
     const [showEditMemberModal, setShowEditMemberModal] = useState(false);
     const [showInviteModal, setShowInviteModal] = useState(false);
+    const [showMemberInviteModal, setShowMemberInviteModal] = useState(false);
+    const [memberInviteUrl, setMemberInviteUrl] = useState<string | null>(null);
+    const [memberInviteExpiresAt, setMemberInviteExpiresAt] = useState<string | null>(null);
+    const [memberInviteLoading, setMemberInviteLoading] = useState(false);
     const [selectedMember, setSelectedMember] = useState<TripMember | null>(null);
     const [showMemberDetail, setShowMemberDetail] = useState(false);
     const [openActionMenuId, setOpenActionMenuId] = useState<number | null>(null);
@@ -57,10 +61,18 @@ export default function MembersPage() {
     const removeMemberMutation = useRemoveMember(tripId!);
     const updateMemberMutation = useUpdateMember(tripId!);
     const leaveTripMutation = useLeaveTrip(tripId!);
+    const generateMemberInviteMutation = useGenerateMemberInvite(tripId!);
 
     const members = trip?.members || [];
     const currentMember = members.find(m => m.user_id === user?.id);
     const isCurrentUserAdmin = currentMember?.is_admin || false;
+
+    // Sort members: current user first, then the rest
+    const sortedMembers = [...members].sort((a, b) => {
+        if (a.user_id === user?.id) return -1;
+        if (b.user_id === user?.id) return 1;
+        return 0;
+    });
 
     // Handlers
     const handleAddMember = async (memberData: AddMemberInput) => {
@@ -161,6 +173,29 @@ export default function MembersPage() {
         }
     };
 
+    const handleSendMemberInvite = async (member: TripMember) => {
+        // Show modal immediately with loading state
+        setSelectedMember(member);
+        setMemberInviteUrl(null);
+        setMemberInviteExpiresAt(null);
+        setMemberInviteLoading(true);
+        setShowMemberInviteModal(true);
+        setOpenActionMenuId(null);
+
+        try {
+            const result = await generateMemberInviteMutation.mutateAsync(member.id.toString());
+            setMemberInviteUrl(result.invite_url);
+            setMemberInviteExpiresAt(result.expires_at);
+        } catch (error) {
+            const err = error as { response?: { data?: { detail?: string } } };
+            showAlert(err.response?.data?.detail || 'Failed to generate invite link', { type: 'error' });
+            setShowMemberInviteModal(false);
+            setSelectedMember(null);
+        } finally {
+            setMemberInviteLoading(false);
+        }
+    };
+
     const getStatusBadge = (member: TripMember) => {
         if (member.status === 'placeholder') {
             return <span className="px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">Placeholder</span>;
@@ -252,7 +287,7 @@ export default function MembersPage() {
                     ) : (
                         // Member list
                         <div className="space-y-2">
-                            {members.map((member) => {
+                            {sortedMembers.map((member) => {
                                 const isCurrentUser = member.user_id === user?.id;
 
                                 return (
@@ -358,18 +393,39 @@ export default function MembersPage() {
                                                                     >
                                                                         Remove
                                                                     </button>
+                                                                    {/* Send Invite for placeholder/pending members */}
+                                                                    {(member.status === 'placeholder' || member.status === 'pending') && member.user_id === null && (
+                                                                        <button
+                                                                            onClick={() => handleSendMemberInvite(member)}
+                                                                            className="w-full px-3 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 transition-colors"
+                                                                        >
+                                                                            Send Invite
+                                                                        </button>
+                                                                    )}
                                                                 </>
                                                             )}
                                                             {isCurrentUser && (
-                                                                <button
-                                                                    onClick={() => {
-                                                                        handleLeaveTrip();
-                                                                        setOpenActionMenuId(null);
-                                                                    }}
-                                                                    className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 transition-colors"
-                                                                >
-                                                                    Leave Trip
-                                                                </button>
+                                                                <>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setSelectedMember(member);
+                                                                            setShowEditMemberModal(true);
+                                                                            setOpenActionMenuId(null);
+                                                                        }}
+                                                                        className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                                                                    >
+                                                                        Edit Nickname
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            handleLeaveTrip();
+                                                                            setOpenActionMenuId(null);
+                                                                        }}
+                                                                        className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 transition-colors"
+                                                                    >
+                                                                        Leave Trip
+                                                                    </button>
+                                                                </>
                                                             )}
                                                         </div>
                                                     )}
@@ -417,6 +473,21 @@ export default function MembersPage() {
                 isOpen={showInviteModal}
                 tripId={tripId!}
                 onClose={() => setShowInviteModal(false)}
+            />
+
+            <InviteModal
+                isOpen={showMemberInviteModal}
+                tripId={tripId!}
+                onClose={() => {
+                    setShowMemberInviteModal(false);
+                    setMemberInviteUrl(null);
+                    setMemberInviteExpiresAt(null);
+                    setSelectedMember(null);
+                }}
+                inviteUrl={memberInviteUrl ?? undefined}
+                memberName={selectedMember?.nickname}
+                expiresAt={memberInviteExpiresAt}
+                isLoading={memberInviteLoading}
             />
         </div>
     );

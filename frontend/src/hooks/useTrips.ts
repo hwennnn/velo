@@ -163,15 +163,32 @@ interface InviteLinkData {
   invite_code: string;
   invite_url: string;
   expires_at: string | null;
+  allow_claim: boolean;
 }
 
-// Generate/get invite link - uses query for caching
-// Call refetch() to generate a new one or extend expiration
+// Generate/get invite link - uses mutation to support allowClaim parameter
+export function useGenerateInviteLink(tripId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (allowClaim: boolean = true) => {
+      const response = await api.trips.generateInvite(tripId, allowClaim);
+      return response.data as InviteLinkData;
+    },
+    onSuccess: (data) => {
+      // Cache the result
+      queryClient.setQueryData(inviteKeys.trip(tripId), data);
+    },
+  });
+}
+
+// Get cached invite link (for reading without regenerating)
 export function useInviteLink(tripId: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: inviteKeys.trip(tripId),
     queryFn: async () => {
-      const response = await api.trips.generateInvite(tripId);
+      // Fetch with default allowClaim=true
+      const response = await api.trips.generateInvite(tripId, true);
       return response.data as InviteLinkData;
     },
     enabled: options?.enabled ?? false, // Only fetch when modal opens

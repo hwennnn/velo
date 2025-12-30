@@ -9,7 +9,7 @@
  * - active → email cannot be changed
  */
 import axios from 'axios';
-import { Mail, User, X } from 'lucide-react';
+import { Mail, Shield, User, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import type { TripMember } from '../types';
 import { Avatar } from './Avatar';
@@ -19,7 +19,7 @@ interface EditMemberModalProps {
     member: TripMember | null;
     existingMembers: TripMember[];
     onClose: () => void;
-    onSave: (memberId: number, data: { nickname?: string; email?: string }) => Promise<void>;
+    onSave: (memberId: number, data: { nickname?: string; email?: string; is_admin?: boolean }) => Promise<void>;
 }
 
 export const EditMemberModal: React.FC<EditMemberModalProps> = ({
@@ -31,6 +31,7 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({
 }) => {
     const [nickname, setNickname] = useState('');
     const [email, setEmail] = useState('');
+    const [isAdmin, setIsAdmin] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -39,6 +40,7 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({
         if (member) {
             setNickname(member.nickname);
             setEmail(member.invited_email || '');
+            setIsAdmin(member.is_admin);
             setError(null);
         }
     }, [member]);
@@ -74,7 +76,7 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({
         setIsLoading(true);
 
         try {
-            const updateData: { nickname?: string; email?: string } = {};
+            const updateData: { nickname?: string; email?: string; is_admin?: boolean } = {};
 
             // Only include nickname if changed
             if (nickname.trim() !== member.nickname) {
@@ -88,6 +90,11 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({
                 if (newEmail !== oldEmail) {
                     updateData.email = newEmail;
                 }
+            }
+
+            // Include is_admin if changed
+            if (isAdmin !== member.is_admin) {
+                updateData.is_admin = isAdmin;
             }
 
             // Only call API if there are changes
@@ -233,6 +240,32 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({
                                     : 'Leave empty to keep as placeholder member'}
                             </p>
                         )}
+                    </div>
+
+                    {/* Admin Toggle */}
+                    <div className="space-y-2">
+                        <label className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                                    <Shield className="w-5 h-5 text-amber-600" />
+                                </div>
+                                <div>
+                                    <span className="block text-sm font-medium text-gray-900">
+                                        Grant Admin Access
+                                    </span>
+                                    <span className="block text-xs text-gray-500">
+                                        Can manage trip, members, and expenses
+                                    </span>
+                                </div>
+                            </div>
+                            <input
+                                type="checkbox"
+                                checked={isAdmin}
+                                onChange={(e) => setIsAdmin(e.target.checked)}
+                                disabled={isLoading}
+                                className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                            />
+                        </label>
                     </div>
 
                     {/* Action Buttons */}

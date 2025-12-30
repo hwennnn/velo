@@ -36,7 +36,7 @@ async def create_trip(
     """
     # Create trip
     now = utcnow()
-    
+
     trip = Trip(
         name=trip_data.name,
         description=trip_data.description,
@@ -334,6 +334,7 @@ async def leave_trip(
         admin_count_statement = select(TripMember).where(
             TripMember.trip_id == trip_id,
             TripMember.is_admin == True,
+            TripMember.status == "active",
         )
         result = await session.execute(admin_count_statement)
         admin_count = len(result.scalars().all())
@@ -343,6 +344,20 @@ async def leave_trip(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot leave as the last admin. Promote another member first.",
             )
+
+    # Check for debts
+    debt_statement = select(MemberDebt).where(
+        or_(
+            MemberDebt.debtor_member_id == current_user.id,
+            MemberDebt.creditor_member_id == current_user.id,
+        ),
+    )
+    result = await session.execute(debt_statement)
+    if result.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot leave trip with any debts. This member owes or is owed money.",
+        )
 
     # Delete member
     await session.delete(member)

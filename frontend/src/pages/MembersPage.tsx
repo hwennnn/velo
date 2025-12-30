@@ -15,7 +15,7 @@ import { MemberDetailModal } from '../components/MemberDetailModal';
 import { Shimmer } from '../components/Shimmer';
 import { useAlert } from '../contexts/AlertContext';
 import { useAuth } from '../hooks/useAuth';
-import { useAddMember, useUpdateMember } from '../hooks/useMembers';
+import { useAddMember, useLeaveTrip, useRemoveMember, useUpdateMember } from '../hooks/useMembers';
 import { useTrip } from '../hooks/useTrips';
 import type { AddMemberInput, TripMember } from '../types';
 
@@ -54,9 +54,9 @@ export default function MembersPage() {
     // Data & Mutations
     const { data: trip, isLoading } = useTrip(tripId);
     const addMemberMutation = useAddMember(tripId!);
-    // const removeMemberMutation = useRemoveMember(tripId!);
+    const removeMemberMutation = useRemoveMember(tripId!);
     const updateMemberMutation = useUpdateMember(tripId!);
-    // const leaveTripMutation = useLeaveTrip(tripId!);
+    const leaveTripMutation = useLeaveTrip(tripId!);
 
     const members = trip?.members || [];
     const currentMember = members.find(m => m.user_id === user?.id);
@@ -76,26 +76,26 @@ export default function MembersPage() {
         showAlert('Member updated successfully!', { type: 'success', autoClose: true });
     };
 
-    // const handleRemoveMember = async (member: TripMember) => {
-    //     const confirmed = await showConfirm(
-    //         `Remove ${member.nickname} from this trip?${member.status === 'active' ? ' They will lose access to this trip.' : ''}`,
-    //         {
-    //             title: 'Remove Member',
-    //             confirmText: 'Remove',
-    //             confirmButtonClass: 'bg-red-600 hover:bg-red-700',
-    //         }
-    //     );
+    const handleRemoveMember = async (member: TripMember) => {
+        const confirmed = await showConfirm(
+            `Remove ${member.nickname} from this trip?${member.status === 'active' ? ' They will lose access to this trip.' : ''}`,
+            {
+                title: 'Remove Member',
+                confirmText: 'Remove',
+                confirmButtonClass: 'bg-red-600 hover:bg-red-700',
+            }
+        );
 
-    //     if (!confirmed) return;
+        if (!confirmed) return;
 
-    //     try {
-    //         await removeMemberMutation.mutateAsync(member.id.toString());
-    //         showAlert('Member removed successfully!', { type: 'success', autoClose: true });
-    //     } catch (error) {
-    //         const err = error as { response?: { data?: { detail?: string } } };
-    //         showAlert(err.response?.data?.detail || 'Failed to remove member', { type: 'error' });
-    //     }
-    // };
+        try {
+            await removeMemberMutation.mutateAsync(member.id.toString());
+            showAlert('Member removed successfully!', { type: 'success', autoClose: true });
+        } catch (error) {
+            const err = error as { response?: { data?: { detail?: string } } };
+            showAlert(err.response?.data?.detail || 'Failed to remove member', { type: 'error' });
+        }
+    };
 
     const handlePromoteToAdmin = async (member: TripMember) => {
         const confirmed = await showConfirm(
@@ -138,28 +138,28 @@ export default function MembersPage() {
         }
     };
 
-    // const handleLeaveTrip = async () => {
-    //     if (!trip) return;
+    const handleLeaveTrip = async () => {
+        if (!trip) return;
 
-    //     const confirmed = await showConfirm(
-    //         `Are you sure you want to leave "${trip.name}"? You'll need an invite link to rejoin.`,
-    //         {
-    //             title: 'Leave Trip',
-    //             confirmText: 'Leave',
-    //             confirmButtonClass: 'bg-red-600 hover:bg-red-700',
-    //         }
-    //     );
+        const confirmed = await showConfirm(
+            `Are you sure you want to leave "${trip.name}"? You'll need an invite link to rejoin.`,
+            {
+                title: 'Leave Trip',
+                confirmText: 'Leave',
+                confirmButtonClass: 'bg-red-600 hover:bg-red-700',
+            }
+        );
 
-    //     if (!confirmed) return;
+        if (!confirmed) return;
 
-    //     try {
-    //         await leaveTripMutation.mutateAsync();
-    //         navigate('/trips');
-    //     } catch (error) {
-    //         const err = error as { response?: { data?: { detail?: string } } };
-    //         showAlert(err.response?.data?.detail || 'Failed to leave trip', { type: 'error' });
-    //     }
-    // };
+        try {
+            await leaveTripMutation.mutateAsync();
+            navigate('/trips');
+        } catch (error) {
+            const err = error as { response?: { data?: { detail?: string } } };
+            showAlert(err.response?.data?.detail || 'Failed to leave trip', { type: 'error' });
+        }
+    };
 
     const getStatusBadge = (member: TripMember) => {
         if (member.status === 'placeholder') {
@@ -299,7 +299,7 @@ export default function MembersPage() {
                                             </div>
 
                                             {/* Actions Dropdown */}
-                                            {((isCurrentUserAdmin && !isCurrentUser)) && (
+                                            {((isCurrentUserAdmin && !isCurrentUser) || isCurrentUser) && (
                                                 <div className="relative" ref={openActionMenuId === member.id ? actionMenuRef : undefined}>
                                                     <button
                                                         onClick={() => setOpenActionMenuId(openActionMenuId === member.id ? null : member.id)}
@@ -349,7 +349,7 @@ export default function MembersPage() {
                                                                     >
                                                                         Edit Member
                                                                     </button>
-                                                                    {/* <button
+                                                                    <button
                                                                         onClick={() => {
                                                                             handleRemoveMember(member);
                                                                             setOpenActionMenuId(null);
@@ -357,10 +357,10 @@ export default function MembersPage() {
                                                                         className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 transition-colors"
                                                                     >
                                                                         Remove
-                                                                    </button> */}
+                                                                    </button>
                                                                 </>
                                                             )}
-                                                            {/* {isCurrentUser && (
+                                                            {isCurrentUser && (
                                                                 <button
                                                                     onClick={() => {
                                                                         handleLeaveTrip();
@@ -370,7 +370,7 @@ export default function MembersPage() {
                                                                 >
                                                                     Leave Trip
                                                                 </button>
-                                                            )} */}
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>

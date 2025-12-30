@@ -303,65 +303,65 @@ async def update_member(
     return await build_member_response(member, session)
 
 
-# @router.delete(
-#     "/trips/{trip_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT
-# )
-# async def remove_member(
-#     trip_id: int,
-#     member_id: int,
-#     current_user: User = Depends(get_current_user),
-#     session: AsyncSession = Depends(get_session),
-# ) -> None:
-#     """
-#     Remove a member from a trip.
-#     Only trip admins can remove members.
-#     Cannot remove the last admin.
-#     Cannot remove a member with unsettled debts.
-#     """
-#     # Check admin access
-#     await check_trip_access(trip_id, current_user, session, require_admin=True)
+@router.delete(
+    "/trips/{trip_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def remove_member(
+    trip_id: int,
+    member_id: int,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """
+    Remove a member from a trip.
+    Only trip admins can remove members.
+    Cannot remove the last admin.
+    Cannot remove a member with unsettled debts.
+    """
+    # Check admin access
+    await check_trip_access(trip_id, current_user, session, require_admin=True)
 
-#     # Get member
-#     member = await session.get(TripMember, member_id)
-#     if not member or member.trip_id != trip_id:
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND,
-#             detail="Member not found",
-#         )
+    # Get member
+    member = await session.get(TripMember, member_id)
+    if not member or member.trip_id != trip_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Member not found",
+        )
 
-#     # Check if this is the last admin
-#     if member.is_admin:
-#         admin_count_statement = select(TripMember).where(
-#             TripMember.trip_id == trip_id,
-#             TripMember.is_admin == True,
-#         )
-#         result = await session.execute(admin_count_statement)
-#         admin_count = len(result.scalars().all())
+    # Check if this is the last admin
+    if member.is_admin:
+        admin_count_statement = select(TripMember).where(
+            TripMember.trip_id == trip_id,
+            TripMember.is_admin == True,
+            TripMember.status == "active",
+        )
+        result = await session.execute(admin_count_statement)
+        admin_count = len(result.scalars().all())
 
-#         if admin_count <= 1:
-#             raise HTTPException(
-#                 status_code=status.HTTP_400_BAD_REQUEST,
-#                 detail="Cannot remove the last admin. Promote another member first.",
-#             )
+        if admin_count <= 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot remove the last admin. Promote another member first.",
+            )
 
-#     # Check for unsettled debts
-#     debt_statement = select(MemberDebt).where(
-#         or_(
-#             MemberDebt.debtor_member_id == member_id,
-#             MemberDebt.creditor_member_id == member_id,
-#         ),
-#         MemberDebt.amount > 0,
-#     )
-#     result = await session.execute(debt_statement)
-#     if result.scalars().first():
-#         raise HTTPException(
-#             status_code=status.HTTP_400_BAD_REQUEST,
-#             detail="Cannot remove member with unsettled debts. Settle all debts first.",
-#         )
+    # Check for debts
+    debt_statement = select(MemberDebt).where(
+        or_(
+            MemberDebt.debtor_member_id == member_id,
+            MemberDebt.creditor_member_id == member_id,
+        ),
+    )
+    result = await session.execute(debt_statement)
+    if result.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot remove member with any debts. This member owes or is owed money.",
+        )
 
-#     # Delete member
-#     await session.delete(member)
-#     await session.commit()
+    # Delete member
+    await session.delete(member)
+    await session.commit()
 
 
 @router.post("/trips/{trip_id}/invite", response_model=InviteLinkResponse)

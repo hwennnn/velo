@@ -246,6 +246,7 @@ export default function TripDetail() {
         onCreate={handleCreateExpense}
         members={trip.members || []}
         baseCurrency={trip.base_currency}
+        tripId={tripId!}
       />
 
       <FilterModal

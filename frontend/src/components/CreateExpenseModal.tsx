@@ -5,9 +5,10 @@
  * Supports equal, percentage, and custom splits.
  */
 import axios from 'axios';
-import { Check, ChevronDown, DollarSign, FileText, Receipt, Users, X } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import { Check, ChevronDown, DollarSign, FileText, ImagePlus, Receipt, Trash2, Users, X } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useCurrencySettings } from '../hooks/useCurrencySettings';
+import { storage } from '../services/supabase';
 import type { CreateExpenseInput, SplitInput, TripMember } from '../types';
 import { Avatar } from './Avatar';
 
@@ -17,6 +18,7 @@ interface CreateExpenseModalProps {
   onCreate: (expenseData: CreateExpenseInput) => Promise<void>;
   members: TripMember[];
   baseCurrency: string;
+  tripId: string;
 }
 
 
@@ -35,6 +37,7 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
   onCreate,
   members,
   baseCurrency,
+  tripId,
 }) => {
   const { getPreferredCurrencies } = useCurrencySettings();
   const [description, setDescription] = useState('');
@@ -48,6 +51,12 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
   const [customSplits, setCustomSplits] = useState<Record<number, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Receipt upload state
+  const [receiptFiles, setReceiptFiles] = useState<File[]>([]);
+  const [receiptPreviews, setReceiptPreviews] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Reset form when modal opens
   useEffect(() => {
@@ -63,8 +72,40 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
       setSelectedMembers(new Set(members.map(m => m.id)));
       setCustomSplits({});
       setError(null);
+      // Reset receipt state
+      setReceiptFiles([]);
+      setReceiptPreviews([]);
     }
   }, [isOpen, baseCurrency, members]);
+
+  // Generate previews when files change
+  useEffect(() => {
+    const urls = receiptFiles.map(file => URL.createObjectURL(file));
+    setReceiptPreviews(urls);
+
+    // Cleanup URLs on unmount or when files change
+    return () => {
+      urls.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [receiptFiles]);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      const newFiles = Array.from(files).filter(file =>
+        file.type.startsWith('image/')
+      );
+      setReceiptFiles(prev => [...prev, ...newFiles]);
+    }
+    // Reset input so the same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const removeReceipt = (index: number) => {
+    setReceiptFiles(prev => prev.filter((_, i) => i !== index));
+  };
 
   // Initialize custom splits when split type or selected members change
   useEffect(() => {
@@ -159,6 +200,23 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
     setIsLoading(true);
 
     try {
+      // Upload receipt images if any
+      let receiptUrls: string[] | undefined;
+      if (receiptFiles.length > 0) {
+        setIsUploading(true);
+        const { urls, errors: uploadErrors } = await storage.uploadReceipts(receiptFiles, tripId);
+        setIsUploading(false);
+
+        if (uploadErrors.length > 0) {
+          console.error('Some receipts failed to upload:', uploadErrors);
+          // Continue with successfully uploaded ones
+        }
+
+        if (urls.length > 0) {
+          receiptUrls = urls;
+        }
+      }
+
       await onCreate({
         description: description.trim(),
         amount: amountNum,
@@ -168,10 +226,12 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
         notes: notes.trim() || undefined,
         split_type: splitType,
         splits,
+        receipt_urls: receiptUrls,
       });
 
       onClose();
     } catch (err: unknown) {
+      setIsUploading(false);
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.detail || 'Failed to create expense');
       } else {
@@ -572,6 +632,61 @@ export const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
               disabled={isLoading}
               maxLength={500}
             />
+          </div>
+
+          {/* Receipt Upload */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              <Receipt className="w-4 h-4 inline mr-1" />
+              Receipts (Optional)
+            </label>
+
+            {/* Upload Button */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading}
+              className="w-full p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-primary-400 hover:bg-primary-50 transition-colors flex flex-col items-center gap-2"
+            >
+              <ImagePlus className="w-6 h-6 text-gray-400" />
+              <span className="text-sm text-gray-600">Click to add receipt images</span>
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+
+            {/* Receipt Previews */}
+            {receiptPreviews.length > 0 && (
+              <div className="grid grid-cols-3 gap-2 mt-2">
+                {receiptPreviews.map((url, index) => (
+                  <div key={index} className="relative group">
+                    <img
+                      src={url}
+                      alt={`Receipt ${index + 1}`}
+                      className="w-full h-24 object-cover rounded-lg border border-gray-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeReceipt(index)}
+                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {isUploading && (
+              <div className="text-sm text-primary-600 text-center animate-pulse">
+                Uploading receipts...
+              </div>
+            )}
           </div>
 
           {/* Action Buttons */}

@@ -107,7 +107,7 @@ async def create_expense(
         paid_by_member_id=expense_data.paid_by_member_id,
         category=expense_data.category,
         notes=expense_data.notes,
-        receipt_url=expense_data.receipt_url,
+        receipt_urls=expense_data.receipt_urls,
         expense_type=(
             expense_data.expense_type
             if hasattr(expense_data, "expense_type")
@@ -260,7 +260,7 @@ async def create_expense(
     # Update trip metadata
     trip.total_spent += amount_in_base
     trip.expense_count += 1
-    
+
     session.add(trip)
     await session.commit()
 
@@ -305,7 +305,7 @@ async def get_expense_response(
         paid_by_nickname=paid_by_member.nickname if paid_by_member else "Unknown",
         category=expense.category,
         notes=expense.notes,
-        receipt_url=expense.receipt_url,
+        receipt_urls=expense.receipt_urls,
         expense_type=(
             expense.expense_type if hasattr(expense, "expense_type") else "expense"
         ),
@@ -639,7 +639,9 @@ async def update_expense(
             # Regular expense: update debts for expense modification
             from app.services.debt import update_debts_for_expense_modification
 
-            await update_debts_for_expense_modification(expense, current_splits, session)
+            await update_debts_for_expense_modification(
+                expense, current_splits, session
+            )
         else:
             # Settlement: update debts for settlement modification
             from app.services.debt import update_debts_for_settlement_modification
@@ -650,9 +652,8 @@ async def update_expense(
 
     # Update trip metadata if amount changed (only for regular expenses, not settlements)
     if (
-        ("amount" in update_data or "currency" in update_data)
-        and expense.expense_type == "expense"
-    ):
+        "amount" in update_data or "currency" in update_data
+    ) and expense.expense_type == "expense":
         new_amount_in_base = expense.amount * expense.exchange_rate_to_base
         trip.total_spent = trip.total_spent - old_amount_in_base + new_amount_in_base
         trip.updated_at = utcnow()

@@ -61,7 +61,7 @@ export interface Expense {
   updated_at: string;
   category?: string;
   notes?: string;
-  receipt_url?: string;
+  receipt_urls?: string[];
   expense_type: string; // 'expense' or 'settlement'
   created_by: string;
   splits: Split[];
@@ -145,7 +145,7 @@ export interface CreateExpenseInput {
   paid_by_member_id: number;
   category?: string;
   notes?: string;
-  receipt_url?: string;
+  receipt_urls?: string[];
   split_type: 'equal' | 'percentage' | 'custom';
   splits?: SplitInput[];
   expense_type?: 'expense' | 'settlement';
@@ -165,7 +165,7 @@ export interface UpdateExpenseInput {
   paid_by_member_id?: number;
   category?: string;
   notes?: string;
-  receipt_url?: string;
+  receipt_urls?: string[];
   split_type?: 'equal' | 'percentage' | 'custom';
   splits?: SplitInput[];
   [key: string]: unknown; // Allow additional properties for API compatibility

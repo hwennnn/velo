@@ -4,7 +4,7 @@
  * Uses useExpense hook with initial data for instant display
  */
 import { format } from "date-fns";
-import { Loader2, Pencil, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Pencil, Trash2, X } from "lucide-react";
 import React, { useState } from "react";
 import { useExpense } from "../hooks/useExpenses";
 import type { Expense, TripMember, UpdateExpenseInput } from "../types";
@@ -51,6 +51,7 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
   deletingId,
 }) => {
   const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedReceiptIndex, setSelectedReceiptIndex] = useState<number | null>(null);
 
   // Use the useExpense hook with initial data for instant display
   const { data: expense, isLoading: isLoadingExpense } = useExpense(
@@ -148,8 +149,89 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
         onClick={handleOnClose}
       />
 
+      {/* Full Screen Image Viewer */}
+      {selectedReceiptIndex !== null && expense.receipt_urls && (
+        <div className="fixed inset-0 z-[60] bg-black flex flex-col items-center justify-center">
+          {/* Header */}
+          <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center bg-gradient-to-b from-black/50 to-transparent">
+            <span className="text-white font-medium">
+              {selectedReceiptIndex + 1} / {expense.receipt_urls.length}
+            </span>
+            <button
+              onClick={() => setSelectedReceiptIndex(null)}
+              className="p-2 text-white hover:bg-white/10 rounded-full transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+
+          {/* Main Image */}
+          <div className="w-full h-full flex items-center justify-center p-4">
+            <img
+              src={expense.receipt_urls[selectedReceiptIndex]}
+              alt={`Receipt ${selectedReceiptIndex + 1}`}
+              className="max-w-full max-h-full object-contain"
+            />
+          </div>
+
+          {/* Navigation Controls */}
+          {expense.receipt_urls.length > 1 && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedReceiptIndex((prev) =>
+                    prev === 0 ? expense.receipt_urls!.length - 1 : prev! - 1
+                  );
+                }}
+                className="absolute left-4 top-1/2 -translate-y-1/2 p-3 text-white hover:bg-white/10 rounded-full transition-colors"
+              >
+                <ChevronLeft className="w-8 h-8" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedReceiptIndex((prev) =>
+                    prev === expense.receipt_urls!.length - 1 ? 0 : prev! + 1
+                  );
+                }}
+                className="absolute right-4 top-1/2 -translate-y-1/2 p-3 text-white hover:bg-white/10 rounded-full transition-colors"
+              >
+                <ChevronRight className="w-8 h-8" />
+              </button>
+            </>
+          )}
+
+          {/* Thumbnails Footer */}
+          <div className="absolute bottom-0 left-0 right-0 p-4 overflow-x-auto bg-gradient-to-t from-black/50 to-transparent">
+            <div className="flex gap-2 justify-center">
+              {expense.receipt_urls.map((url, index) => (
+                <button
+                  key={index}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedReceiptIndex(index);
+                  }}
+                  className={`relative w-12 h-12 rounded-lg overflow-hidden border-2 transition-colors flex-shrink-0 ${selectedReceiptIndex === index
+                      ? "border-primary-500"
+                      : "border-transparent opacity-60 hover:opacity-100"
+                    }`}
+                >
+                  <img
+                    src={url}
+                    alt={`Thumbnail ${index + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal */}
       <div className="flex min-h-full items-end justify-center sm:items-center">
+
         <div className="relative bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-lg transform transition-all">
           {/* Header */}
           <div className="sticky top-0 bg-white border-b border-gray-200 px-5 py-4 rounded-t-2xl">
@@ -382,6 +464,30 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                 </p>
               </div>
             )}
+
+            {/* Receipt Images */}
+            {expense.receipt_urls && expense.receipt_urls.length > 0 && (
+              <div className="bg-gray-50 rounded-xl p-4">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">
+                  Receipts ({expense.receipt_urls.length})
+                </h3>
+                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                  {expense.receipt_urls.map((url, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedReceiptIndex(index)}
+                      className="flex-shrink-0 relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 hover:border-primary-400 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    >
+                      <img
+                        src={url}
+                        alt={`Receipt ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {lastUpdatedLabel && (
@@ -424,6 +530,7 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
         baseCurrency={baseCurrency}
         onClose={() => setShowEditModal(false)}
         onUpdate={onUpdate}
+        tripId={tripId}
       />
     </div>
   );

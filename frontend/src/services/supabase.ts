@@ -110,5 +110,75 @@ export const storage = {
     
     return { data, error };
   },
+
+  /**
+   * Upload receipt image to Supabase Storage
+   */
+  uploadReceipt: async (file: File, tripId: string) => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${tripId}/${crypto.randomUUID()}.${fileExt}`;
+    
+    const { data, error } = await supabase.storage
+      .from('receipts')
+      .upload(fileName, file, {
+        contentType: file.type,
+        upsert: false,
+      });
+    
+    if (error) {
+      return { data: null, error };
+    }
+    
+    // Get public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from('receipts')
+      .getPublicUrl(fileName);
+    
+    return { data: { path: data.path, url: publicUrl }, error: null };
+  },
+
+  /**
+   * Upload multiple receipt images
+   */
+  uploadReceipts: async (files: File[], tripId: string) => {
+    const results = await Promise.all(
+      files.map(file => storage.uploadReceipt(file, tripId))
+    );
+    
+    const urls: string[] = [];
+    const errors: Error[] = [];
+    
+    for (const result of results) {
+      if (result.error) {
+        errors.push(result.error);
+      } else if (result.data) {
+        urls.push(result.data.url);
+      }
+    }
+    
+    return { urls, errors };
+  },
+
+  /**
+   * Delete receipt from Supabase Storage
+   */
+  deleteReceipt: async (path: string) => {
+    const { data, error } = await supabase.storage
+      .from('receipts')
+      .remove([path]);
+    
+    return { data, error };
+  },
+
+  /**
+   * Extract path from a public URL for deletion
+   */
+  getPathFromUrl: (url: string, bucket: 'avatars' | 'receipts') => {
+    // URL format: https://xxx.supabase.co/storage/v1/object/public/{bucket}/{path}
+    const marker = `/storage/v1/object/public/${bucket}/`;
+    const index = url.indexOf(marker);
+    if (index === -1) return null;
+    return url.substring(index + marker.length);
+  },
 };
 

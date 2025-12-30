@@ -3,9 +3,6 @@
 from datetime import datetime
 from typing import Optional
 from decimal import Decimal
-from datetime import datetime
-from typing import Optional
-from decimal import Decimal
 from pydantic import BaseModel, Field, model_validator, field_serializer
 from ..core.currencies import is_supported_currency
 from ..core.datetime_utils import to_utc_isoformat
@@ -50,9 +47,7 @@ class ExpenseCreate(BaseModel):
         description="Category (food, transport, accommodation, etc.)",
     )
     notes: Optional[str] = Field(None, max_length=500, description="Additional notes")
-    receipt_url: Optional[str] = Field(
-        None, max_length=500, description="Receipt image URL"
-    )
+    receipt_urls: Optional[list[str]] = Field(None, description="Receipt image URLs")
 
     # Split information
     split_type: str = Field(
@@ -157,7 +152,7 @@ class ExpenseUpdate(BaseModel):
     paid_by_member_id: Optional[int] = None
     category: Optional[str] = Field(None, max_length=50)
     notes: Optional[str] = Field(None, max_length=500)
-    receipt_url: Optional[str] = Field(None, max_length=500)
+    receipt_urls: Optional[list[str]] = Field(None, description="Receipt image URLs")
 
     # Split information (optional - only if changing splits)
     split_type: Optional[str] = Field(
@@ -258,7 +253,7 @@ class ExpenseResponse(BaseModel):
     paid_by_nickname: str
     category: Optional[str] = None
     notes: Optional[str] = None
-    receipt_url: Optional[str] = None
+    receipt_urls: Optional[list[str]] = None
     expense_type: str = "expense"  # Default to 'expense' for backward compatibility
     splits: list[SplitResponse]
     created_by: str

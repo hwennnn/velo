@@ -4,10 +4,11 @@
  * Modal for editing an existing expense.
  * Supports updating amount, payer, currency, date, notes, and split logic.
  */
-import { Check, ChevronDown, DollarSign, FileText, Users, X } from "lucide-react";
-import React, { useEffect, useMemo, useState } from "react";
+import { Check, ChevronDown, DollarSign, FileText, ImagePlus, Receipt, Trash2, Users, X } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { getCurrencyInfo } from "../config/currencies";
 import { useCurrencySettings } from "../hooks/useCurrencySettings";
+import { storage } from "../services/supabase";
 import type {
   Expense,
   SplitInput,
@@ -27,6 +28,7 @@ interface EditExpenseModalProps {
   ) => Promise<void>;
   members: TripMember[];
   baseCurrency: string;
+  tripId: string;
 }
 
 const CATEGORIES = [
@@ -67,6 +69,7 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
   onUpdate,
   members,
   baseCurrency,
+  tripId,
 }) => {
   const { getPreferredCurrencies } = useCurrencySettings();
   const [description, setDescription] = useState("");
@@ -84,6 +87,13 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
   const [customSplits, setCustomSplits] = useState<Record<number, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Receipt state
+  const [existingReceipts, setExistingReceipts] = useState<string[]>([]);
+  const [newReceiptFiles, setNewReceiptFiles] = useState<File[]>([]);
+  const [newReceiptPreviews, setNewReceiptPreviews] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isSettlement = expense?.expense_type === "settlement";
 
@@ -119,8 +129,44 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
     }
     setCustomSplits(splitMap);
 
+    // Initialize receipts
+    setExistingReceipts(expense.receipt_urls || []);
+    setNewReceiptFiles([]);
+    setNewReceiptPreviews([]);
+
     setError(null);
   }, [isOpen, expense, baseCurrency, members]);
+
+  // Generate previews for new files
+  useEffect(() => {
+    const urls = newReceiptFiles.map(file => URL.createObjectURL(file));
+    setNewReceiptPreviews(urls);
+
+    return () => {
+      urls.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [newReceiptFiles]);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      const newFiles = Array.from(files).filter(file =>
+        file.type.startsWith('image/')
+      );
+      setNewReceiptFiles(prev => [...prev, ...newFiles]);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const removeExistingReceipt = (index: number) => {
+    setExistingReceipts(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const removeNewReceipt = (index: number) => {
+    setNewReceiptFiles(prev => prev.filter((_, i) => i !== index));
+  };
 
   // Re-init default splits when type/members/amount changes (similar to create)
   useEffect(() => {
@@ -259,9 +305,31 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
 
     setIsLoading(true);
     try {
-      await onUpdate(expense.id, payload);
+      // Upload new receipt images if any
+      let finalReceiptUrls = [...existingReceipts];
+
+      if (newReceiptFiles.length > 0) {
+        setIsUploading(true);
+        const { urls, errors: uploadErrors } = await storage.uploadReceipts(newReceiptFiles, tripId);
+        setIsUploading(false);
+
+        if (uploadErrors.length > 0) {
+          console.error('Some receipts failed to upload:', uploadErrors);
+        }
+
+        finalReceiptUrls = [...finalReceiptUrls, ...urls];
+      }
+
+      // Add receipt_urls to payload
+      const finalPayload: UpdateExpenseInput = {
+        ...payload,
+        receipt_urls: finalReceiptUrls.length > 0 ? finalReceiptUrls : undefined,
+      };
+
+      await onUpdate(expense.id, finalPayload);
       onClose();
     } catch {
+      setIsUploading(false);
       setError("Failed to update expense");
     } finally {
       setIsLoading(false);
@@ -471,6 +539,84 @@ export const EditExpenseModal: React.FC<EditExpenseModalProps> = ({
               rows={3}
               disabled={isLoading}
             />
+          </div>
+
+          {/* Receipt Upload */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              <Receipt className="w-4 h-4 inline mr-1" />
+              Receipts
+            </label>
+
+            {/* Existing Receipts */}
+            {existingReceipts.length > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                {existingReceipts.map((url, index) => (
+                  <div key={`existing-${index}`} className="relative group">
+                    <img
+                      src={url}
+                      alt={`Receipt ${index + 1}`}
+                      className="w-full h-24 object-cover rounded-lg border border-gray-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeExistingReceipt(index)}
+                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* New Receipt Previews */}
+            {newReceiptPreviews.length > 0 && (
+              <div className="grid grid-cols-3 gap-2 mt-2">
+                {newReceiptPreviews.map((url, index) => (
+                  <div key={`new-${index}`} className="relative group">
+                    <img
+                      src={url}
+                      alt={`New Receipt ${index + 1}`}
+                      className="w-full h-24 object-cover rounded-lg border-2 border-dashed border-primary-300"
+                    />
+                    <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-primary-500 text-white text-xs rounded">New</div>
+                    <button
+                      type="button"
+                      onClick={() => removeNewReceipt(index)}
+                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Upload Button */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading}
+              className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-primary-400 hover:bg-primary-50 transition-colors flex items-center justify-center gap-2"
+            >
+              <ImagePlus className="w-5 h-5 text-gray-400" />
+              <span className="text-sm text-gray-600">Add receipt images</span>
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+
+            {isUploading && (
+              <div className="text-sm text-primary-600 text-center animate-pulse">
+                Uploading receipts...
+              </div>
+            )}
           </div>
 
           {/* Split controls (skip for settlement for now) */}

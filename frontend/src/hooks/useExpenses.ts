@@ -147,7 +147,7 @@ export function useCreateExpense(tripId: string, members?: TripMember[], current
         updated_at: new Date().toISOString(),
         category: newExpenseData.category,
         notes: newExpenseData.notes,
-        receipt_url: newExpenseData.receipt_url,
+        receipt_urls: newExpenseData.receipt_urls,
         expense_type: newExpenseData.expense_type || 'expense',
         created_by: currentUserId || '',
         splits: [], // Will be calculated server-side

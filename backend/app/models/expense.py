@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional
 from decimal import Decimal
 from sqlmodel import Field, SQLModel, Column
-from sqlalchemy import Numeric
+from sqlalchemy import Numeric, JSON
 from ..core.datetime_utils import utcnow
 
 
@@ -50,7 +50,9 @@ class Expense(SQLModel, table=True):
         default=None, description="Expense category (food, transport, etc)"
     )
     notes: Optional[str] = Field(default=None, description="Additional notes")
-    receipt_url: Optional[str] = Field(default=None, description="Receipt image URL")
+    receipt_urls: Optional[list[str]] = Field(
+        default=None, sa_column=Column(JSON), description="List of receipt image URLs"
+    )
 
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)

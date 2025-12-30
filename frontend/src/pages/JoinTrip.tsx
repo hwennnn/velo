@@ -5,7 +5,7 @@
  */
 import { format } from 'date-fns';
 import { AlertCircle, Calendar, CheckCircle2, DollarSign, Loader2, User, UserPlus, Users } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useDecodeInvite, useJoinTrip, type ClaimableMember } from '../hooks/useInvites';
@@ -21,7 +21,6 @@ export default function JoinTrip() {
   const { user } = useAuth();
   const [joinSuccess, setJoinSuccess] = useState(false);
   const [selectedClaimMember, setSelectedClaimMember] = useState<number | null>(null);
-  const hasInitializedClaimRef = useRef(false);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -41,11 +40,8 @@ export default function JoinTrip() {
     error: decodeError,
   } = useDecodeInvite(user ? code : undefined, claimMemberFromUrl);
 
-  // Set selected member from pre-selected claim_member_id (only once)
-  if (inviteInfo?.claim_member_id && !hasInitializedClaimRef.current && selectedClaimMember === null) {
-    hasInitializedClaimRef.current = true;
-    setSelectedClaimMember(inviteInfo.claim_member_id);
-  }
+  // Determine which member ID to use (priority: personalized invite > user selection)
+  const claimMemberIdToUse = inviteInfo?.claim_member_id ?? selectedClaimMember;
 
   // Join trip mutation
   const joinTripMutation = useJoinTrip();
@@ -56,7 +52,7 @@ export default function JoinTrip() {
     try {
       await joinTripMutation.mutateAsync({
         code,
-        claimMemberId: selectedClaimMember ?? undefined
+        claimMemberId: claimMemberIdToUse ?? undefined
       });
       setJoinSuccess(true);
 
@@ -88,8 +84,8 @@ export default function JoinTrip() {
 
   // Get the member being claimed (if any)
   const getClaimingMember = (): ClaimableMember | undefined => {
-    if (!selectedClaimMember || !inviteInfo?.claimable_members) return undefined;
-    return inviteInfo.claimable_members.find(m => m.id === selectedClaimMember);
+    if (!claimMemberIdToUse || !inviteInfo?.claimable_members) return undefined;
+    return inviteInfo.claimable_members.find(m => m.id === claimMemberIdToUse);
   };
 
   // Determine error type from decodeError
@@ -425,7 +421,7 @@ export default function JoinTrip() {
               >
                 {joinTripMutation.isPending
                   ? 'Joining...'
-                  : selectedClaimMember
+                  : claimMemberIdToUse
                     ? `Join as "${getClaimingMember()?.nickname}"`
                     : 'Join This Trip'
                 }

@@ -24,7 +24,7 @@ export default function BalancesPage() {
   const { data: balancesData, isLoading } = useBalances(tripId, { minimize: true });
 
   const baseCurrency = trip?.base_currency || balancesData?.base_currency || 'USD';
-  const balances = balancesData?.member_balances || [];
+  const balances = useMemo(() => balancesData?.member_balances || [], [balancesData]);
   const debts = balancesData?.debts || [];
 
   const membersById = useMemo(() => new Map((trip?.members || []).map((m) => [m.id, m])), [trip?.members]);

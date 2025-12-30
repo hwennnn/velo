@@ -48,3 +48,21 @@ jobs:
 
             # Run deployment
             ./scripts/deploy.sh --production
+
+      - name: Send Telegram Notification
+        uses: appleboy/telegram-action@master
+        if: success()
+        with:
+          to: "${{ secrets.TELEGRAM_TO }}"
+          token: "${{ secrets.TELEGRAM_TOKEN }}"
+          format: markdown
+          message: |
+            ✅ *Deployment Successful!*
+            
+            📦 **Repository:** ${{ github.repository }}
+            🌿 **Branch:** ${{ github.ref_name }}
+            👤 **Committer:** ${{ github.actor }}
+            
+            🔗 [Commit](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
+            
+            📝 **Message:** ${{ github.event.head_commit.message }}

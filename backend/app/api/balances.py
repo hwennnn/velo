@@ -193,6 +193,7 @@ async def get_trip_totals(
 
     # Calculate total paid per member (sum of expenses they paid, in base currency)
     # Formula: amount * exchange_rate_to_base
+    # Exclude settlements - they are payments between members, not actual expenses
     paid_statement = (
         select(
             Expense.paid_by_member_id,
@@ -201,6 +202,7 @@ async def get_trip_totals(
             ),
         )
         .where(Expense.trip_id == trip_id)
+        .where(Expense.expense_type == "expense")
         .group_by(Expense.paid_by_member_id)
     )
     paid_result = await session.execute(paid_statement)
@@ -210,6 +212,7 @@ async def get_trip_totals(
 
     # Calculate total share per member (sum of their splits, converted to base currency)
     # Need to join with Expense to get exchange rate
+    # Exclude settlements - they are payments between members, not actual expenses
     share_statement = (
         select(
             Split.member_id,
@@ -217,6 +220,7 @@ async def get_trip_totals(
         )
         .join(Expense, Split.expense_id == Expense.id)
         .where(Expense.trip_id == trip_id)
+        .where(Expense.expense_type == "expense")
         .group_by(Split.member_id)
     )
     share_result = await session.execute(share_statement)

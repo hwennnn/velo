@@ -15,13 +15,16 @@ async_database_url = settings.database_url.replace(
     "postgresql://", "postgresql+asyncpg://"
 ).replace("postgresql+psycopg2://", "postgresql+asyncpg://")
 
+_is_sqlite = "sqlite" in async_database_url
+
 engine = create_async_engine(
     async_database_url,
     echo=settings.db_echo,
-    poolclass=None,
-    pool_pre_ping=True,
-    pool_size=(settings.db_pool_size),
-    max_overflow=(settings.db_max_overflow),
+    **({} if _is_sqlite else {
+        "pool_pre_ping": True,
+        "pool_size": settings.db_pool_size,
+        "max_overflow": settings.db_max_overflow,
+    }),
 )
 
 # Create async session factory

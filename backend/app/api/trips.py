@@ -3,6 +3,7 @@ Trip API endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func
 
@@ -13,6 +14,7 @@ from app.core.datetime_utils import utcnow, to_utc_isoformat
 from app.models.user import User
 from app.models.trip import Trip
 from app.models.trip_member import TripMember
+from app.models.member_debt import MemberDebt
 from app.schemas.trip import (
     TripCreate,
     TripUpdate,
@@ -345,11 +347,12 @@ async def leave_trip(
                 detail="Cannot leave as the last admin. Promote another member first.",
             )
 
-    # Check for debts
+    # Check for debts (member.id is the TripMember integer id, not user UUID)
     debt_statement = select(MemberDebt).where(
+        MemberDebt.trip_id == trip_id,
         or_(
-            MemberDebt.debtor_member_id == current_user.id,
-            MemberDebt.creditor_member_id == current_user.id,
+            MemberDebt.debtor_member_id == member.id,
+            MemberDebt.creditor_member_id == member.id,
         ),
     )
     result = await session.execute(debt_statement)

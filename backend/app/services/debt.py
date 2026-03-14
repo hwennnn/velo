@@ -644,16 +644,6 @@ async def convert_all_debts_to_currency(
         "conversions": conversions,
     }
 
-    """
-    Remove debt records with zero or negligible amounts.
-    Returns number of records deleted.
-    """
-    delete_statement = delete(MemberDebt).where(
-        and_(MemberDebt.trip_id == trip_id, MemberDebt.amount < Decimal("0.01"))
-    )
-    result = await session.execute(delete_statement)
-    return result.rowcount
-
 
 async def merge_debt_currency(
     trip_id: int,
@@ -748,7 +738,7 @@ async def merge_debt_currency(
             MemberDebt.debtor_member_id == debtor_member_id,
             MemberDebt.creditor_member_id == creditor_member_id,
             MemberDebt.currency == to_currency,
-            MemberDebt.source_expense_id == None,
+            MemberDebt.source_expense_id.is_(None),
         )
     )
     result = await session.execute(target_debt_statement)

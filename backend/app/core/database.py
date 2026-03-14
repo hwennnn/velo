@@ -2,9 +2,6 @@
 Database connection and session management using SQLModel with async support.
 """
 
-import socket
-import time
-from urllib.parse import urlparse, urlunparse
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlmodel import SQLModel
@@ -12,33 +9,11 @@ from sqlalchemy.pool import NullPool
 from app.core.config import settings
 
 
-def _resolve_db_url(url: str) -> str:
-    """Resolve hostname in DATABASE_URL to IP to avoid Docker DNS issues.
-    Retries until DNS is available (Docker DNS can take time to initialize)."""
-    parsed = urlparse(url)
-    if parsed.hostname:
-        for attempt in range(30):
-            try:
-                ip = socket.getaddrinfo(parsed.hostname, parsed.port or 5432)[0][4][0]
-                netloc = parsed.netloc.replace(parsed.hostname, ip)
-                resolved = urlunparse(parsed._replace(netloc=netloc))
-                print(f"Resolved DB host {parsed.hostname} -> {ip}")
-                return resolved
-            except socket.gaierror:
-                print(f"DNS not ready (attempt {attempt + 1}/30), waiting...")
-                time.sleep(2)
-        print(f"ERROR: Could not resolve {parsed.hostname} after 30 attempts")
-    return url
-
-
 # Create async database engine
 # Note: Use postgresql+asyncpg:// for async connections
 async_database_url = settings.database_url.replace(
     "postgresql://", "postgresql+asyncpg://"
 ).replace("postgresql+psycopg2://", "postgresql+asyncpg://")
-
-# Resolve hostname to IP to avoid Docker/uvloop DNS resolution issues
-async_database_url = _resolve_db_url(async_database_url)
 
 engine = create_async_engine(
     async_database_url,

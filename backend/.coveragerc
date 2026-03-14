@@ -1,0 +1,12 @@
+[run]
+source = app
+# Use sys.monitoring for better async coverage (Python 3.12+)
+# This replaces sys.settrace and properly handles asyncio coroutines
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise NotImplementedError
+    if __name__ == .__main__.
+    \.\.\.

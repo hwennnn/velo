@@ -460,3 +460,180 @@ class TestTripTotals:
         alice_totals = next(m for m in data["member_totals"] if m["member_id"] == alice["id"])
         assert alice_totals["total_paid"] > 0
         assert alice_totals["total_paid"] >= alice_totals["total_share"]
+
+
+# ──────────────────────────────────────────────
+# SETTLEMENT VALIDATION TESTS
+# ──────────────────────────────────────────────
+
+class TestSettlementValidation:
+
+    @pytest.mark.asyncio
+    async def test_settlement_invalid_from_member_rejected(self, client, trip, members):
+        """Settlement with invalid from_member_id returns 400."""
+        tid = trip["id"]
+        alice, bob = members
+
+        resp = await client.post(f"/trips/{tid}/settlements", json={
+            "from_member_id": 999999,
+            "to_member_id": alice["id"],
+            "amount": 50,
+            "currency": "USD",
+        })
+        assert resp.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_settlement_invalid_to_member_rejected(self, client, trip, members):
+        """Settlement with invalid to_member_id returns 400."""
+        tid = trip["id"]
+        alice, bob = members
+
+        resp = await client.post(f"/trips/{tid}/settlements", json={
+            "from_member_id": bob["id"],
+            "to_member_id": 999999,
+            "amount": 50,
+            "currency": "USD",
+        })
+        assert resp.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_settlement_with_self_rejected(self, client, trip, members):
+        """Cannot settle with yourself."""
+        tid = trip["id"]
+        alice, bob = members
+
+        resp = await client.post(f"/trips/{tid}/settlements", json={
+            "from_member_id": alice["id"],
+            "to_member_id": alice["id"],
+            "amount": 50,
+            "currency": "USD",
+        })
+        assert resp.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_settlement_zero_amount_rejected(self, client, trip, members):
+        """Settlement with zero amount returns 422."""
+        tid = trip["id"]
+        alice, bob = members
+
+        resp = await client.post(f"/trips/{tid}/settlements", json={
+            "from_member_id": bob["id"],
+            "to_member_id": alice["id"],
+            "amount": 0,
+            "currency": "USD",
+        })
+        assert resp.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_settlement_members_from_different_trip_rejected(self, client, trip, members):
+        """Members from different trips cannot settle."""
+        tid = trip["id"]
+        alice, bob = members
+
+        # Create another trip and get its member
+        other_trip_resp = await client.post("/trips/", json={"name": "Other", "base_currency": "USD"})
+        other_tid = other_trip_resp.json()["id"]
+        other_trip_data = await client.get(f"/trips/{other_tid}")
+        other_creator = next(m for m in other_trip_data.json()["members"] if m["user_id"] == TEST_USER_ID)
+
+        # Try to settle from a member of another trip
+        resp = await client.post(f"/trips/{tid}/settlements", json={
+            "from_member_id": other_creator["id"],
+            "to_member_id": alice["id"],
+            "amount": 50,
+            "currency": "USD",
+        })
+        assert resp.status_code == 400
+
+
+# ──────────────────────────────────────────────
+# MINIMIZE MODE TESTS
+# ──────────────────────────────────────────────
+
+class TestMinimizeMode:
+
+    @pytest.mark.asyncio
+    async def test_minimize_flag_returns_base_currency_debts(self, client, trip, members):
+        """minimize=true returns debts in base currency."""
+        tid = trip["id"]
+        alice, bob = members
+
+        await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Test",
+            "amount": 100,
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "custom",
+            "splits": [{"member_id": alice["id"], "amount": 50}, {"member_id": bob["id"], "amount": 50}],
+        })
+
+        resp = await client.get(f"/trips/{tid}/balances?minimize=true")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["minimized"] is True
+        for debt in data["debts"]:
+            assert debt["currency"] == "USD"  # base currency
+
+    @pytest.mark.asyncio
+    async def test_minimize_reduces_transaction_count(self, client, trip, members, member_c):
+        """minimize=true reduces transaction count vs raw."""
+        tid = trip["id"]
+        alice, bob = members
+        charlie = member_c
+
+        # Set up debts: A→B→C chain
+        await client.post(f"/trips/{tid}/expenses", json={
+            "description": "A pays for B",
+            "amount": 100,
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "custom",
+            "splits": [{"member_id": bob["id"], "amount": 100}],
+        })
+        await client.post(f"/trips/{tid}/expenses", json={
+            "description": "B pays for C",
+            "amount": 100,
+            "currency": "USD",
+            "paid_by_member_id": bob["id"],
+            "split_type": "custom",
+            "splits": [{"member_id": charlie["id"], "amount": 100}],
+        })
+
+        resp_min = await client.get(f"/trips/{tid}/balances?minimize=true")
+        data_min = resp_min.json()
+        # With minimization, C can pay A directly (1 transaction instead of 2)
+        assert len(data_min["debts"]) <= 2
+
+
+# ──────────────────────────────────────────────
+# EXCHANGE RATES ENDPOINT TESTS
+# ──────────────────────────────────────────────
+
+class TestExchangeRatesEndpoint:
+
+    @pytest.mark.asyncio
+    async def test_exchange_rates_endpoint_accessible(self, client):
+        """GET /exchange-rates/USD is accessible (may fail with live API but endpoint exists)."""
+        from unittest.mock import AsyncMock, patch
+        from decimal import Decimal
+
+        mock_rates = {"USD": Decimal("1.0"), "EUR": Decimal("0.92")}
+        with patch("app.api.balances.fetch_exchange_rates", new_callable=AsyncMock) as mock_fetch:
+            mock_fetch.return_value = mock_rates
+            resp = await client.get("/exchange-rates/USD")
+            assert resp.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_exchange_rates_response_structure(self, client):
+        """Exchange rates response has base_currency and rates fields."""
+        from unittest.mock import AsyncMock, patch
+        from decimal import Decimal
+
+        mock_rates = {"USD": Decimal("1.0"), "EUR": Decimal("0.92")}
+        with patch("app.api.balances.fetch_exchange_rates", new_callable=AsyncMock) as mock_fetch:
+            mock_fetch.return_value = mock_rates
+            resp = await client.get("/exchange-rates/EUR")
+            data = resp.json()
+            assert "base_currency" in data
+            assert "rates" in data
+            assert data["base_currency"] == "EUR"

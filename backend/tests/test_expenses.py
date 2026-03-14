@@ -837,3 +837,300 @@ class TestExpenseValidation:
             "split_type": "equal",
         })
         assert resp.status_code == 422
+
+
+# ──────────────────────────────────────────────
+# LIST EXPENSES WITH FILTERS
+# ──────────────────────────────────────────────
+
+class TestListExpenses:
+
+    @pytest.mark.asyncio
+    async def test_list_expenses_empty(self, client, trip):
+        """No expenses returns empty list."""
+        tid = trip["id"]
+        resp = await client.get(f"/trips/{tid}/expenses")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["expenses"] == []
+        assert data["total"] == 0
+
+    @pytest.mark.asyncio
+    async def test_list_expenses_returns_all(self, client, trip, members):
+        """List returns all expenses for the trip."""
+        tid = trip["id"]
+        alice, _ = members
+        for i in range(3):
+            await client.post(f"/trips/{tid}/expenses", json={
+                "description": f"Expense {i}",
+                "amount": 50,
+                "currency": "USD",
+                "paid_by_member_id": alice["id"],
+                "split_type": "equal",
+            })
+
+        resp = await client.get(f"/trips/{tid}/expenses")
+        data = resp.json()
+        assert data["total"] == 3
+        assert len(data["expenses"]) == 3
+
+    @pytest.mark.asyncio
+    async def test_list_expenses_filter_by_category(self, client, trip, members):
+        """Filter by category returns matching expenses only."""
+        tid = trip["id"]
+        alice, _ = members
+        await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Food expense",
+            "amount": 50,
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "equal",
+            "category": "food",
+        })
+        await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Transport expense",
+            "amount": 30,
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "equal",
+            "category": "transport",
+        })
+
+        resp = await client.get(f"/trips/{tid}/expenses?category=food")
+        data = resp.json()
+        assert data["total"] == 1
+        assert data["expenses"][0]["category"] == "food"
+
+    @pytest.mark.asyncio
+    async def test_list_expenses_filter_by_paid_by(self, client, trip, members):
+        """Filter by paid_by_member_id returns matching expenses only."""
+        tid = trip["id"]
+        alice, bob = members
+        await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Alice paid",
+            "amount": 100,
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "equal",
+        })
+        await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Bob paid",
+            "amount": 50,
+            "currency": "USD",
+            "paid_by_member_id": bob["id"],
+            "split_type": "equal",
+        })
+
+        resp = await client.get(f"/trips/{tid}/expenses?paid_by_member_id={alice['id']}")
+        data = resp.json()
+        assert all(e["paid_by_member_id"] == alice["id"] for e in data["expenses"])
+
+    @pytest.mark.asyncio
+    async def test_list_expenses_pagination(self, client, trip, members):
+        """Pagination works: page_size limits results."""
+        tid = trip["id"]
+        alice, _ = members
+        for i in range(5):
+            await client.post(f"/trips/{tid}/expenses", json={
+                "description": f"Expense {i}",
+                "amount": 10,
+                "currency": "USD",
+                "paid_by_member_id": alice["id"],
+                "split_type": "equal",
+            })
+
+        resp = await client.get(f"/trips/{tid}/expenses?page=1&page_size=2")
+        data = resp.json()
+        assert len(data["expenses"]) == 2
+        assert data["total"] == 5
+
+    @pytest.mark.asyncio
+    async def test_list_expenses_filter_expense_type(self, client, trip, members):
+        """Filter by expense_type=expenses excludes settlements."""
+        tid = trip["id"]
+        alice, bob = members
+
+        await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Regular",
+            "amount": 100,
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "custom",
+            "splits": [{"member_id": alice["id"], "amount": 50}, {"member_id": bob["id"], "amount": 50}],
+        })
+        await client.post(f"/trips/{tid}/settlements", json={
+            "from_member_id": bob["id"],
+            "to_member_id": alice["id"],
+            "amount": 50,
+            "currency": "USD",
+        })
+
+        resp = await client.get(f"/trips/{tid}/expenses?expense_type=expenses")
+        data = resp.json()
+        for exp in data["expenses"]:
+            assert exp["expense_type"] == "expense"
+
+    @pytest.mark.asyncio
+    async def test_list_expenses_filter_settlements(self, client, trip, members):
+        """Filter by expense_type=settlements returns only settlements."""
+        tid = trip["id"]
+        alice, bob = members
+
+        await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Regular",
+            "amount": 100,
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "custom",
+            "splits": [{"member_id": alice["id"], "amount": 50}, {"member_id": bob["id"], "amount": 50}],
+        })
+        await client.post(f"/trips/{tid}/settlements", json={
+            "from_member_id": bob["id"],
+            "to_member_id": alice["id"],
+            "amount": 50,
+            "currency": "USD",
+        })
+
+        resp = await client.get(f"/trips/{tid}/expenses?expense_type=settlements")
+        data = resp.json()
+        for exp in data["expenses"]:
+            assert exp["expense_type"] == "settlement"
+
+
+# ──────────────────────────────────────────────
+# GET SPECIFIC EXPENSE TESTS
+# ──────────────────────────────────────────────
+
+class TestGetExpense:
+
+    @pytest.mark.asyncio
+    async def test_get_expense_by_id(self, client, trip, members):
+        """GET /trips/{id}/expenses/{id} returns the expense."""
+        tid = trip["id"]
+        alice, _ = members
+        resp = await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Specific expense",
+            "amount": 75,
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "equal",
+        })
+        expense_id = resp.json()["id"]
+
+        get_resp = await client.get(f"/trips/{tid}/expenses/{expense_id}")
+        assert get_resp.status_code == 200
+        assert get_resp.json()["id"] == expense_id
+        assert get_resp.json()["description"] == "Specific expense"
+
+    @pytest.mark.asyncio
+    async def test_get_nonexistent_expense_returns_404(self, client, trip):
+        """Non-existent expense returns 404."""
+        tid = trip["id"]
+        resp = await client.get(f"/trips/{tid}/expenses/999999")
+        assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_get_expense_wrong_trip_returns_404(self, client, trip, members):
+        """Expense from a different trip returns 404."""
+        # Create two trips
+        trip2_resp = await client.post("/trips/", json={"name": "Trip 2", "base_currency": "USD"})
+        trip2_id = trip2_resp.json()["id"]
+        trip2_data = await client.get(f"/trips/{trip2_id}")
+        creator_member = next(m for m in trip2_data.json()["members"] if m["user_id"] == TEST_USER_ID)
+
+        # Create expense in trip2
+        exp_resp = await client.post(f"/trips/{trip2_id}/expenses", json={
+            "description": "In Trip 2",
+            "amount": 50,
+            "currency": "USD",
+            "paid_by_member_id": creator_member["id"],
+            "split_type": "equal",
+        })
+        expense_id = exp_resp.json()["id"]
+
+        # Try to access it via trip1
+        tid = trip["id"]
+        resp = await client.get(f"/trips/{tid}/expenses/{expense_id}")
+        assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_get_expense_returns_splits(self, client, trip, members):
+        """GET expense includes splits array."""
+        tid = trip["id"]
+        alice, bob = members
+        resp = await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Split expense",
+            "amount": 100,
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "custom",
+            "splits": [
+                {"member_id": alice["id"], "amount": 60},
+                {"member_id": bob["id"], "amount": 40},
+            ],
+        })
+        expense_id = resp.json()["id"]
+
+        get_resp = await client.get(f"/trips/{tid}/expenses/{expense_id}")
+        data = get_resp.json()
+        assert "splits" in data
+        assert len(data["splits"]) == 2
+
+
+# ──────────────────────────────────────────────
+# DELETE PERMISSION TESTS
+# ──────────────────────────────────────────────
+
+class TestDeleteExpensePermissions:
+
+    @pytest.mark.asyncio
+    async def test_non_creator_non_admin_cannot_delete(self, client, async_session, trip, members):
+        """Non-creator non-admin member cannot delete an expense."""
+        from app.models.user import User as UserModel
+        from app.core.auth import get_current_user
+        from app.core.database import get_session
+        from httpx import AsyncClient, ASGITransport
+
+        tid = trip["id"]
+        alice, bob = members
+
+        # Alice creates an expense
+        resp = await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Alice's expense",
+            "amount": 100,
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "custom",
+            "splits": [{"member_id": alice["id"], "amount": 50}, {"member_id": bob["id"], "amount": 50}],
+        })
+        expense_id = resp.json()["id"]
+
+        # Create a second user (non-creator, non-admin)
+        second_user_id = "non-creator-user-xyz"
+        second_user = UserModel(id=second_user_id, email="noncreator@example.com", display_name="Non Creator")
+        async_session.add(second_user)
+        await async_session.commit()
+
+        # Add them as a non-admin member
+        await client.post(f"/trips/{tid}/members", json={
+            "nickname": "NonCreator",
+            "email": "noncreator@example.com",
+        })
+
+        # Try to delete as non-creator
+        async def get_session_override():
+            yield async_session
+
+        async def get_current_user_override():
+            return UserModel(id=second_user_id, email="noncreator@example.com")
+
+        from app.main import app as the_app
+        the_app.dependency_overrides[get_session] = get_session_override
+        the_app.dependency_overrides[get_current_user] = get_current_user_override
+
+        transport = ASGITransport(app=the_app)
+        async with AsyncClient(transport=transport, base_url="http://test/api") as c2:
+            del_resp = await c2.delete(f"/trips/{tid}/expenses/{expense_id}")
+            assert del_resp.status_code == 403, f"Non-creator should get 403, got {del_resp.status_code}"
+
+        the_app.dependency_overrides.clear()

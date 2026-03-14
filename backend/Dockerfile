@@ -23,5 +23,5 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy project
 COPY . .
 
-# Wait for DNS to be ready, then run the application
-CMD ["sh", "-c", "until python -c 'import socket; socket.getaddrinfo(\"aws-1-ap-south-1.pooler.supabase.com\", 5432)' 2>/dev/null; do echo 'Waiting for DNS...'; sleep 2; done && uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=*"]
+# Use asyncio loop instead of uvloop to avoid Docker DNS resolution issues
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=*", "--loop", "asyncio"]

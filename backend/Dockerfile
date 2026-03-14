@@ -23,5 +23,5 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy project
 COPY . .
 
-# Run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=*"]
+# Wait for DNS to be ready, then run the application
+CMD ["sh", "-c", "sleep 3 && uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=*"]

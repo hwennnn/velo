@@ -52,6 +52,9 @@ env/
 htmlcov/
 .tox/
 .hypothesis/
+*.cover
+*,cover
+coverage.json
 
 # MyPy
 .mypy_cache/

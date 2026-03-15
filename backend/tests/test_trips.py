@@ -622,3 +622,194 @@ class TestCreateTripValidation:
         assert creator is not None
         assert creator["is_admin"] is True
         assert creator["status"] == "active"
+
+
+# ──────────────────────────────────────────────
+# LEAVE TRIP TESTS
+# ──────────────────────────────────────────────
+
+class TestLeaveTripEndpoint:
+
+    @pytest.mark.asyncio
+    async def test_leave_trip_success(self, async_session):
+        """A non-admin member can successfully leave a trip."""
+        from app.core.auth import get_current_user_id, get_current_user
+        from app.core.database import get_session
+
+        # second user already created by async_session fixture
+
+        async def get_session_override():
+            yield async_session
+
+        async def get_user_u1():
+            return User(id=TEST_USER_ID, email=TEST_USER_EMAIL, display_name="User1")
+
+        app.dependency_overrides[get_session] = get_session_override
+        app.dependency_overrides[get_current_user] = get_user_u1
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test/api") as c1:
+            create_resp = await c1.post("/trips/", json={"name": "Leave Trip", "base_currency": "USD"})
+            trip_id = create_resp.json()["id"]
+            await c1.post(f"/trips/{trip_id}/members", json={
+                "nickname": "Second User",
+                "email": SECOND_USER_EMAIL,
+            })
+
+        # Second user leaves
+        async def get_user_u2():
+            return User(id=SECOND_USER_ID, email=SECOND_USER_EMAIL, display_name="Second User")
+
+        app.dependency_overrides[get_current_user] = get_user_u2
+        async with AsyncClient(transport=transport, base_url="http://test/api") as c2:
+            resp = await c2.post(f"/trips/{trip_id}/leave")
+            assert resp.status_code == 204
+
+        app.dependency_overrides.clear()
+
+    @pytest.mark.asyncio
+    async def test_leave_trip_not_member_returns_404(self, client):
+        """Leaving a trip you're not a member of returns 404."""
+        resp = await client.post("/trips/999999/leave")
+        assert resp.status_code in [404]
+
+    @pytest.mark.asyncio
+    async def test_leave_trip_last_admin_blocked(self, client):
+        """Last admin cannot leave the trip."""
+        create_resp = await client.post("/trips/", json={"name": "Admin Trip", "base_currency": "USD"})
+        trip_id = create_resp.json()["id"]
+
+        resp = await client.post(f"/trips/{trip_id}/leave")
+        assert resp.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_leave_trip_with_debt_blocked(self, client):
+        """Member with outstanding debt cannot leave."""
+        create_resp = await client.post("/trips/", json={"name": "Debt Trip", "base_currency": "USD"})
+        trip_id = create_resp.json()["id"]
+
+        # Add a placeholder to pay for (creator owes placeholder)
+        placeholder_resp = await client.post(f"/trips/{trip_id}/members", json={"nickname": "Placeholder"})
+        placeholder_id = placeholder_resp.json()["id"]
+
+        # Promote placeholder to admin so creator isn't last admin
+        await client.put(f"/trips/{trip_id}/members/{placeholder_id}", json={"is_admin": True})
+
+        # Get creator member id
+        trip_data = await client.get(f"/trips/{trip_id}")
+        creator_member = next(m for m in trip_data.json()["members"] if m["user_id"] == TEST_USER_ID)
+        creator_member_id = creator_member["id"]
+
+        # Create expense where placeholder paid and creator owes
+        await client.post(f"/trips/{trip_id}/expenses", json={
+            "description": "Debt",
+            "amount": 100,
+            "currency": "USD",
+            "paid_by_member_id": placeholder_id,
+            "split_type": "custom",
+            "splits": [{"member_id": creator_member_id, "amount": 100}],
+        })
+
+        resp = await client.post(f"/trips/{trip_id}/leave")
+        assert resp.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_leave_nonexistent_trip_returns_404(self, client):
+        """Leaving a non-existent trip returns 404."""
+        resp = await client.post("/trips/999999/leave")
+        assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_leave_trip_user_not_member_of_existing_trip(self, client, async_session):
+        """Leaving an existing trip where user is not a member returns 404."""
+        from app.models.trip import Trip
+        # Insert trip directly bypassing API (so test user is not auto-added as member)
+        direct_trip = Trip(name="Others Trip", base_currency="USD", created_by="other-user-999")
+        async_session.add(direct_trip)
+        await async_session.commit()
+        await async_session.refresh(direct_trip)
+
+        resp = await client.post(f"/trips/{direct_trip.id}/leave")
+        assert resp.status_code == 404
+        assert "not a member" in resp.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_leave_trip_member_with_debt_blocked(self, client):
+        """Non-admin member with outstanding debts cannot leave the trip."""
+        # Create trip (test user becomes admin)
+        create_resp = await client.post("/trips/", json={"name": "Debt Block Trip", "base_currency": "USD"})
+        assert create_resp.status_code == 201
+        trip_id = create_resp.json()["id"]
+
+        # Add second user as active member (their User record exists in DB)
+        add_resp = await client.post(f"/trips/{trip_id}/members", json={
+            "nickname": "Second User", "email": SECOND_USER_EMAIL
+        })
+        assert add_resp.status_code == 201
+        second_member_id = add_resp.json()["id"]
+
+        # Promote second user to admin (so test user is no longer last admin)
+        await client.put(f"/trips/{trip_id}/members/{second_member_id}", json={"is_admin": True})
+
+        # Get test user's member id
+        trip_data = await client.get(f"/trips/{trip_id}")
+        creator_member = next(m for m in trip_data.json()["members"] if m["user_id"] == TEST_USER_ID)
+        creator_member_id = creator_member["id"]
+
+        # Demote test user from admin (so admin check won't fire when they try to leave)
+        await client.put(f"/trips/{trip_id}/members/{creator_member_id}", json={"is_admin": False})
+
+        # Create expense: second user paid, test user owes → creates debt for test user
+        await client.post(f"/trips/{trip_id}/expenses", json={
+            "description": "Shared cost",
+            "amount": 100,
+            "currency": "USD",
+            "paid_by_member_id": second_member_id,
+            "split_type": "custom",
+            "splits": [{"member_id": creator_member_id, "amount": 100}],
+        })
+
+        # Test user tries to leave → blocked due to debt
+        resp = await client.post(f"/trips/{trip_id}/leave")
+        assert resp.status_code == 400
+        assert "debt" in resp.json()["detail"].lower()
+
+
+# ──────────────────────────────────────────────
+# LIST TRIPS EMPTY TEST
+# ──────────────────────────────────────────────
+
+class TestListTripsEmpty:
+
+    @pytest.mark.asyncio
+    async def test_list_trips_empty_when_no_trips(self, async_session):
+        """list_trips returns empty when user has no trips."""
+        from app.core.auth import get_current_user_id, get_current_user
+        from app.core.database import get_session
+
+        # Create a new user with no trips
+        new_user_id = "no-trips-user-001"
+        new_user_email = "notrips@example.com"
+
+        new_user = User(id=new_user_id, email=new_user_email, display_name="No Trips")
+        async_session.add(new_user)
+        await async_session.commit()
+
+        async def get_session_override():
+            yield async_session
+
+        async def get_user_override():
+            return User(id=new_user_id, email=new_user_email, display_name="No Trips")
+
+        app.dependency_overrides[get_session] = get_session_override
+        app.dependency_overrides[get_current_user] = get_user_override
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test/api") as c:
+            resp = await c.get("/trips/")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["trips"] == []
+            assert data["total"] == 0
+
+        app.dependency_overrides.clear()

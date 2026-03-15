@@ -1133,4 +1133,475 @@ class TestDeleteExpensePermissions:
             del_resp = await c2.delete(f"/trips/{tid}/expenses/{expense_id}")
             assert del_resp.status_code == 403, f"Non-creator should get 403, got {del_resp.status_code}"
 
-        the_app.dependency_overrides.clear()
+
+# ──────────────────────────────────────────────
+# EXPENSE UPDATE ADVANCED PATHS
+# ──────────────────────────────────────────────
+
+class TestExpenseUpdateAdvancedPaths:
+
+    @pytest.mark.asyncio
+    async def test_update_expense_not_found_returns_404(self, client, trip):
+        """Updating a non-existent expense returns 404."""
+        tid = trip["id"]
+        resp = await client.put(f"/trips/{tid}/expenses/999999", json={"description": "Ghost"})
+        assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_update_expense_wrong_trip_returns_404(self, client, trip, members):
+        """Updating expense from wrong trip returns 404."""
+        # Create two trips
+        trip2_resp = await client.post("/trips/", json={"name": "Trip 2", "base_currency": "USD"})
+        trip2_id = trip2_resp.json()["id"]
+        trip2_data = await client.get(f"/trips/{trip2_id}")
+        creator_member = next(m for m in trip2_data.json()["members"] if m["user_id"] == TEST_USER_ID)
+
+        exp_resp = await client.post(f"/trips/{trip2_id}/expenses", json={
+            "description": "Trip2 expense",
+            "amount": 50,
+            "currency": "USD",
+            "paid_by_member_id": creator_member["id"],
+            "split_type": "equal",
+        })
+        expense_id = exp_resp.json()["id"]
+
+        # Try to update via trip1
+        tid = trip["id"]
+        resp = await client.put(f"/trips/{tid}/expenses/{expense_id}", json={"description": "Wrong"})
+        assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_update_expense_equal_split_with_specific_members(self, client, trip, members):
+        """Update expense to equal split with explicit member list."""
+        tid = trip["id"]
+        alice, bob = members
+
+        resp = await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Original",
+            "amount": 90,
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "custom",
+            "splits": [{"member_id": alice["id"], "amount": 45}, {"member_id": bob["id"], "amount": 45}],
+        })
+        expense_id = resp.json()["id"]
+
+        # Update to equal split with explicit members
+        update_resp = await client.put(f"/trips/{tid}/expenses/{expense_id}", json={
+            "split_type": "equal",
+            "splits": [{"member_id": alice["id"]}, {"member_id": bob["id"]}],
+        })
+        assert update_resp.status_code == 200
+        data = update_resp.json()
+        assert len(data["splits"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_update_expense_equal_split_all_members(self, client, trip, members):
+        """Update expense to equal split without member list uses all trip members."""
+        tid = trip["id"]
+        alice, bob = members
+
+        resp = await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Original",
+            "amount": 90,
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "custom",
+            "splits": [{"member_id": alice["id"], "amount": 45}, {"member_id": bob["id"], "amount": 45}],
+        })
+        expense_id = resp.json()["id"]
+
+        # Update to equal split without splits list
+        update_resp = await client.put(f"/trips/{tid}/expenses/{expense_id}", json={
+            "split_type": "equal",
+        })
+        assert update_resp.status_code == 200
+        # Should include all trip members (creator + alice + bob = 3)
+        data = update_resp.json()
+        assert len(data["splits"]) >= 2
+
+    @pytest.mark.asyncio
+    async def test_update_expense_percentage_splits(self, client, trip, members):
+        """Update expense to percentage split type."""
+        tid = trip["id"]
+        alice, bob = members
+
+        resp = await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Original",
+            "amount": 100,
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "equal",
+            "splits": [{"member_id": alice["id"]}, {"member_id": bob["id"]}],
+        })
+        expense_id = resp.json()["id"]
+
+        update_resp = await client.put(f"/trips/{tid}/expenses/{expense_id}", json={
+            "split_type": "percentage",
+            "splits": [
+                {"member_id": alice["id"], "percentage": "70"},
+                {"member_id": bob["id"], "percentage": "30"},
+            ],
+        })
+        assert update_resp.status_code == 200
+        data = update_resp.json()
+        assert len(data["splits"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_update_expense_custom_splits(self, client, trip, members):
+        """Update expense to custom split type."""
+        tid = trip["id"]
+        alice, bob = members
+
+        resp = await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Original",
+            "amount": 100,
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "equal",
+            "splits": [{"member_id": alice["id"]}, {"member_id": bob["id"]}],
+        })
+        expense_id = resp.json()["id"]
+
+        update_resp = await client.put(f"/trips/{tid}/expenses/{expense_id}", json={
+            "amount": 120,
+            "split_type": "custom",
+            "splits": [
+                {"member_id": alice["id"], "amount": 80},
+                {"member_id": bob["id"], "amount": 40},
+            ],
+        })
+        assert update_resp.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_update_expense_currency_change_updates_exchange_rate(self, client, trip, members):
+        """Updating currency fetches new exchange rate."""
+        from unittest.mock import AsyncMock, patch
+        from decimal import Decimal
+
+        tid = trip["id"]
+        alice, bob = members
+
+        resp = await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Flight",
+            "amount": 200,
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "equal",
+            "splits": [{"member_id": alice["id"]}, {"member_id": bob["id"]}],
+        })
+        expense_id = resp.json()["id"]
+
+        with patch("app.api.expenses.get_exchange_rate", new_callable=AsyncMock) as mock_rate:
+            mock_rate.return_value = Decimal("1.08")
+            update_resp = await client.put(f"/trips/{tid}/expenses/{expense_id}", json={
+                "currency": "EUR",
+            })
+            assert update_resp.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_update_expense_amount_updates_trip_total(self, client, async_session, trip, members):
+        """Updating expense amount correctly updates trip total_spent."""
+        from app.models.trip import Trip as TripModel
+
+        tid = trip["id"]
+        alice, _ = members
+
+        resp = await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Hotel",
+            "amount": 100,
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "equal",
+            "splits": [{"member_id": alice["id"]}],
+        })
+        expense_id = resp.json()["id"]
+
+        await client.put(f"/trips/{tid}/expenses/{expense_id}", json={"amount": 200})
+        await async_session.commit()
+
+        trip_obj = await async_session.get(TripModel, tid)
+        assert float(trip_obj.total_spent) >= 198.0  # at least 200 in base currency
+
+    @pytest.mark.asyncio
+    async def test_update_settlement_amount_auto_updates_split(self, client, trip, members):
+        """Updating a settlement's amount automatically updates its split."""
+        tid = trip["id"]
+        alice, bob = members
+
+        # Create an initial debt
+        await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Dinner",
+            "amount": 100,
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "custom",
+            "splits": [{"member_id": alice["id"], "amount": 50}, {"member_id": bob["id"], "amount": 50}],
+        })
+
+        # Create a settlement
+        settle_resp = await client.post(f"/trips/{tid}/settlements", json={
+            "from_member_id": bob["id"],
+            "to_member_id": alice["id"],
+            "amount": 30,
+            "currency": "USD",
+        })
+        assert settle_resp.status_code == 201
+        settlement_id = settle_resp.json()["id"]
+
+        # Update the settlement amount
+        update_resp = await client.put(f"/trips/{tid}/expenses/{settlement_id}", json={
+            "amount": 50,
+        })
+        assert update_resp.status_code == 200
+        data = update_resp.json()
+        # The split should be updated to match new amount
+        assert len(data["splits"]) >= 1
+
+
+# ──────────────────────────────────────────────
+# DELETE EXPENSE ADVANCED PATHS
+# ──────────────────────────────────────────────
+
+class TestDeleteExpenseAdvancedPaths:
+
+    @pytest.mark.asyncio
+    async def test_delete_expense_not_found_returns_404(self, client, trip):
+        """Deleting non-existent expense returns 404."""
+        tid = trip["id"]
+        resp = await client.delete(f"/trips/{tid}/expenses/999999")
+        assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_delete_expense_wrong_trip_returns_404(self, client, trip, members):
+        """Deleting expense from wrong trip returns 404."""
+        trip2_resp = await client.post("/trips/", json={"name": "Trip 2", "base_currency": "USD"})
+        trip2_id = trip2_resp.json()["id"]
+        trip2_data = await client.get(f"/trips/{trip2_id}")
+        creator_member = next(m for m in trip2_data.json()["members"] if m["user_id"] == TEST_USER_ID)
+
+        exp_resp = await client.post(f"/trips/{trip2_id}/expenses", json={
+            "description": "Wrong trip expense",
+            "amount": 50,
+            "currency": "USD",
+            "paid_by_member_id": creator_member["id"],
+            "split_type": "equal",
+        })
+        expense_id = exp_resp.json()["id"]
+
+        tid = trip["id"]
+        resp = await client.delete(f"/trips/{tid}/expenses/{expense_id}")
+        assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_delete_settlement_does_not_affect_trip_totals(self, client, async_session, trip, members):
+        """Deleting a settlement does not decrement trip.total_spent."""
+        from app.models.trip import Trip as TripModel
+
+        tid = trip["id"]
+        alice, bob = members
+
+        await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Dinner",
+            "amount": 100,
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "custom",
+            "splits": [{"member_id": alice["id"], "amount": 50}, {"member_id": bob["id"], "amount": 50}],
+        })
+
+        settle_resp = await client.post(f"/trips/{tid}/settlements", json={
+            "from_member_id": bob["id"],
+            "to_member_id": alice["id"],
+            "amount": 50,
+            "currency": "USD",
+        })
+        settlement_id = settle_resp.json()["id"]
+
+        await async_session.commit()
+        trip_before = await async_session.get(TripModel, tid)
+        total_before = float(trip_before.total_spent)
+
+        await client.delete(f"/trips/{tid}/expenses/{settlement_id}")
+        await async_session.commit()
+
+        await async_session.refresh(trip_before)
+        total_after = float(trip_before.total_spent)
+
+        # Settlement deletion should NOT change total_spent
+        assert abs(total_after - total_before) < 0.01, \
+            f"Settlement deletion should not change total_spent: {total_before} -> {total_after}"
+
+
+# ──────────────────────────────────────────────
+# EXPENSE CHECK TRIP ACCESS PATHS
+# ──────────────────────────────────────────────
+
+class TestExpenseTripAccessPaths:
+
+    @pytest.mark.asyncio
+    async def test_list_expenses_trip_not_found(self, client):
+        """List expenses for non-existent trip returns 404."""
+        resp = await client.get("/trips/999999/expenses")
+        assert resp.status_code in [403, 404]
+
+    @pytest.mark.asyncio
+    async def test_get_expense_trip_not_found(self, client):
+        """Get expense for non-existent trip returns 404."""
+        resp = await client.get("/trips/999999/expenses/1")
+        assert resp.status_code in [403, 404]
+
+    @pytest.mark.asyncio
+    async def test_create_expense_trip_not_found(self, client):
+        """Create expense for non-existent trip returns 404."""
+        resp = await client.post("/trips/999999/expenses", json={
+            "description": "test",
+            "amount": 50,
+            "currency": "USD",
+            "paid_by_member_id": 1,
+            "split_type": "equal",
+        })
+        assert resp.status_code in [403, 404]
+
+
+# ──────────────────────────────────────────────
+# REMAINDER DISTRIBUTION TESTS (coverage for remainder != 0 paths)
+# ──────────────────────────────────────────────
+
+class TestExpenseRemainderDistribution:
+    """Tests that cover the remainder assignment branches in equal/percentage/custom splits."""
+
+    @pytest.mark.asyncio
+    async def test_create_percentage_split_with_remainder(self, client, trip, members):
+        """Percentage split with non-divisible amount distributes the remainder."""
+        tid = trip["id"]
+        alice, bob = members
+
+        # 10.01 split 50%/50%: each quantizes to 5.00, leaving 0.01 remainder
+        resp = await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Remainder test",
+            "amount": "10.01",
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "percentage",
+            "splits": [
+                {"member_id": alice["id"], "percentage": "50"},
+                {"member_id": bob["id"], "percentage": "50"},
+            ],
+        })
+        assert resp.status_code == 201
+        data = resp.json()
+        # Total of splits must equal expense amount
+        total_splits = sum(Decimal(str(s["amount"])) for s in data["splits"])
+        assert abs(total_splits - Decimal("10.01")) < Decimal("0.001")
+
+    @pytest.mark.asyncio
+    async def test_create_custom_split_with_remainder(self, client, trip, members):
+        """Custom split with sub-cent amounts distributes the remainder."""
+        tid = trip["id"]
+        alice, bob = members
+
+        # 10.01 custom split with 5.005 + 5.005 = 10.01 (passes schema),
+        # but after quantize each becomes 5.00, leaving 0.01 remainder
+        resp = await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Custom remainder test",
+            "amount": "10.01",
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "custom",
+            "splits": [
+                {"member_id": alice["id"], "amount": "5.005"},
+                {"member_id": bob["id"], "amount": "5.005"},
+            ],
+        })
+        assert resp.status_code == 201
+        data = resp.json()
+        total_splits = sum(Decimal(str(s["amount"])) for s in data["splits"])
+        assert abs(total_splits - Decimal("10.01")) < Decimal("0.001")
+
+    @pytest.mark.asyncio
+    async def test_update_equal_split_with_remainder(self, client, trip, members):
+        """Updating expense to equal split with non-divisible amount distributes remainder."""
+        tid = trip["id"]
+        alice, bob = members
+
+        # Create an expense first
+        create_resp = await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Update remainder",
+            "amount": "9.00",
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "equal",
+        })
+        assert create_resp.status_code == 201
+        exp_id = create_resp.json()["id"]
+
+        # Update to 10.01 with equal split (still 2 members, 5.005 each → 5.00+5.00=10.00, remainder 0.01)
+        resp = await client.put(f"/trips/{tid}/expenses/{exp_id}", json={
+            "amount": "10.01",
+            "split_type": "equal",
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        total_splits = sum(Decimal(str(s["amount"])) for s in data["splits"])
+        assert abs(total_splits - Decimal("10.01")) < Decimal("0.001")
+
+    @pytest.mark.asyncio
+    async def test_update_percentage_split_with_remainder(self, client, trip, members):
+        """Updating expense to percentage split with non-divisible amount distributes remainder."""
+        tid = trip["id"]
+        alice, bob = members
+
+        create_resp = await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Pct remainder update",
+            "amount": "9.00",
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "equal",
+        })
+        assert create_resp.status_code == 201
+        exp_id = create_resp.json()["id"]
+
+        # Update with percentage split on 10.01 → remainder path
+        resp = await client.put(f"/trips/{tid}/expenses/{exp_id}", json={
+            "amount": "10.01",
+            "split_type": "percentage",
+            "splits": [
+                {"member_id": alice["id"], "percentage": "50"},
+                {"member_id": bob["id"], "percentage": "50"},
+            ],
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        total_splits = sum(Decimal(str(s["amount"])) for s in data["splits"])
+        assert abs(total_splits - Decimal("10.01")) < Decimal("0.001")
+
+    @pytest.mark.asyncio
+    async def test_update_custom_split_with_remainder(self, client, trip, members):
+        """Updating expense to custom split with sub-cent amounts distributes remainder."""
+        tid = trip["id"]
+        alice, bob = members
+
+        create_resp = await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Custom remainder update",
+            "amount": "9.00",
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "equal",
+        })
+        assert create_resp.status_code == 201
+        exp_id = create_resp.json()["id"]
+
+        # Update with custom split having sub-cent amounts summing to 10.01
+        resp = await client.put(f"/trips/{tid}/expenses/{exp_id}", json={
+            "amount": "10.01",
+            "split_type": "custom",
+            "splits": [
+                {"member_id": alice["id"], "amount": "5.005"},
+                {"member_id": bob["id"], "amount": "5.005"},
+            ],
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        total_splits = sum(Decimal(str(s["amount"])) for s in data["splits"])
+        assert abs(total_splits - Decimal("10.01")) < Decimal("0.001")

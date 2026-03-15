@@ -389,3 +389,147 @@ class TestExpenseCreateAdditionalEdgeCases:
             notes="   ",
         )
         assert e.notes is None
+
+
+# ──────────────────────────────────────────────
+# MemberAdd / MemberUpdate VALIDATION
+# ──────────────────────────────────────────────
+
+class TestMemberSchemaValidation:
+    """Tests for app/schemas/member.py validators."""
+
+    def test_member_add_whitespace_nickname_rejected(self):
+        """MemberAdd with all-whitespace nickname raises ValidationError."""
+        from pydantic import ValidationError
+        from app.schemas.member import MemberAdd
+        with pytest.raises(ValidationError, match="empty"):
+            MemberAdd(nickname="   ")
+
+    def test_member_update_whitespace_nickname_rejected(self):
+        """MemberUpdate with all-whitespace nickname raises ValidationError."""
+        from pydantic import ValidationError
+        from app.schemas.member import MemberUpdate
+        with pytest.raises(ValidationError, match="empty"):
+            MemberUpdate(nickname="   ")
+
+
+# ──────────────────────────────────────────────
+# TripCreate / TripUpdate ADDITIONAL VALIDATIONS
+# ──────────────────────────────────────────────
+
+class TestTripSchemaAdditional:
+    """Additional tests targeting uncovered lines in app/schemas/trip.py."""
+
+    def test_trip_create_currency_with_trailing_space_rejected(self):
+        """Currency '1 ' (3 chars) strips to 2-char, raising ValueError."""
+        from pydantic import ValidationError
+        from app.schemas.trip import TripCreate
+        # "AB " passes pydantic's 3-char field constraint but strips to "AB" (len 2)
+        with pytest.raises(ValidationError):
+            TripCreate(name="Trip", base_currency="AB ")
+
+    def test_trip_create_currency_with_digits_rejected(self):
+        """Currency with numeric characters is rejected."""
+        from pydantic import ValidationError
+        from app.schemas.trip import TripCreate
+        with pytest.raises(ValidationError):
+            TripCreate(name="Trip", base_currency="1US")
+
+    def test_trip_create_description_whitespace_becomes_none(self):
+        """TripCreate description with only whitespace is set to None."""
+        from app.schemas.trip import TripCreate
+        t = TripCreate(name="Trip", base_currency="USD", description="   ")
+        assert t.description is None
+
+    def test_trip_update_whitespace_name_rejected(self):
+        """TripUpdate with all-whitespace name raises ValidationError."""
+        from pydantic import ValidationError
+        from app.schemas.trip import TripUpdate
+        with pytest.raises(ValidationError):
+            TripUpdate(name="   ")
+
+    def test_trip_update_currency_with_trailing_space_rejected(self):
+        """TripUpdate currency with trailing space strips to shorter, rejected."""
+        from pydantic import ValidationError
+        from app.schemas.trip import TripUpdate
+        with pytest.raises(ValidationError):
+            TripUpdate(base_currency="AB ")
+
+    def test_trip_update_currency_with_digits_rejected(self):
+        """TripUpdate currency with digits is rejected."""
+        from pydantic import ValidationError
+        from app.schemas.trip import TripUpdate
+        with pytest.raises(ValidationError):
+            TripUpdate(base_currency="12!")
+
+    def test_trip_update_description_whitespace_becomes_none(self):
+        """TripUpdate description with only whitespace is set to None."""
+        from app.schemas.trip import TripUpdate
+        u = TripUpdate(description="   ")
+        assert u.description is None
+
+
+# ──────────────────────────────────────────────
+# ExpenseUpdate ADDITIONAL VALIDATIONS
+# ──────────────────────────────────────────────
+
+class TestExpenseUpdateAdditional:
+    """Tests targeting uncovered lines in ExpenseUpdate validator."""
+
+    def test_update_currency_with_trailing_space_rejected(self):
+        """ExpenseUpdate currency strips to 2 chars, raising ValueError."""
+        from decimal import Decimal
+        from pydantic import ValidationError
+        from app.schemas.expense import ExpenseUpdate
+        with pytest.raises(ValidationError):
+            ExpenseUpdate(amount=Decimal("50"), currency="AB ")
+
+    def test_update_percentage_splits_not_sum_to_100(self):
+        """ExpenseUpdate percentage splits not summing to 100 raise ValidationError."""
+        from decimal import Decimal
+        from pydantic import ValidationError
+        from app.schemas.expense import ExpenseUpdate, SplitCreate
+        with pytest.raises(ValidationError, match="100"):
+            ExpenseUpdate(
+                split_type="percentage",
+                splits=[
+                    SplitCreate(member_id=1, percentage=Decimal("40")),
+                    SplitCreate(member_id=2, percentage=Decimal("40")),
+                ],
+            )
+
+    def test_update_custom_splits_not_sum_to_amount(self):
+        """ExpenseUpdate custom splits not matching amount raise ValidationError."""
+        from decimal import Decimal
+        from pydantic import ValidationError
+        from app.schemas.expense import ExpenseUpdate, SplitCreate
+        with pytest.raises(ValidationError, match="sum"):
+            ExpenseUpdate(
+                amount=Decimal("100"),
+                split_type="custom",
+                splits=[
+                    SplitCreate(member_id=1, amount=Decimal("40")),
+                    SplitCreate(member_id=2, amount=Decimal("40")),
+                ],
+            )
+
+
+# ──────────────────────────────────────────────
+# ExpenseCreate ADDITIONAL - currency len check
+# ──────────────────────────────────────────────
+
+class TestExpenseCreateCurrencyLen:
+
+    def test_create_currency_with_trailing_space_rejected(self):
+        """ExpenseCreate currency strips to 2 chars, raising ValueError."""
+        from decimal import Decimal
+        from pydantic import ValidationError
+        from app.schemas.expense import ExpenseCreate
+        with pytest.raises(ValidationError):
+            ExpenseCreate(
+                description="Test",
+                amount=Decimal("100"),
+                currency="AB ",
+                paid_by_member_id=1,
+                split_type="equal",
+            )

@@ -2,6 +2,7 @@
 source = app
 # Use sys.monitoring for better async coverage (Python 3.12+)
 # This replaces sys.settrace and properly handles asyncio coroutines
+core = sysmon
 
 [report]
 exclude_lines =

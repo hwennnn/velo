@@ -1009,3 +1009,287 @@ class TestUpdateDebtsForExpenseExistingDebt:
         debts = result.scalars().all()
         assert len(debts) == 1
         assert debts[0].amount == Decimal("50")
+
+        # Call update_debts_for_expense AGAIN with same expense (lines 153-155):
+        # existing debt found → existing_debt.amount += amount; existing_debt.updated_at = ...
+        split2 = Split(expense_id=expense.id, member_id=bob.id, amount=Decimal("25"))
+        async_session.add(split2)
+        await async_session.commit()
+
+        await update_debts_for_expense(expense, [split2], async_session)
+        await async_session.commit()
+
+        stmt2 = select(MemberDebt).where(MemberDebt.source_expense_id == expense.id)
+        result2 = await async_session.execute(stmt2)
+        debts2 = result2.scalars().all()
+        assert len(debts2) == 1
+        # Amount should now be 50 + 25 = 75
+        assert debts2[0].amount == Decimal("75")
+
+
+# ──────────────────────────────────────────────
+# get_member_balances EDGE CASE TESTS
+# ──────────────────────────────────────────────
+
+
+class TestGetMemberBalancesEdgeCases:
+
+    @pytest.mark.asyncio
+    async def test_debt_with_negligible_amount_is_skipped(self, async_session):
+        """Debt with amount < 0.01 is skipped in netting (line 337)."""
+        trip = await create_trip(async_session)
+        alice = await create_member(async_session, trip.id, "Alice")
+        bob = await create_member(async_session, trip.id, "Bob")
+
+        # Create a negligible debt directly
+        tiny_debt = MemberDebt(
+            trip_id=trip.id,
+            debtor_member_id=bob.id,
+            creditor_member_id=alice.id,
+            amount=Decimal("0.005"),
+            currency="USD",
+        )
+        async_session.add(tiny_debt)
+        await async_session.commit()
+
+        result = await get_member_balances(trip.id, async_session)
+        # Tiny debt should be skipped → no debts listed
+        assert result["debts"] == []
+
+    @pytest.mark.asyncio
+    async def test_self_debt_is_skipped(self, async_session):
+        """Debt where debtor == creditor is skipped (line 339)."""
+        trip = await create_trip(async_session)
+        alice = await create_member(async_session, trip.id, "Alice")
+
+        # Create a self-debt directly (shouldn't happen normally)
+        self_debt = MemberDebt(
+            trip_id=trip.id,
+            debtor_member_id=alice.id,
+            creditor_member_id=alice.id,
+            amount=Decimal("50"),
+            currency="USD",
+        )
+        async_session.add(self_debt)
+        await async_session.commit()
+
+        result = await get_member_balances(trip.id, async_session)
+        assert result["debts"] == []
+
+    @pytest.mark.asyncio
+    async def test_minimize_mode_net_positive_covers_line_390(self, async_session):
+        """In minimize mode, net_amount > 0 path (line 390): lower-id member owes higher-id."""
+        trip = await create_trip(async_session)
+        # Alice gets lower id, Bob gets higher id
+        alice = await create_member(async_session, trip.id, "Alice")
+        bob = await create_member(async_session, trip.id, "Bob")
+
+        # Bob PAYS, Alice owes Bob → debtor=Alice(lower), creditor=Bob(higher)
+        # This makes a < b → lo=alice, hi=bob, sign=1, net_amount > 0 → line 390
+        expense, splits = await create_expense_with_splits(
+            async_session, trip, bob, Decimal("100"), "USD",
+            [(alice, Decimal("100"))]
+        )
+        await update_debts_for_expense(expense, splits, async_session)
+        await async_session.commit()
+
+        result = await get_member_balances(trip.id, async_session, minimize=True)
+        assert len(result["debts"]) >= 1
+
+    @pytest.mark.asyncio
+    async def test_minimize_mode_near_zero_net_skipped(self, async_session):
+        """In minimize mode, near-zero net_amount after opposite debts → continue (line 387)."""
+        trip = await create_trip(async_session)
+        alice = await create_member(async_session, trip.id, "Alice")
+        bob = await create_member(async_session, trip.id, "Bob")
+
+        # Alice pays for Bob: Bob owes Alice $50
+        e1, s1 = await create_expense_with_splits(
+            async_session, trip, alice, Decimal("50"), "USD",
+            [(bob, Decimal("50"))]
+        )
+        await update_debts_for_expense(e1, s1, async_session)
+
+        # Bob pays for Alice: Alice owes Bob $50 (same amount → cancel out)
+        e2, s2 = await create_expense_with_splits(
+            async_session, trip, bob, Decimal("50"), "USD",
+            [(alice, Decimal("50"))]
+        )
+        await update_debts_for_expense(e2, s2, async_session)
+        await async_session.commit()
+
+        result = await get_member_balances(trip.id, async_session, minimize=True)
+        # Debts cancel out → no debts
+        assert result["debts"] == []
+
+    @pytest.mark.asyncio
+    async def test_simplify_mode_near_zero_net_skipped(self, async_session):
+        """In simplify mode, near-zero net after opposite debts → continue (line 421)."""
+        trip = await create_trip(async_session)
+        alice = await create_member(async_session, trip.id, "Alice")
+        bob = await create_member(async_session, trip.id, "Bob")
+
+        # Alice pays for Bob: Bob owes Alice $50
+        e1, s1 = await create_expense_with_splits(
+            async_session, trip, alice, Decimal("50"), "USD",
+            [(bob, Decimal("50"))]
+        )
+        await update_debts_for_expense(e1, s1, async_session)
+
+        # Bob pays for Alice: Alice owes Bob $50 (cancel out)
+        e2, s2 = await create_expense_with_splits(
+            async_session, trip, bob, Decimal("50"), "USD",
+            [(alice, Decimal("50"))]
+        )
+        await update_debts_for_expense(e2, s2, async_session)
+        await async_session.commit()
+
+        result = await get_member_balances(trip.id, async_session, simplify=True)
+        assert result["debts"] == []
+
+    @pytest.mark.asyncio
+    async def test_simplify_mode_non_base_currency_adds_amount_in_base(self, async_session):
+        """simplify=True with EUR debt (non-base) triggers lines 441-444."""
+        from unittest.mock import AsyncMock, patch
+
+        trip = await create_trip(async_session, base_currency="USD")
+        alice = await create_member(async_session, trip.id, "Alice")
+        bob = await create_member(async_session, trip.id, "Bob")
+
+        # EUR debt (non-base): will go through simplify path without amount_in_base
+        # Alice pays EUR, Bob owes Alice
+        now = utcnow()
+        expense = Expense(
+            trip_id=trip.id,
+            description="EUR Expense",
+            amount=Decimal("80"),
+            currency="EUR",
+            exchange_rate_to_base=Decimal("1.1"),
+            paid_by_member_id=alice.id,
+            expense_type="expense",
+            created_by=TEST_USER_ID,
+            created_at=now,
+            updated_at=now,
+        )
+        async_session.add(expense)
+        await async_session.flush()
+
+        split = Split(expense_id=expense.id, member_id=bob.id, amount=Decimal("80"))
+        async_session.add(split)
+        await async_session.commit()
+        await async_session.refresh(expense)
+
+        await update_debts_for_expense(expense, [split], async_session)
+        await async_session.commit()
+
+        with patch(
+            "app.services.debt.get_exchange_rate", new_callable=AsyncMock
+        ) as mock_rate:
+            mock_rate.return_value = Decimal("1.1")
+            result = await get_member_balances(trip.id, async_session, simplify=True)
+
+        debts = result["debts"]
+        assert len(debts) >= 1
+        # Each debt should have amount_in_base (set by lines 441-444)
+        for d in debts:
+            assert "amount_in_base" in d
+
+
+# ──────────────────────────────────────────────
+# merge_debt_currency with multiple source debts TESTS
+# ──────────────────────────────────────────────
+
+
+class TestMergeDebtMultipleSources:
+
+    @pytest.mark.asyncio
+    async def test_merge_with_multiple_source_debts_hits_break(self, async_session):
+        """Two source debts, merge first one fully → remaining_to_reduce=0 → break (line 716)."""
+        from app.services.debt import merge_debt_currency
+        trip = await create_trip(async_session)
+        alice = await create_member(async_session, trip.id, "Alice")
+        bob = await create_member(async_session, trip.id, "Bob")
+
+        # Two separate EUR debt records (from two different expenses)
+        debt1 = MemberDebt(
+            trip_id=trip.id,
+            debtor_member_id=alice.id,
+            creditor_member_id=bob.id,
+            amount=Decimal("50"),
+            currency="EUR",
+        )
+        debt2 = MemberDebt(
+            trip_id=trip.id,
+            debtor_member_id=alice.id,
+            creditor_member_id=bob.id,
+            amount=Decimal("50"),
+            currency="EUR",
+        )
+        async_session.add(debt1)
+        async_session.add(debt2)
+        await async_session.commit()
+
+        # Merge exactly the amount of first debt → first debt fully consumed,
+        # remaining_to_reduce = 0, second iteration: break (line 716)
+        result = await merge_debt_currency(
+            trip_id=trip.id,
+            debtor_member_id=alice.id,
+            creditor_member_id=bob.id,
+            amount=Decimal("50"),
+            from_currency="EUR",
+            to_currency="USD",
+            conversion_rate=Decimal("1.10"),
+            session=async_session,
+        )
+        await async_session.commit()
+
+        assert result["status"] == "merged"
+        assert abs(result["merged_amount"] - 50.0) < 0.01
+
+
+# ──────────────────────────────────────────────
+# update_trip_member_balances_for_expense_deletion negligible debt TESTS
+# ──────────────────────────────────────────────
+
+
+class TestNegligibleDebtInDeletion:
+
+    @pytest.mark.asyncio
+    async def test_negligible_debt_skipped_during_deletion(self, async_session):
+        """Debt with amount < 0.01 is skipped in update_trip_member_balances_for_expense_deletion (line 838)."""
+        trip = await create_trip(async_session)
+        alice = await create_member(async_session, trip.id, "Alice")
+        bob = await create_member(async_session, trip.id, "Bob")
+
+        now = utcnow()
+        expense = Expense(
+            trip_id=trip.id,
+            description="Tiny",
+            amount=Decimal("0.005"),
+            currency="USD",
+            exchange_rate_to_base=Decimal("1.0"),
+            paid_by_member_id=alice.id,
+            expense_type="expense",
+            created_by=TEST_USER_ID,
+            created_at=now,
+            updated_at=now,
+        )
+        async_session.add(expense)
+        await async_session.flush()
+
+        # Create a negligible debt directly linked to this expense
+        tiny_debt = MemberDebt(
+            trip_id=trip.id,
+            debtor_member_id=bob.id,
+            creditor_member_id=alice.id,
+            amount=Decimal("0.005"),
+            currency="USD",
+            source_expense_id=expense.id,
+        )
+        async_session.add(tiny_debt)
+        await async_session.commit()
+        await async_session.refresh(expense)
+
+        # Should not raise; tiny debt is skipped (line 838)
+        await update_trip_member_balances_for_expense_deletion(expense.id, async_session)
+        await async_session.commit()

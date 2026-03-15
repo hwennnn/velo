@@ -156,6 +156,17 @@ class TestPercentageSplits:
         assert abs(amounts[0] - Decimal("90")) < Decimal("0.01")
         assert abs(amounts[1] - Decimal("210")) < Decimal("0.01")
 
+    def test_percentage_remainder_assigned_to_lucky_member(self):
+        """When splits don't sum exactly, remainder is assigned: line 105 executed."""
+        data = [
+            make_split_data(1, percentage=Decimal("50")),
+            make_split_data(2, percentage=Decimal("50")),
+        ]
+        # 10.01 * 50% = 5.005 → ROUND_HALF_EVEN → 5.00; remainder=0.01 → line 105 hit
+        splits = calculate_percentage_splits(Decimal("10.01"), data, expense_id=1)
+        total = sum(s.amount for s in splits)
+        assert total == Decimal("10.01")
+
     def test_percentage_empty_list(self):
         splits = calculate_percentage_splits(Decimal("100"), [], expense_id=1)
         assert splits == []
@@ -211,6 +222,17 @@ class TestCustomSplits:
         data = [make_split_data(1, amount=Decimal("100"))]
         splits = calculate_custom_splits(Decimal("100"), data, expense_id=77)
         assert splits[0].expense_id == 77
+
+    def test_custom_remainder_assigned_to_lucky_member(self):
+        """When quantized amounts don't sum exactly, remainder is assigned: line 161 executed."""
+        data = [
+            make_split_data(1, amount=Decimal("5.005")),
+            make_split_data(2, amount=Decimal("5.005")),
+        ]
+        # 5.005 → ROUND_HALF_EVEN → 5.00; remainder=0.01 → line 161 hit
+        splits = calculate_custom_splits(Decimal("10.01"), data, expense_id=1)
+        total = sum(s.amount for s in splits)
+        assert total == Decimal("10.01")
 
     def test_custom_empty_list(self):
         splits = calculate_custom_splits(Decimal("100"), [], expense_id=1)

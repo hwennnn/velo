@@ -278,6 +278,28 @@ class TestFetchExchangeRatesErrorPaths:
         assert rate == Decimal("1.0")
 
     @pytest.mark.asyncio
+    async def test_json_decode_error_raises_exchange_rate_error(self):
+        """ValueError from response.json() triggers except (KeyError, ValueError) at line 65."""
+        from app.services.exchange_rate import fetch_exchange_rates, ExchangeRateError
+        from app.core.cache import clear_cache
+        clear_cache()
+
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.json = MagicMock(side_effect=ValueError("invalid json"))
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
+            clear_cache()
+            with pytest.raises(ExchangeRateError, match="Invalid API response"):
+                await fetch_exchange_rates("ZZZ")
+
+    @pytest.mark.asyncio
     async def test_fetch_exchange_rates_success_path(self):
         """fetch_exchange_rates parses a successful API response."""
         from app.services.exchange_rate import ExchangeRateError

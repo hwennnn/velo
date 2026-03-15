@@ -637,3 +637,373 @@ class TestExchangeRatesEndpoint:
             assert "base_currency" in data
             assert "rates" in data
             assert data["base_currency"] == "EUR"
+
+
+# ──────────────────────────────────────────────
+# SETTLEMENT WITH CURRENCY CONVERSION TESTS
+# ──────────────────────────────────────────────
+
+class TestSettlementWithConversion:
+
+    @pytest.mark.asyncio
+    async def test_settlement_with_convert_to_currency(self, client, trip, members):
+        """Settlement with convert_to_currency converts the amount."""
+        from unittest.mock import AsyncMock, patch
+        from decimal import Decimal
+
+        tid = trip["id"]
+        alice, bob = members
+
+        await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Dinner",
+            "amount": 100,
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "custom",
+            "splits": [{"member_id": alice["id"], "amount": 50}, {"member_id": bob["id"], "amount": 50}],
+        })
+
+        with patch("app.api.balances.get_exchange_rate", new_callable=AsyncMock) as mock_rate:
+            mock_rate.return_value = Decimal("1.35")
+            resp = await client.post(f"/trips/{tid}/settlements", json={
+                "from_member_id": bob["id"],
+                "to_member_id": alice["id"],
+                "amount": "50",
+                "currency": "USD",
+                "convert_to_currency": "SGD",
+            })
+            assert resp.status_code == 201
+
+    @pytest.mark.asyncio
+    async def test_settlement_with_custom_conversion_rate(self, client, trip, members):
+        """Settlement with explicit conversion_rate uses that rate."""
+        tid = trip["id"]
+        alice, bob = members
+
+        await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Hotel",
+            "amount": 200,
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "custom",
+            "splits": [{"member_id": alice["id"], "amount": 100}, {"member_id": bob["id"], "amount": 100}],
+        })
+
+        resp = await client.post(f"/trips/{tid}/settlements", json={
+            "from_member_id": bob["id"],
+            "to_member_id": alice["id"],
+            "amount": "100",
+            "currency": "USD",
+            "convert_to_currency": "SGD",
+            "conversion_rate": "1.35",
+        })
+        assert resp.status_code == 201
+
+
+# ──────────────────────────────────────────────
+# MERGE DEBT CURRENCIES TESTS
+# ──────────────────────────────────────────────
+
+class TestMergeDebtCurrencies:
+
+    @pytest.mark.asyncio
+    async def test_merge_debt_currencies_basic(self, client, trip, members):
+        """POST /trips/{id}/debts/merge merges a debt from one currency to another."""
+        from unittest.mock import AsyncMock, patch
+        from decimal import Decimal
+
+        tid = trip["id"]
+        alice, bob = members
+
+        # Create a USD debt
+        await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Lunch",
+            "amount": 100,
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "custom",
+            "splits": [{"member_id": alice["id"], "amount": 50}, {"member_id": bob["id"], "amount": 50}],
+        })
+
+        with patch("app.api.balances.get_exchange_rate", new_callable=AsyncMock) as mock_rate:
+            mock_rate.return_value = Decimal("1.35")
+            resp = await client.post(f"/trips/{tid}/debts/merge", json={
+                "from_member_id": bob["id"],
+                "to_member_id": alice["id"],
+                "amount": "50",
+                "from_currency": "USD",
+                "to_currency": "SGD",
+            })
+            assert resp.status_code == 200
+            data = resp.json()
+            assert "merge" in data
+
+    @pytest.mark.asyncio
+    async def test_merge_debt_with_custom_rate(self, client, trip, members):
+        """Merge with explicit conversion_rate uses that rate."""
+        tid = trip["id"]
+        alice, bob = members
+
+        await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Hotel",
+            "amount": 200,
+            "currency": "USD",
+            "paid_by_member_id": alice["id"],
+            "split_type": "custom",
+            "splits": [{"member_id": alice["id"], "amount": 100}, {"member_id": bob["id"], "amount": 100}],
+        })
+
+        resp = await client.post(f"/trips/{tid}/debts/merge", json={
+            "from_member_id": bob["id"],
+            "to_member_id": alice["id"],
+            "amount": "100",
+            "from_currency": "USD",
+            "to_currency": "SGD",
+            "conversion_rate": "1.35",
+        })
+        assert resp.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_merge_invalid_from_member(self, client, trip, members):
+        """Merge with invalid from_member_id returns 400."""
+        tid = trip["id"]
+        _, alice = members  # use second member as to
+
+        resp = await client.post(f"/trips/{tid}/debts/merge", json={
+            "from_member_id": 999999,
+            "to_member_id": alice["id"],
+            "amount": "50",
+            "from_currency": "USD",
+            "to_currency": "SGD",
+            "conversion_rate": "1.35",
+        })
+        assert resp.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_merge_invalid_to_member(self, client, trip, members):
+        """Merge with invalid to_member_id returns 400."""
+        tid = trip["id"]
+        alice, _ = members
+
+        resp = await client.post(f"/trips/{tid}/debts/merge", json={
+            "from_member_id": alice["id"],
+            "to_member_id": 999999,
+            "amount": "50",
+            "from_currency": "USD",
+            "to_currency": "SGD",
+            "conversion_rate": "1.35",
+        })
+        assert resp.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_merge_same_member_rejected(self, client, trip, members):
+        """Cannot merge debt with yourself."""
+        tid = trip["id"]
+        alice, _ = members
+
+        resp = await client.post(f"/trips/{tid}/debts/merge", json={
+            "from_member_id": alice["id"],
+            "to_member_id": alice["id"],
+            "amount": "50",
+            "from_currency": "USD",
+            "to_currency": "SGD",
+            "conversion_rate": "1.35",
+        })
+        assert resp.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_merge_same_currency_rejected(self, client, trip, members):
+        """Cannot merge to the same currency."""
+        tid = trip["id"]
+        alice, bob = members
+
+        resp = await client.post(f"/trips/{tid}/debts/merge", json={
+            "from_member_id": bob["id"],
+            "to_member_id": alice["id"],
+            "amount": "50",
+            "from_currency": "USD",
+            "to_currency": "USD",
+            "conversion_rate": "1.0",
+        })
+        assert resp.status_code == 400
+
+
+# ──────────────────────────────────────────────
+# CONVERT ALL DEBTS TESTS
+# ──────────────────────────────────────────────
+
+class TestConvertAllDebts:
+
+    @pytest.mark.asyncio
+    async def test_convert_all_debts_basic(self, client, trip, members):
+        """POST /trips/{id}/debts/convert-all converts all debts to target currency."""
+        from unittest.mock import AsyncMock, patch
+        from decimal import Decimal
+
+        tid = trip["id"]
+        alice, bob = members
+
+        await client.post(f"/trips/{tid}/expenses", json={
+            "description": "EUR expense",
+            "amount": 80,
+            "currency": "EUR",
+            "paid_by_member_id": alice["id"],
+            "split_type": "custom",
+            "splits": [{"member_id": alice["id"], "amount": 40}, {"member_id": bob["id"], "amount": 40}],
+        })
+
+        with patch("app.services.debt.get_exchange_rate", new_callable=AsyncMock) as mock_rate:
+            mock_rate.return_value = Decimal("1.08")
+            resp = await client.post(f"/trips/{tid}/debts/convert-all", json={
+                "target_currency": "USD",
+            })
+            assert resp.status_code == 200
+            data = resp.json()
+            assert "conversion" in data
+
+    @pytest.mark.asyncio
+    async def test_convert_all_debts_with_custom_rates(self, client, trip, members):
+        """Convert all debts with custom exchange rates."""
+        tid = trip["id"]
+        alice, bob = members
+
+        await client.post(f"/trips/{tid}/expenses", json={
+            "description": "Mixed",
+            "amount": 50,
+            "currency": "EUR",
+            "paid_by_member_id": alice["id"],
+            "split_type": "custom",
+            "splits": [{"member_id": alice["id"], "amount": 25}, {"member_id": bob["id"], "amount": 25}],
+        })
+
+        resp = await client.post(f"/trips/{tid}/debts/convert-all", json={
+            "target_currency": "USD",
+            "use_custom_rates": True,
+            "custom_rates": {"EUR": "1.08"},
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "message" in data
+
+    @pytest.mark.asyncio
+    async def test_convert_all_debts_non_member_forbidden(self, async_session):
+        """Non-member cannot convert debts."""
+        from app.main import app as the_app
+        from app.core.auth import get_current_user
+        from app.core.database import get_session as get_db_session
+        from app.models.user import User as UserModel
+        from httpx import AsyncClient as HClient, ASGITransport
+
+        # Create a user that is not a trip member
+        outsider = UserModel(id="outsider-convert-001", email="outsider@example.com", display_name="Outsider")
+        async_session.add(outsider)
+        await async_session.commit()
+
+        async def get_session_override():
+            yield async_session
+
+        async def get_current_user_override():
+            return UserModel(id="outsider-convert-001", email="outsider@example.com", display_name="Outsider")
+
+        the_app.dependency_overrides[get_db_session] = get_session_override
+        the_app.dependency_overrides[get_current_user] = get_current_user_override
+
+        transport = ASGITransport(app=the_app)
+        async with HClient(transport=transport, base_url="http://test/api") as c:
+            resp = await c.post("/trips/999999/debts/convert-all", json={"target_currency": "USD"})
+            assert resp.status_code in [403, 404]
+
+        the_app.dependency_overrides.clear()
+
+
+# ──────────────────────────────────────────────
+# SIMPLIFY WITH MULTI-CURRENCY DEBTS
+# ──────────────────────────────────────────────
+
+class TestSimplifyWithMultiCurrency:
+
+    @pytest.mark.asyncio
+    async def test_simplify_true_with_non_base_currency_debt(self, client, trip, members):
+        """simplify=True with a non-base-currency expense converts amount_in_base."""
+        from unittest.mock import AsyncMock, patch
+        from decimal import Decimal
+        tid = trip["id"]
+        alice, bob = members
+
+        # Create an SGD expense in a USD-base trip
+        with patch("app.api.balances.get_exchange_rate", new_callable=AsyncMock) as mock_rate, \
+             patch("app.services.debt.get_exchange_rate", new_callable=AsyncMock) as mock_debt_rate:
+            mock_rate.return_value = Decimal("0.74")
+            mock_debt_rate.return_value = Decimal("0.74")
+            await client.post(f"/trips/{tid}/expenses", json={
+                "description": "SGD Meal",
+                "amount": 80,
+                "currency": "SGD",
+                "paid_by_member_id": alice["id"],
+                "split_type": "custom",
+                "splits": [
+                    {"member_id": alice["id"], "amount": 40},
+                    {"member_id": bob["id"], "amount": 40},
+                ],
+            })
+
+        # Get balances with simplify=True
+        with patch("app.services.debt.get_exchange_rate", new_callable=AsyncMock) as mock_rate2:
+            mock_rate2.return_value = Decimal("0.74")
+            resp = await client.get(f"/trips/{tid}/balances?simplify=true")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert "debts" in data
+
+
+# ──────────────────────────────────────────────
+# CHECK TRIP ACCESS — NON-MEMBER FORBIDDEN
+# ──────────────────────────────────────────────
+
+class TestCheckTripAccessBalances:
+
+    @pytest.mark.asyncio
+    async def test_non_member_cannot_view_balances(self, async_session):
+        """User who is not a trip member gets 403 when accessing balances (line 110)."""
+        from app.main import app as the_app
+        from app.core.auth import get_current_user
+        from app.core.database import get_session as get_db_session
+        from app.models.user import User as UserModel
+        from httpx import AsyncClient as HClient, ASGITransport
+
+        # Create a trip as TEST_USER first
+        creator = UserModel(id="balance-creator-001", email="bcreator@example.com", display_name="Creator")
+        async_session.add(creator)
+        await async_session.commit()
+
+        async def get_session_override():
+            yield async_session
+
+        async def creator_user_override():
+            return UserModel(id="balance-creator-001", email="bcreator@example.com", display_name="Creator")
+
+        the_app.dependency_overrides[get_db_session] = get_session_override
+        the_app.dependency_overrides[get_current_user] = creator_user_override
+
+        transport = ASGITransport(app=the_app)
+        async with HClient(transport=transport, base_url="http://test/api") as c:
+            trip_resp = await c.post("/trips/", json={"name": "Access Trip", "base_currency": "USD"})
+            assert trip_resp.status_code == 201
+            trip_id = trip_resp.json()["id"]
+
+        # Now switch to a different user who is NOT a member
+        outsider = UserModel(id="balance-outsider-001", email="boutside@example.com", display_name="Outsider")
+        async_session.add(outsider)
+        await async_session.commit()
+
+        async def outsider_override():
+            return UserModel(id="balance-outsider-001", email="boutside@example.com", display_name="Outsider")
+
+        the_app.dependency_overrides[get_current_user] = outsider_override
+
+        transport = ASGITransport(app=the_app)
+        async with HClient(transport=transport, base_url="http://test/api") as c:
+            resp = await c.get(f"/trips/{trip_id}/balances")
+            assert resp.status_code == 403
+
+        the_app.dependency_overrides.clear()

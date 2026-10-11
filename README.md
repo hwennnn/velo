@@ -1,5 +1,8 @@
 # Velo
 
+> [!WARNING]
+> **This project is archived.** You should just use ChatGPT finances :))
+
 A travel expense tracking application built with React and FastAPI, featuring multi-currency support and automated debt settlement calculations.
 
 ## Features
